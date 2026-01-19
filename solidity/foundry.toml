@@ -1,0 +1,12 @@
+[profile.default]
+src = "contracts"
+out = "target"
+test = "tests"
+libs = ["dependencies"]
+
+[dependencies]
+forge-std = "1.14.0"
+"@aztec" = { version = "v3.0.2", git = "git@github.com:AztecProtocol/l1-contracts.git", tag = "v3.0.2" }
+poseidon2-evm = { version = "a3b4205", git = "git@github.com:zemse/poseidon2-evm.git", rev = "a3b4205c77145f097d768b985a9f635f5798dda4" }
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
