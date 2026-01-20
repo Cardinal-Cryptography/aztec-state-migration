@@ -10,10 +10,10 @@ Note: It test migration from and to the same aztec network. TODO: configure setu
 yarn install
 yarn sol:deps
 # compile contracts
-yarn compile-noir-contracts
-yarn compile-solidity-contracts
+yarn noir:compile
+yarn sol:compile
 # generate noir contract ts artifacts
-yarn codegen-noir-contracts
+yarn noir:codegen
 ```
 2.
 ```sh
