@@ -1,39 +1,48 @@
 pragma solidity >=0.8.27;
 
-import {DataStructures} from "@aztec/core/libraries/DataStructures.sol";
+import {IRegistry} from "@aztec/governance/interfaces/IRegistry.sol";
+import {IRollup} from "@aztec/core/interfaces/IRollup.sol";
 import {IInbox} from "@aztec/core/interfaces/messagebridge/IInbox.sol";
 import {IOutbox} from "@aztec/core/interfaces/messagebridge/IOutbox.sol";
-import {LibPoseidon2Yul} from "poseidon2-evm/bn254/yul/LibPoseidon2Yul.sol";
+import {DataStructures} from "@aztec/core/libraries/DataStructures.sol";
+import {IPoseidon2} from "poseidon2-evm/IPoseidon2.sol";
 
 contract Migrator {
-    IInbox public inbox;
-    IOutbox public outbox;
-    DataStructures.L2Actor public oldAppActor;
+    IRegistry public immutable ROLLUP_REGISTRY;
+    IPoseidon2 public immutable POSEIDON2;
 
-    event Migration(
-        uint256 leafIndex
-    );
+    event Migration(DataStructures.L2Actor sender, DataStructures.L2Actor recipient, bytes32 leaf, uint256 leafIndex);
 
-    constructor(address _inbox, address _outbox, DataStructures.L2Actor memory _oldAppActor) {
-        inbox = IInbox(_inbox);
-        outbox = IOutbox(_outbox);
-        oldAppActor = _oldAppActor;
+    constructor(address _rollupRegistry, address _poseidon2) {
+        ROLLUP_REGISTRY = IRegistry(_rollupRegistry);
+        POSEIDON2 = IPoseidon2(_poseidon2);
     }
 
-    function migrate(DataStructures.L2Actor memory newAppActor, bytes32 innerContentHash, bytes32 _secretHash, uint256 _checkpointNumber, uint256 _leafIndex, bytes32[] calldata _path) external {
-        DataStructures.L1Actor memory migratorActor = DataStructures.L1Actor({
-            actor: address(this),
-            chainId: block.chainid
-        });
-        bytes32 content = bytes32(LibPoseidon2Yul.hash_2(uint256(innerContentHash), uint256(_secretHash)));
-        DataStructures.L2ToL1Msg memory message = DataStructures.L2ToL1Msg({
-            sender: oldAppActor,
-            recipient: migratorActor,
-            content: content
-        });
-        outbox.consume(message, _checkpointNumber, _leafIndex, _path);
+    function migrate(
+        DataStructures.L2Actor memory sender,
+        DataStructures.L2Actor memory recipient,
+        uint256 innerContentHash,
+        uint256 secretHash,
+        uint256 incomingCheckpointNumber,
+        uint256 incomingLeafIndex,
+        bytes32[] calldata incomingPath
+    ) external {
+        IOutbox outbox = IRollup(address(ROLLUP_REGISTRY.getRollup(sender.version))).getOutbox();
+        IInbox inbox = IRollup(address(ROLLUP_REGISTRY.getRollup(recipient.version))).getInbox();
 
-        (, uint256 leafIndex) = inbox.sendL2Message(newAppActor, content, _secretHash);
-        emit Migration(leafIndex);
+        uint256 content = POSEIDON2.hash_2(secretHash, innerContentHash);
+        bytes32 incomingContent = bytes32(POSEIDON2.hash_3(uint256(recipient.actor), recipient.version, content));
+
+        DataStructures.L2ToL1Msg memory incomingMessage =
+            DataStructures.L2ToL1Msg({sender: sender, recipient: getThisL1Actor(), content: incomingContent});
+        outbox.consume(incomingMessage, incomingCheckpointNumber, incomingLeafIndex, incomingPath);
+
+        bytes32 outcomingContent = bytes32(POSEIDON2.hash_3(uint256(sender.actor), sender.version, content));
+        (bytes32 leaf, uint256 leafIndex) = inbox.sendL2Message(recipient, outcomingContent, bytes32(secretHash));
+        emit Migration(sender, recipient, leaf, leafIndex);
+    }
+
+    function getThisL1Actor() public view returns (DataStructures.L1Actor memory) {
+        return DataStructures.L1Actor({actor: address(this), chainId: block.chainid});
     }
 }

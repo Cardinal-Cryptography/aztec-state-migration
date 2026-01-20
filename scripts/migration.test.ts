@@ -1,4 +1,3 @@
-// import { createPXE, getPXEConfig } from '@aztec/pxe/client/lazy';
 import { registerInitialLocalNetworkAccountsInWallet, TestWallet } from "@aztec/test-wallet/server";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { computeL2ToL1MembershipWitness, L2ToL1MembershipWitness, L1ToL2Message, L1Actor, L2Actor } from '@aztec/stdlib/messaging';
@@ -14,6 +13,7 @@ import { EthAddress } from '@aztec/foundation/eth-address';
 import { Fr } from '@aztec/foundation/curves/bn254';
 import { poseidon2Hash } from '@aztec/foundation/crypto/poseidon';
 import { getPXEConfig } from "@aztec/pxe/server";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -24,12 +24,11 @@ const ANVIL_PRIVATE_KEY = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae7
 
 // Migrator ABI (only what we need)
 const MigratorAbi = parseAbi([
-  'constructor(address _inbox, address _outbox, (bytes32 actor, uint256 version) _oldAppActor)',
-  'function migrate((bytes32 actor, uint256 version) newAppActor, bytes32 innerContentHash, bytes32 _secretHash, uint256 _checkpointNumber, uint256 _leafIndex, bytes32[] calldata _path) external',
-  'function inbox() external view returns (address)',
-  'function outbox() external view returns (address)',
-  'function oldAppActor() external view returns (bytes32, uint256)',
-  'event Migration(uint256 leafIndex)',
+  'constructor(address _rollupRegistry, address _poseidon2)',
+  'function migrate((bytes32 actor, uint256 version) sender, (bytes32 actor, uint256 version) recipient, uint256 innerContentHash, uint256 secretHash, uint256 incomingCheckpointNumber, uint256 incomingLeafIndex, bytes32[] calldata incomingPath) external',
+  'function ROLLUP_REGISTRY() external view returns (address)',
+  'function POSEIDON2() external view returns (address)',
+  'event Migration((bytes32 actor, uint256 version) sender, (bytes32 actor, uint256 version) recipient, bytes32 leaf, uint256 leafIndex)',
 ]);
 
 // Inbox MessageSent event ABI
@@ -44,6 +43,13 @@ function loadMigratorBytecode(): Hex {
   return artifact.bytecode.object as Hex;
 }
 
+// Load Poseidon2 bytecode from compiled artifact
+function loadPoseidon2Bytecode(): Hex {
+  const artifactPath = join(__dirname, '../solidity/target/Poseidon2Yul.sol/Poseidon2Yul_BN254.json');
+  const artifact = JSON.parse(readFileSync(artifactPath, 'utf-8'));
+  return artifact.bytecode.object as Hex;
+}
+
 async function main() {
   console.log('=== Migration E2E Test ===\n');
 
@@ -54,11 +60,15 @@ async function main() {
     // Create PXE
     const l1Contracts = await aztecNode.getL1ContractAddresses();
     const rollupVersion = await aztecNode.getVersion();
+    // For this test, old and new rollup versions are the same
+    const oldRollupVersion = rollupVersion;
+    const newRollupVersion = rollupVersion;
     const l1ChainId = getPXEConfig().l1ChainId
 
   console.log(`   Connected to Aztec network:`);
   console.log(`   - Chain ID: ${l1ChainId}`);
   console.log(`   - Rollup Version: ${rollupVersion}`);
+  console.log(`   - Registry: ${l1Contracts.registryAddress}`);
   console.log(`   - Inbox: ${l1Contracts.inboxAddress}`);
   console.log(`   - Outbox: ${l1Contracts.outboxAddress}`);
 
@@ -81,78 +91,96 @@ async function main() {
   });
   console.log(`   Ethereum account: ${ethAccount.address}\n`);
 
-  // Step 2: Deploy "old" MyApp contract (without migrator)
-  console.log('2. Deploying OLD MyApp contract...');
-  const oldApp = await MyAppContract.deploy(wallet, { _is_some: false, _value: EthAddress.ZERO })
-    .send({from: deployer})
-    .deployed();
-  console.log(`   Old App deployed at: ${oldApp.address}\n`);
+  // Step 2: Deploy Poseidon2 contract on L1 first
+  console.log('2. Deploying Poseidon2 contract on L1...');
+  
+  const poseidon2Bytecode = loadPoseidon2Bytecode();
+  const poseidon2DeployTxHash = await walletClient.sendTransaction({
+    data: poseidon2Bytecode,
+  });
+  
+  const poseidon2Receipt = await publicClient.waitForTransactionReceipt({ hash: poseidon2DeployTxHash });
+  if (poseidon2Receipt.status === 'reverted' || !poseidon2Receipt.contractAddress) {
+    throw new Error('Poseidon2 deployment failed');
+  }
+  const poseidon2Address = poseidon2Receipt.contractAddress;
+  console.log(`   Poseidon2 deployed at: ${poseidon2Address}\n`);
 
-  // Step 3: Deploy Migrator contract on L1 (requires old app address)
+  // Step 3: Deploy Migrator contract on L1
   console.log('3. Deploying Migrator contract on L1...');
   
   const migratorBytecode = loadMigratorBytecode();
-  const oldAppActor = {
-    actor: toHex(oldApp.address.toBigInt(), { size: 32 }),
-    version: BigInt(rollupVersion),
-  };
   
-  // Encode constructor arguments
+  // Encode constructor arguments (registry + poseidon2 addresses)
   const constructorArgs = encodeAbiParameters(
-    [
-      { type: 'address' },
-      { type: 'address' },
-      { type: 'tuple', components: [{ type: 'bytes32' }, { type: 'uint256' }] }
-    ],
-    [
-      l1Contracts.inboxAddress.toString() as Hex,
-      l1Contracts.outboxAddress.toString() as Hex,
-      [oldAppActor.actor, oldAppActor.version]
-    ]
+    [{ type: 'address' }, { type: 'address' }],
+    [l1Contracts.registryAddress.toString() as Hex, poseidon2Address]
   );
   
-  // Deploy the contract
   const deployTxHash = await walletClient.sendTransaction({
     data: (migratorBytecode + constructorArgs.slice(2)) as Hex,
   });
   
   const deployReceipt = await publicClient.waitForTransactionReceipt({ hash: deployTxHash });
+  if (deployReceipt.status === 'reverted') {
+    throw new Error('Migrator deployment reverted');
+  }
   if (!deployReceipt.contractAddress) {
     throw new Error('Migrator deployment failed - no contract address');
   }
   
   const migratorAddress = deployReceipt.contractAddress;
   console.log(`   Migrator deployed at: ${migratorAddress}`);
-  console.log(`   Old App Actor: ${oldAppActor.actor}`);
-  console.log(`   Rollup Version: ${oldAppActor.version}\n`);
+  console.log(`   Registry: ${l1Contracts.registryAddress}`);
+  console.log(`   Poseidon2: ${poseidon2Address}\n`);
 
-  // Step 4: Deploy "new" MyApp contract (with migrator)
-  console.log('4. Deploying NEW MyApp contract...');
-  const newApp = await MyAppContract.deploy(wallet, { 
-    _is_some: true, 
-    _value: EthAddress.fromString(migratorAddress) 
-  })
+  // Step 4: Deploy "old" MyApp contract (with migrator, no old_rollup_app)
+  console.log('4. Deploying OLD MyApp contract...');
+  const oldApp = await MyAppContract.deploy(
+    wallet, 
+    EthAddress.fromString(migratorAddress),
+    { _is_some: false, _value: { address: AztecAddress.ZERO, rollup_version: 0n } }
+  )
     .send({from: deployer})
     .deployed();
-  console.log(`   New App deployed at: ${newApp.address}\n`);
+  console.log(`   Old App deployed at: ${oldApp.address}\n`);
 
-  // Step 5: Claim tokens on old app
-  console.log('5. Claiming tokens on old app...');
+  // Step 5: Deploy "new" MyApp contract (with migrator and old_rollup_app)
+  console.log('5. Deploying NEW MyApp contract...');
+  const oldAppActor = { address: oldApp.address, rollup_version: BigInt(oldRollupVersion) };
+  const newApp = await MyAppContract.deploy(
+    wallet, 
+    EthAddress.fromString(migratorAddress),
+    { _is_some: true, _value: oldAppActor }
+  )
+    .send({from: deployer})
+    .deployed();
+  console.log(`   New App deployed at: ${newApp.address}`);
+  
+  // Step 5b: Set new_rollup_app on the old app
+  console.log('   Setting new_rollup_app on old app...');
+  const newAppActor = { address: newApp.address, rollup_version: BigInt(newRollupVersion) };
+  await oldApp.methods.set_new_rollup_app(newAppActor).send({from: deployer}).wait();
+  console.log(`   New App Actor set on old app\n`);
+
+  // Step 6: Claim tokens on old app
+  console.log('6. Claiming tokens on old app...');
   const claimTx = await oldApp.methods.claim(sender).send({from: sender}).wait();
   console.log(`   Claim tx: ${claimTx.txHash}`);
   
   const balanceBefore = await oldApp.methods.get_balance(sender).simulate({from: sender});
   console.log(`   Balance after claim: ${balanceBefore}\n`);
 
-  // Step 6: Migrate from old to new (L2 -> L1 message)
-  console.log('6. Migrating from old app (sending L2 -> L1 message)...');
+  // Step 7: Migrate from old to new (L2 -> L1 message)
+  console.log('7. Migrating from old app (sending L2 -> L1 message)...');
   const secret = Fr.random();
   const secretHash = await computeSecretHash(secret);
   const amount = 10n;
 
   // Compute the content hash that will be sent in the message
+  // Order in Noir: content = poseidon2_hash([secret_hash, inner_content_hash])
   const innerContentHash = await poseidon2Hash([recipient.toField(), new Fr(amount)]);
-  const contentHash = await poseidon2Hash([innerContentHash, secretHash]);
+  const contentHash = await poseidon2Hash([secretHash, innerContentHash]);
   
   console.log(`   Secret: ${secret}`);
   console.log(`   Secret Hash: ${secretHash}`);
@@ -160,8 +188,7 @@ async function main() {
   console.log(`   Content Hash: ${contentHash}`);
 
   const migrateTx = await oldApp.methods
-    .migrate_to_new_aztec_version(
-      EthAddress.fromString(migratorAddress),
+    .migrate_to_new_rollup(
       recipient,
       amount,
       secret
@@ -172,15 +199,22 @@ async function main() {
   console.log(`   Migrate tx: ${migrateTx.txHash}`);
   console.log(`   Block number: ${migrateTx.blockNumber}\n`);
 
-  // Step 7: Wait for the L2 block to be proven and get membership witness
-  console.log('7. Getting L2 -> L1 membership witness...');
+  // Step 8: Wait for the L2 block to be proven and get membership witness
+  console.log('8. Getting L2 -> L1 membership witness...');
+  
+  // Compute the wrapped content hash that includes the new app actor info
+  const wrappedContentHash = await poseidon2Hash([
+    newApp.address.toField(),
+    new Fr(newRollupVersion),
+    contentHash,
+  ]);
   
   // Compute the L2 to L1 message hash using computeL2ToL1MessageHash from stdlib
   const l2ToL1MessageHash = computeL2ToL1MessageHash({
     l2Sender: oldApp.address,
     l1Recipient: EthAddress.fromString(migratorAddress),
-    content: contentHash,
-    rollupVersion: new Fr(rollupVersion),
+    content: wrappedContentHash,
+    rollupVersion: new Fr(oldRollupVersion),
     chainId: new Fr(l1ChainId),
   });
   console.log(`   L2 -> L1 Message Hash: ${l2ToL1MessageHash}`);
@@ -217,8 +251,8 @@ async function main() {
     throw e;
   }
 
-  // Step 8: Call migrate on L1 Migrator contract
-  console.log('\n8. Calling migrate() on L1 Migrator...');
+  // Step 9: Call migrate on L1 Migrator contract
+  console.log('\n9. Calling migrate() on L1 Migrator...');
   
   const {leafIndex, siblingPath} = membershipWitness!;
   const path = siblingPath.toFields().map(f => toHex(f.toBigInt(), { size: 32 }));
@@ -227,18 +261,24 @@ async function main() {
   // For simplicity, we use the block number, but in production this might differ
   const checkpointNumber = BigInt(blockNumber);
   
-  const newAppActor = {
+  // Prepare L2Actor structs for L1 call
+  const senderL2Actor = {
+    actor: toHex(oldApp.address.toBigInt(), { size: 32 }),
+    version: BigInt(oldRollupVersion),
+  };
+  const recipientL2Actor = {
     actor: toHex(newApp.address.toBigInt(), { size: 32 }),
-    version: BigInt(rollupVersion),
+    version: BigInt(newRollupVersion),
   };
   
   const migrateCalldata = encodeFunctionData({
     abi: MigratorAbi,
     functionName: 'migrate',
     args: [
-      newAppActor,
-      toHex(innerContentHash.toBigInt(), { size: 32 }),
-      toHex(secretHash.toBigInt(), { size: 32 }),
+      senderL2Actor,
+      recipientL2Actor,
+      innerContentHash.toBigInt(),
+      secretHash.toBigInt(),
       checkpointNumber,
       leafIndex,
       path as Hex[],
@@ -278,8 +318,8 @@ async function main() {
   console.log(`   L1 -> L2 leaf index: ${l1ToL2LeafIndex}`);
   console.log(`   L1 -> L2 message hash: ${l1ToL2MessageHash}\n`);
 
-  // Step 9: Wait for L1 -> L2 message to be synced
-  console.log('9. Waiting for L1 -> L2 message to sync...');
+  // Step 10: Wait for L1 -> L2 message to be synced
+  console.log('10. Waiting for L1 -> L2 message to sync...');
   
   // The sandbox only produces blocks when there are transactions
   // We need to trigger block production by sending a dummy transaction
@@ -344,12 +384,19 @@ async function main() {
       console.log('   WARNING: getL1ToL2MessageMembershipWitness returned undefined');
       
       // Let's compute what hash we SHOULD have
+      // The outgoing message content is wrapped with sender (old app) actor info:
+      // outcomingContent = poseidon2_hash([sender.actor, sender.version, content])
+      const outgoingWrappedContent = await poseidon2Hash([
+        oldApp.address.toField(),
+        new Fr(oldRollupVersion),
+        contentHash,
+      ]);
       const senderActor = new L1Actor(EthAddress.fromString(migratorAddress), l1ChainId);
-      const recipientActor = new L2Actor(newApp.address, rollupVersion);
+      const recipientActor = new L2Actor(newApp.address, newRollupVersion);
       const expectedMessage = new L1ToL2Message(
         senderActor,
         recipientActor,
-        contentHash,
+        outgoingWrappedContent,
         secretHash,
         new Fr(l1ToL2LeafIndex)
       );
@@ -373,17 +420,17 @@ async function main() {
     console.log(`   Debug error: ${(e as Error).message}`);
   }
 
-  // Step 10: Consume message on new app
-  console.log('10. Consuming message on new app (migrate_from_old_aztec_version)...');
+  // Step 11: Consume message on new app
+  console.log('11. Consuming message on new app (migrate_from_old_rollup)...');
   const consumeTx = await newApp
-    .methods.migrate_from_old_aztec_version(amount, secret, new Fr(l1ToL2LeafIndex))
+    .methods.migrate_from_old_rollup(amount, secret, new Fr(l1ToL2LeafIndex))
     .send({from: recipient})
     .wait();
   
   console.log(`   Consume tx: ${consumeTx.txHash}`);
   
-  // Step 11: Verify final balance
-  console.log('\n11. Verifying balances...');
+  // Step 12: Verify final balance
+  console.log('\n12. Verifying balances...');
   const oldBalance = await oldApp.methods.get_balance(sender).simulate({from: sender});
   const newBalance = await newApp.methods.get_balance(recipient).simulate({from: recipient});
   

@@ -1,7 +1,10 @@
 use aztec::macros::aztec as aztec_contract;
 
+mod l2_actor;
+
 #[aztec_contract]
 pub contract MyApp {
+    use crate::l2_actor::L2Actor;
     use aztec::hash::compute_secret_hash;
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
@@ -15,17 +18,25 @@ pub contract MyApp {
     struct Storage<Context> {
         private_points_balances: Owned<BalanceSet<Context>, Context>,
 
-        // Optional address of the aztec previous version migrator contract address for migration purposes
-        old_aztec_migrator_address: PublicImmutable<EthAddress, Context>,
+        // Contract owner
+        owner: PublicImmutable<AztecAddress, Context>,
+
+        // Migration contract address (L1)
+        aztec_migrator_address: PublicImmutable<EthAddress, Context>,
+        // Old rollup app
+        old_rollup_app: PublicImmutable<L2Actor, Context>,
+        // New rollup app
+        new_rollup_app: PublicImmutable<L2Actor, Context>,
     }
 
     #[external("public")]
     #[initializer]
-    fn constructor(old_aztec_migrator_address: Option<EthAddress>) {
-        if old_aztec_migrator_address.is_some() {
-            self.storage.old_aztec_migrator_address.initialize(old_aztec_migrator_address.unwrap());
+    fn constructor(aztec_migrator_address: EthAddress, old_rollup_app: Option<L2Actor>) {
+        self.storage.owner.initialize(self.context.msg_sender().unwrap());
+        self.storage.aztec_migrator_address.initialize(aztec_migrator_address);
+        if old_rollup_app.is_some() {
+            self.storage.old_rollup_app.initialize(old_rollup_app.unwrap());
         }
-        // if this is the "origin" version, we keep it uninitialized
     }
 
     #[external("private")]
@@ -40,59 +51,56 @@ pub contract MyApp {
         self.storage.private_points_balances.at(account).balance_of()
     }
 
-    #[external("private")]
-    fn migrate_to_new_aztec_version(
-        new_aztec_migrator_address: EthAddress,
-        new_owner: AztecAddress,
-        amount: u128,
-        secret: Field,
-    ) {
-        let account = self.context.msg_sender().unwrap();
-        self.storage.private_points_balances.at(account).sub(amount).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
-        );
-        let secret_hash = compute_secret_hash(secret);
-        let inner_content_hash = poseidon2_hash([new_owner.inner, amount as Field]);
-        let content = poseidon2_hash([inner_content_hash, secret_hash]);
-        self.context.message_portal(new_aztec_migrator_address, content);
+    #[external("public")]
+    fn set_new_rollup_app(new_rollup_app: L2Actor) {
+        assert(self.msg_sender().unwrap() == self.storage.owner.read(), "Sender is not owner");
+        self.storage.new_rollup_app.initialize(new_rollup_app);
     }
 
     #[external("private")]
-    fn migrate_from_old_aztec_version(amount: u128, secret: Field, leaf_index: Field) {
-        let owner = self.msg_sender().unwrap();
+    fn migrate_to_new_rollup(new_owner: AztecAddress, amount: u128, secret: Field) {
+        // this is app specific logic to create the inner content hash and debit the user
+        let current_owner = self.context.msg_sender().unwrap();
+        self.storage.private_points_balances.at(current_owner).sub(amount).deliver(
+            MessageDelivery.CONSTRAINED_ONCHAIN,
+        );
+        let inner_content_hash = poseidon2_hash([new_owner.inner, amount as Field]);
+
+        // this is generic migration logic
         let secret_hash = compute_secret_hash(secret);
-        let inner_content_hash = poseidon2_hash([owner.inner, amount as Field]);
-        let content = poseidon2_hash([inner_content_hash, secret_hash]);
-        let old_aztec_migrator_address = self.storage.old_aztec_migrator_address.read();
-        self.context.consume_l1_to_l2_message(
+        let content = poseidon2_hash([secret_hash, inner_content_hash]);
+        let wrapped_content = poseidon2_hash([
+            self.storage.new_rollup_app.read().address.inner,
+            self.storage.new_rollup_app.read().rollup_version,
             content,
+        ]);
+        self.context.message_portal(self.storage.aztec_migrator_address.read(), wrapped_content);
+    }
+
+    #[external("private")]
+    fn migrate_from_old_rollup(amount: u128, secret: Field, leaf_index: Field) {
+        // this is app specific logic to create the inner content hash
+        let new_owner = self.msg_sender().unwrap();
+        let inner_content_hash = poseidon2_hash([new_owner.inner, amount as Field]);
+
+        // this is generic migration logic
+        let secret_hash = compute_secret_hash(secret);
+        let content = poseidon2_hash([secret_hash, inner_content_hash]);
+        let wrapped_content = poseidon2_hash([
+            self.storage.old_rollup_app.read().address.inner,
+            self.storage.old_rollup_app.read().rollup_version,
+            content,
+        ]);
+        self.context.consume_l1_to_l2_message(
+            wrapped_content,
             secret,
-            old_aztec_migrator_address,
+            self.storage.aztec_migrator_address.read(),
             leaf_index,
         );
-        self.storage.private_points_balances.at(owner).add(amount).deliver(
+
+        // this is app specific logic to credit the user
+        self.storage.private_points_balances.at(new_owner).add(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
     }
-}
-
-mod tests {
-    use aztec::protocol_types::{traits::Serialize, address::EthAddress, hash::poseidon2_hash};
-    #[test]
-    unconstrained fn test_hash() {
-        let a = 2137;
-        let b = 42;
-
-        let hash = poseidon2_hash([a, b]);
-
-        println(f"POSEIDON2_HASH: {hash}");
-    }
-
-    #[test]
-    unconstrained fn test_option_none() {
-        let none: Option<EthAddress> = Option::none();
-        let none_field = Serialize::serialize(none);
-        println(f"NONE FIELD: {none_field}");
-    }
-
 }

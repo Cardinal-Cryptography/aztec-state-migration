@@ -10,9 +10,9 @@
   "scripts": {
     "clean": "rm -rf noir/target noir/codegenCache.json solidity/target solidity/cache",
     "sol:deps": "cd solidity && soldeer install",
-    "compile-noir-contracts": "cd noir && aztec compile",
-    "compile-solidity-contracts": "cd solidity && forge build",
-    "codegen-noir-contracts": "cd noir && aztec codegen ./target -o ./target/artifacts",
+    "noir:compile": "cd noir && aztec compile",
+    "sol:compile": "cd solidity && forge build",
+    "noir:codegen": "cd noir && aztec codegen ./target -o ./target/artifacts",
     "test:migration": "npx tsx scripts/migration.test.ts",
     "test:hash": "./scripts/hash_compatibility.sh"
   },

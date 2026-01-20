@@ -5,6 +5,13 @@ git = "git@github.com:AztecProtocol/l1-contracts.git"
 rev = "d70bc68acdf4b394acd2d928b990064253b18695"
 
 [[dependencies]]
+name = "@openzeppelin-contracts"
+version = "5.6.0-rc.1"
+url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_6_0-rc_1_12-01-2026_23:01:57_contracts.zip"
+checksum = "d37187263f82783c5eaeeb3c18d0147e23d54ae33f5966fce2a7bac60ce81480"
+integrity = "964d6bbaf7ea075943d73945a3263e4d098ca7597978a296be48cbe1a792eb85"
+
+[[dependencies]]
 name = "forge-std"
 version = "1.14.0"
 url = "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_14_0_05-01-2026_15:24:39_forge-std-1.14.zip"

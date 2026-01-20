@@ -1,2 +1,3 @@
 [workspace]
-members = ["contracts/my_app"]
+members = ["contracts/my_app", "tests"]
+exclude = ["tests"]
