@@ -19,27 +19,27 @@ contract Migrator {
     }
 
     function migrate(
-        DataStructures.L2Actor memory sender,
-        DataStructures.L2Actor memory recipient,
+        DataStructures.L2Actor memory oldApp,
+        DataStructures.L2Actor memory newApp,
         uint256 innerContentHash,
         uint256 secretHash,
         uint256 incomingCheckpointNumber,
         uint256 incomingLeafIndex,
         bytes32[] calldata incomingPath
     ) external {
-        IOutbox outbox = IRollup(address(ROLLUP_REGISTRY.getRollup(sender.version))).getOutbox();
-        IInbox inbox = IRollup(address(ROLLUP_REGISTRY.getRollup(recipient.version))).getInbox();
+        IOutbox outbox = IRollup(address(ROLLUP_REGISTRY.getRollup(oldApp.version))).getOutbox();
+        IInbox inbox = IRollup(address(ROLLUP_REGISTRY.getRollup(newApp.version))).getInbox();
 
         uint256 content = POSEIDON2.hash_2(secretHash, innerContentHash);
-        bytes32 incomingContent = bytes32(POSEIDON2.hash_3(uint256(recipient.actor), recipient.version, content));
+        bytes32 incomingContent = bytes32(POSEIDON2.hash_3(uint256(newApp.actor), newApp.version, content));
 
         DataStructures.L2ToL1Msg memory incomingMessage =
-            DataStructures.L2ToL1Msg({sender: sender, recipient: getThisL1Actor(), content: incomingContent});
+            DataStructures.L2ToL1Msg({sender: oldApp, recipient: getThisL1Actor(), content: incomingContent});
         outbox.consume(incomingMessage, incomingCheckpointNumber, incomingLeafIndex, incomingPath);
 
-        bytes32 outcomingContent = bytes32(POSEIDON2.hash_3(uint256(sender.actor), sender.version, content));
-        (bytes32 leaf, uint256 leafIndex) = inbox.sendL2Message(recipient, outcomingContent, bytes32(secretHash));
-        emit Migration(sender, recipient, leaf, leafIndex);
+        bytes32 outcomingContent = bytes32(POSEIDON2.hash_3(uint256(oldApp.actor), oldApp.version, content));
+        (bytes32 leaf, uint256 leafIndex) = inbox.sendL2Message(newApp, outcomingContent, bytes32(secretHash));
+        emit Migration(oldApp, newApp, leaf, leafIndex);
     }
 
     function getThisL1Actor() public view returns (DataStructures.L1Actor memory) {

@@ -13,6 +13,7 @@ pub contract MyApp {
     };
     use aztec::messages::message_delivery::MessageDelivery;
     use balance_set::balance_set::BalanceSet;
+    use aztec::keys::getters::get_public_keys;
 
     #[storage]
     struct Storage<Context> {
@@ -58,15 +59,17 @@ pub contract MyApp {
     }
 
     #[external("private")]
-    fn migrate_to_new_rollup(new_owner: AztecAddress, amount: u128, secret: Field) {
+    fn migrate_to_new_rollup(amount: u128, secret_salt: Field) {
         // this is app specific logic to create the inner content hash and debit the user
-        let current_owner = self.context.msg_sender().unwrap();
-        self.storage.private_points_balances.at(current_owner).sub(amount).deliver(
+        let account_contract = self.context.msg_sender().unwrap();
+        self.storage.private_points_balances.at(account_contract).sub(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
-        let inner_content_hash = poseidon2_hash([new_owner.inner, amount as Field]);
+        let inner_content_hash = poseidon2_hash([amount as Field]);
 
         // this is generic migration logic
+        let npk_m = get_public_keys(account_contract).npk_m;
+        let secret = poseidon2_hash([npk_m.inner.x, npk_m.inner.y, secret_salt]);
         let secret_hash = compute_secret_hash(secret);
         let content = poseidon2_hash([secret_hash, inner_content_hash]);
         let wrapped_content = poseidon2_hash([
@@ -78,12 +81,14 @@ pub contract MyApp {
     }
 
     #[external("private")]
-    fn migrate_from_old_rollup(amount: u128, secret: Field, leaf_index: Field) {
+    fn migrate_from_old_rollup(amount: u128, secret_salt: Field, leaf_index: Field) {
         // this is app specific logic to create the inner content hash
-        let new_owner = self.msg_sender().unwrap();
-        let inner_content_hash = poseidon2_hash([new_owner.inner, amount as Field]);
+        let inner_content_hash = poseidon2_hash([amount as Field]);
 
         // this is generic migration logic
+        let account_contract = self.msg_sender().unwrap();
+        let npk_m = get_public_keys(account_contract).npk_m;
+        let secret = poseidon2_hash([npk_m.inner.x, npk_m.inner.y, secret_salt]);
         let secret_hash = compute_secret_hash(secret);
         let content = poseidon2_hash([secret_hash, inner_content_hash]);
         let wrapped_content = poseidon2_hash([
@@ -99,7 +104,7 @@ pub contract MyApp {
         );
 
         // this is app specific logic to credit the user
-        self.storage.private_points_balances.at(new_owner).add(amount).deliver(
+        self.storage.private_points_balances.at(account_contract).add(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
     }
