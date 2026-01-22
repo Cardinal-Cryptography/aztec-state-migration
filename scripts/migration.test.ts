@@ -39,7 +39,7 @@ import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { getContractInstanceFromInstantiationParams } from "@aztec/stdlib/contract";
 import { SponsoredFPCContract } from "@aztec/noir-contracts.js/SponsoredFPC";
 import { SponsoredFeePaymentMethod } from "@aztec/aztec.js/fee";
-import { deriveKeys } from "@aztec/stdlib/keys";
+import { computeAppSecretKey, deriveKeys, KeyPrefix } from "@aztec/stdlib/keys";
 import { AccountManager } from "@aztec/aztec.js/wallet";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -154,20 +154,21 @@ async function main() {
     return account;
   };
 
-  const accountCommonSecret = Fr.random();
-  const keys = await deriveKeys(accountCommonSecret);
-  const npk = keys.publicKeys.masterNullifierPublicKey;
+  const senderSecret = Fr.random();
+  const recipientSecret = Fr.random();
+  const keys = await deriveKeys(recipientSecret);
+  const recipientNSK = keys.masterNullifierSecretKey;
 
   // We use different salts to get different account addresses
   // The common secret ensures the same npk for both accounts
   const senderSalt = Fr.random();
-  const senderAccount = await deployAccount(senderSalt, accountCommonSecret);
+  const senderAccount = await deployAccount(senderSalt, senderSecret);
   const sender = senderAccount.address;
 
   const recipientSalt = Fr.random();
   const recipientAccount = await deployAccount(
     recipientSalt,
-    accountCommonSecret,
+    recipientSecret,
   );
   const recipient = recipientAccount.address;
 
@@ -280,23 +281,27 @@ async function main() {
 
   // Step 8: Migrate from old to new (L2 -> L1 message)
   console.log("8. Migrating from old app (sending L2 -> L1 message)...");
-  const secret_salt = Fr.random();
-  const secret = await poseidon2Hash([npk.x, npk.y, secret_salt]);
-  const secretHash = await computeSecretHash(secret);
-  const amount = 10n;
-
+  
+  const recipientNskApp = await computeAppSecretKey(
+    recipientNSK,
+    newApp.address,
+    'n' as KeyPrefix, // nullifier secret key prefix
+  );
+  
+  const secretHash = await computeSecretHash(recipientNskApp);
+  
   // Compute the content hash that will be sent in the message
-  // Order in Noir: content = poseidon2_hash([secret_hash, owner_npk_secret_hash, inner_content_hash])
+  // Order in Noir: content = poseidon2_hash([secret_hash, inner_content_hash])
+  const amount = 10n;
   const innerContentHash = await poseidon2Hash([new Fr(amount)]);
   const contentHash = await poseidon2Hash([secretHash, innerContentHash]);
 
-  console.log(`   Secret: ${secret}`);
   console.log(`   Secret Hash: ${secretHash}`);
   console.log(`   Inner Content Hash: ${innerContentHash}`);
   console.log(`   Content Hash: ${contentHash}`);
 
   const migrateTx = await oldApp.methods
-    .migrate_to_new_rollup(amount, secret_salt)
+    .migrate_to_new_rollup(amount, recipientNskApp)
     .send({ from: sender, fee: { paymentMethod: sponsoredPaymentMethod } })
     .wait();
 
@@ -572,7 +577,7 @@ async function main() {
   // Step 12: Consume message on new app
   console.log("12. Consuming message on new app (migrate_from_old_rollup)...");
   const consumeTx = await newApp.methods
-    .migrate_from_old_rollup(amount, secret_salt, new Fr(l1ToL2LeafIndex))
+    .migrate_from_old_rollup(amount, new Fr(l1ToL2LeafIndex))
     .send({ from: recipient, fee: { paymentMethod: sponsoredPaymentMethod } })
     .wait();
 

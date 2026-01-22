@@ -5,15 +5,15 @@ mod l2_actor;
 #[aztec_contract]
 pub contract MyApp {
     use crate::l2_actor::L2Actor;
-    use aztec::hash::compute_secret_hash;
     use aztec::{
+        hash::compute_secret_hash,
+        keys::getters::get_public_keys,
         macros::{functions::{external, initializer}, storage::storage},
-        protocol_types::{address::{AztecAddress, EthAddress}, hash::poseidon2_hash},
+        messages::message_delivery::MessageDelivery,
+        protocol_types::{address::{AztecAddress, EthAddress}, hash::poseidon2_hash, traits::Hash},
         state_vars::{owned::Owned, public_immutable::PublicImmutable},
     };
-    use aztec::messages::message_delivery::MessageDelivery;
     use balance_set::balance_set::BalanceSet;
-    use aztec::keys::getters::get_public_keys;
 
     #[storage]
     struct Storage<Context> {
@@ -59,52 +59,54 @@ pub contract MyApp {
     }
 
     #[external("private")]
-    fn migrate_to_new_rollup(amount: u128, secret_salt: Field) {
+    fn migrate_to_new_rollup(amount: u128, nsk_new_app: Field) {
         // this is app specific logic to create the inner content hash and debit the user
-        let account_contract = self.context.msg_sender().unwrap();
-        self.storage.private_points_balances.at(account_contract).sub(amount).deliver(
+        let account = self.context.msg_sender().unwrap();
+        self.storage.private_points_balances.at(account).sub(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
         let inner_content_hash = poseidon2_hash([amount as Field]);
 
         // this is generic migration logic
-        let npk_m = get_public_keys(account_contract).npk_m;
-        let secret = poseidon2_hash([npk_m.inner.x, npk_m.inner.y, secret_salt]);
-        let secret_hash = compute_secret_hash(secret);
+        let secret_hash = compute_secret_hash(nsk_new_app);
         let content = poseidon2_hash([secret_hash, inner_content_hash]);
+
+        let new_rollup_app = self.storage.new_rollup_app.read();
         let wrapped_content = poseidon2_hash([
-            self.storage.new_rollup_app.read().address.inner,
-            self.storage.new_rollup_app.read().rollup_version,
+            new_rollup_app.address.inner,
+            new_rollup_app.rollup_version,
             content,
         ]);
         self.context.message_portal(self.storage.aztec_migrator_address.read(), wrapped_content);
     }
 
     #[external("private")]
-    fn migrate_from_old_rollup(amount: u128, secret_salt: Field, leaf_index: Field) {
+    fn migrate_from_old_rollup(amount: u128, leaf_index: Field) {
         // this is app specific logic to create the inner content hash
         let inner_content_hash = poseidon2_hash([amount as Field]);
 
         // this is generic migration logic
-        let account_contract = self.msg_sender().unwrap();
-        let npk_m = get_public_keys(account_contract).npk_m;
-        let secret = poseidon2_hash([npk_m.inner.x, npk_m.inner.y, secret_salt]);
-        let secret_hash = compute_secret_hash(secret);
+        let account = self.context.msg_sender().unwrap();
+        let npk_m_hash = get_public_keys(account).npk_m.hash();
+        let nsk_app = self.context.request_nsk_app(npk_m_hash);
+        let secret_hash = compute_secret_hash(nsk_app);
         let content = poseidon2_hash([secret_hash, inner_content_hash]);
+
+        let old_rollup_app = self.storage.old_rollup_app.read();
         let wrapped_content = poseidon2_hash([
-            self.storage.old_rollup_app.read().address.inner,
-            self.storage.old_rollup_app.read().rollup_version,
+            old_rollup_app.address.inner,
+            old_rollup_app.rollup_version,
             content,
         ]);
         self.context.consume_l1_to_l2_message(
             wrapped_content,
-            secret,
+            nsk_app,
             self.storage.aztec_migrator_address.read(),
             leaf_index,
         );
 
         // this is app specific logic to credit the user
-        self.storage.private_points_balances.at(account_contract).add(amount).deliver(
+        self.storage.private_points_balances.at(account).add(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
     }
