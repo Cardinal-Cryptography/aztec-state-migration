@@ -116,8 +116,8 @@ pub contract Migrator {
     // ============================================================
     //
     // User flow:
-    // 1. On OLD rollup: User calls lock contract to nullify original note and create MigrationLockNote
-    // 2. On NEW rollup: User calls this function to prove the MigrationLockNote exists
+    // 1. On OLD rollup: User calls app contract to nullify original note and create MigrationLockNote
+    // 2. On NEW rollup: User calls app contract which calls this function to prove the MigrationLockNote exists
     //
     // MigrationLockNote structure:
     //   - owner_msk: Point      (migration secret key - for ownership proof)
