@@ -23,7 +23,7 @@ pub contract ExampleMigrationApp {
         state_vars::{owned::Owned, public_immutable::PublicImmutable},
     };
     use balance_set::balance_set::BalanceSet;
-    use migrator::{ARCHIVE_TREE_HEIGHT, Migrator, NOTE_HASH_TREE_HEIGHT};
+    use migrator::{ARCHIVE_HEIGHT, Migrator, NOTE_HASH_TREE_HEIGHT};
 
     #[storage]
     struct Storage<Context> {
@@ -123,7 +123,7 @@ pub contract ExampleMigrationApp {
         block_header: BlockHeader,
         // Archive membership proof (proves block header hash is in archive)
         archive_leaf_index: Field,
-        archive_sibling_path: [Field; ARCHIVE_TREE_HEIGHT],
+        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
         // Which registered archive root to verify against
         proven_block_number: Field,
     ) {

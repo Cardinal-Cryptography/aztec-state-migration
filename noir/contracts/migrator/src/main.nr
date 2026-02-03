@@ -1,18 +1,11 @@
-use aztec::macros::aztec;
+use aztec::macros::aztec as aztec_contract;
 
 mod migration_lock_note;
 pub use migration_lock_note::MigrationLockNote;
+pub use aztec::protocol_types::constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT};
 
-// Aztec protocol tree heights
-pub global NOTE_HASH_TREE_HEIGHT: u32 = 42;
-pub global ARCHIVE_TREE_HEIGHT: u32 = 30;
-
-// Domain separator for migration nullifiers
-pub global MIGRATION_DOMAIN: Field = 0x4d494752415445; // "MIGRATE" in hex
-
-#[aztec]
+#[aztec_contract]
 pub contract Migrator {
-    use crate::{ARCHIVE_TREE_HEIGHT, MIGRATION_DOMAIN, NOTE_HASH_TREE_HEIGHT};
     use crate::migration_lock_note::MigrationLockNote;
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
@@ -23,6 +16,7 @@ pub contract Migrator {
             hash::{compute_siloed_note_hash, compute_unique_note_hash, poseidon2_hash},
             merkle_tree::root::root_from_sibling_path,
             traits::Hash,
+            constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT},
         },
         state_vars::{
             map::Map, owned::Owned, private_set::PrivateSet, public_immutable::PublicImmutable,
@@ -30,6 +24,9 @@ pub contract Migrator {
         },
     };
     use aztec::messages::message_delivery::MessageDelivery;
+
+    // Domain separator for migration nullifiers
+    pub global MIGRATION_DOMAIN: Field = 0x4d494752415445; // "MIGRATE" in hex
 
     #[storage]
     struct Storage<Context> {
@@ -152,7 +149,7 @@ pub contract Migrator {
         block_header: BlockHeader,
         // Archive membership proof (proves block header hash is in archive)
         archive_leaf_index: Field,
-        archive_sibling_path: [Field; ARCHIVE_TREE_HEIGHT],
+        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
         // Which registered archive root to verify against
         proven_block_number: Field,
     ) {
