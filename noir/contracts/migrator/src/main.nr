@@ -40,7 +40,7 @@ pub contract Migrator {
 
         // Mapping: proven_block_number -> archive_root
         // Allows users to prove against any registered snapshot
-        old_archive_roots: Map<Field, PublicImmutable<Field, Context>, Context>,
+        old_archive_roots: Map<Field, PublicMutable<Field, Context>, Context>,
         // Track the latest registered proven block (for convenience)
         latest_proven_block: PublicMutable<Field, Context>,
 
@@ -49,7 +49,7 @@ pub contract Migrator {
 
         // Track migrated note hashes (from old rollup) to prevent double-claiming
         // Key: poseidon2(MIGRATION_DOMAIN, migration_data, owner_mpk)
-        migrated_notes: Map<Field, PublicImmutable<bool, Context>, Context>,
+        migrated_notes: Map<Field, PublicMutable<bool, Context>, Context>,
     }
 
     #[external("public")]
@@ -82,7 +82,7 @@ pub contract Migrator {
         );
 
         // Store archive root indexed by proven block number
-        self.storage.old_archive_roots.at(proven_block_number).initialize(archive_root);
+        self.storage.old_archive_roots.at(proven_block_number).write(archive_root);
 
         // Update latest if this is newer
         let current_latest = self.storage.latest_proven_block.read();
@@ -196,9 +196,30 @@ pub contract Migrator {
         // 7. Compute block header hash (binds note_hash_tree_root to archive)
         let block_header_hash = block_header.hash();
 
-        // 8. Verify block_header_hash is in archive
+        // 8. Compute archive root from merkle proof (verification happens in public part)
         let computed_archive_root =
             root_from_sibling_path(block_header_hash, archive_leaf_index, archive_sibling_path);
+
+        // 9. Compute migration nullifier (same across Mode A and Mode B)
+        //    nullifier = poseidon2(MIGRATION_DOMAIN, migration_data, owner_mpk)
+        let migration_nullifier = poseidon2_hash([MIGRATION_DOMAIN, migration_data, owner_mpk]);
+
+        // 10. Call public function to verify archive root and mark as migrated
+        Migrator::at(self.context.this_address()).complete_migration(
+            migration_nullifier,
+            proven_block_number,
+            computed_archive_root,
+        ).enqueue(self.context);
+    }
+
+    // Verify archive root matches, check destination, and mark note as migrated
+    #[external("public")]
+    fn complete_migration(
+        migration_nullifier: Field,
+        proven_block_number: Field,
+        computed_archive_root: Field,
+    ) {
+        // Verify archive root matches the registered one for this block
         let stored_archive_root = self.storage.old_archive_roots.at(proven_block_number).read();
         assert(stored_archive_root != 0, "Archive root not registered for this block");
         assert(
@@ -206,25 +227,12 @@ pub contract Migrator {
             "Archive root mismatch - note not in old rollup",
         );
 
-        // 9. Compute migration nullifier (same across Mode A and Mode B)
-        //    nullifier = poseidon2(MIGRATION_DOMAIN, migration_data, owner_mpk)
-        let migration_nullifier = poseidon2_hash([MIGRATION_DOMAIN, migration_data, owner_mpk]);
-
-        // 10. Call public function to mark as migrated
-        Migrator::at(self.context.this_address()).complete_migration(migration_nullifier).enqueue(
-            self.context,
-        );
-    }
-
-    // Verify archive root matches, check destination, and mark note as migrated
-    #[external("public")]
-    fn complete_migration(migration_nullifier: Field) {
         // Prevent double migration using consistent nullifier
         assert(
             !self.storage.migrated_notes.at(migration_nullifier).read(),
             "Note already migrated",
         );
-        self.storage.migrated_notes.at(migration_nullifier).initialize(true);
+        self.storage.migrated_notes.at(migration_nullifier).write(true);
     }
 
     // ============================================================

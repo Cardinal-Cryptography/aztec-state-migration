@@ -22,11 +22,19 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { EthAddress } from "@aztec/foundation/eth-address";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
+import {
+  poseidon2Hash,
+  poseidon2HashWithSeparator,
+} from "@aztec/foundation/crypto/poseidon";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { MerkleTreeId } from "@aztec/stdlib/trees";
-import { deriveStorageSlotInMap } from "@aztec/stdlib/hash";
+import {
+  computeUniqueNoteHash,
+  deriveStorageSlotInMap,
+  siloNoteHash,
+} from "@aztec/stdlib/hash";
 import type { BlockHeader } from "@aztec/stdlib/tx";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -43,20 +51,24 @@ function blockHeaderToNoir(header: BlockHeader) {
     state: {
       l1_to_l2_message_tree: {
         root: header.state.l1ToL2MessageTree.root,
-        next_available_leaf_index: header.state.l1ToL2MessageTree.nextAvailableLeafIndex,
+        next_available_leaf_index:
+          header.state.l1ToL2MessageTree.nextAvailableLeafIndex,
       },
       partial: {
         note_hash_tree: {
           root: header.state.partial.noteHashTree.root,
-          next_available_leaf_index: header.state.partial.noteHashTree.nextAvailableLeafIndex,
+          next_available_leaf_index:
+            header.state.partial.noteHashTree.nextAvailableLeafIndex,
         },
         nullifier_tree: {
           root: header.state.partial.nullifierTree.root,
-          next_available_leaf_index: header.state.partial.nullifierTree.nextAvailableLeafIndex,
+          next_available_leaf_index:
+            header.state.partial.nullifierTree.nextAvailableLeafIndex,
         },
         public_data_tree: {
           root: header.state.partial.publicDataTree.root,
-          next_available_leaf_index: header.state.partial.publicDataTree.nextAvailableLeafIndex,
+          next_available_leaf_index:
+            header.state.partial.publicDataTree.nextAvailableLeafIndex,
         },
       },
     },
@@ -229,7 +241,9 @@ async function main() {
   // Step 4: Deploy OLD rollup contracts (L2)
   // ============================================================
   console.log("4. Deploying OLD rollup L2 contracts...");
-  console.log("   (old_migrator creates lock notes, does NOT consume L1 messages)");
+  console.log(
+    "   (old_migrator creates lock notes, does NOT consume L1 messages)",
+  );
 
   // OLD Migrator - doesn't need L1 migrator since it only creates lock notes
   const oldMigrator = await MigratorContract.deploy(
@@ -243,7 +257,10 @@ async function main() {
   console.log(`   old_migrator deployed at: ${oldMigrator.address}`);
 
   // OLD ExampleApp
-  const oldApp = await ExampleMigrationAppContract.deploy(wallet)
+  const oldApp = await ExampleMigrationAppContract.deploy(wallet, {
+    _is_some: false,
+    _value: AztecAddress.ZERO,
+  })
     .send({ from: deployer })
     .deployed();
 
@@ -267,7 +284,10 @@ async function main() {
   console.log(`   new_migrator deployed at: ${newMigrator.address}`);
 
   // NEW ExampleApp
-  const newApp = await ExampleMigrationAppContract.deploy(wallet)
+  const newApp = await ExampleMigrationAppContract.deploy(wallet, {
+    _is_some: true,
+    _value: oldApp.address,
+  })
     .send({ from: deployer })
     .deployed();
 
@@ -279,12 +299,17 @@ async function main() {
   console.log("6. Minting tokens on OLD rollup...");
 
   const MINT_AMOUNT = 1000n;
-  await oldApp.methods.mint(oldRollupUser, MINT_AMOUNT).send({ from: oldRollupUser }).wait();
+  await oldApp.methods
+    .mint(oldRollupUser, MINT_AMOUNT)
+    .send({ from: oldRollupUser })
+    .wait();
 
   const oldBalanceAfterMint = await oldApp.methods
     .get_balance(oldRollupUser)
     .simulate({ from: oldRollupUser });
-  console.log(`   Minted ${MINT_AMOUNT} tokens to old rollup user on OLD rollup`);
+  console.log(
+    `   Minted ${MINT_AMOUNT} tokens to old rollup user on OLD rollup`,
+  );
   console.log(`   Balance on OLD rollup: ${oldBalanceAfterMint}\n`);
 
   // ============================================================
@@ -294,11 +319,8 @@ async function main() {
 
   // User's migration secret key (should be derived from wallet secret in production)
   const ownerMsk = new Fr(12345n);
-  const ownerMpk = await poseidon2Hash([ownerMsk]);
   console.log(`   Owner MSK: ${ownerMsk}`);
-  console.log(`   Owner MPK (derived): ${ownerMpk}`);
 
-  const currentBlockNumber = await aztecNode.getBlockNumber();
   const LOCK_AMOUNT = 500n;
 
   console.log(`   Locking ${LOCK_AMOUNT} tokens...`);
@@ -514,34 +536,34 @@ async function main() {
 
   // Get note hashes from the lock transaction
   const lockTxEffect = await aztecNode.getTxEffect(lockTx.txHash);
-  
+
   if (!lockTxEffect) {
     console.log("   ❌ Could not get lock transaction effect\n");
     process.exit(1);
   }
-  
+
   // Get note hashes from tx effect
   const noteHashes = (lockTxEffect as any).data?.noteHashes || [];
   console.log(`   Lock tx has ${noteHashes.length} note hashes`);
-  
+
   // Find the lock note in the tree - it should be one of the note hashes
   // The lock note is created by the Migrator, so we need to identify which hash is the lock note
   // For now, we'll try each note hash until we find one that works
-  
+
   let lockNoteLeafIndex: bigint | undefined;
   let lockNoteHash: Fr | undefined;
   let noteBlockNumber: number | undefined;
-  
+
   for (let i = 0; i < noteHashes.length; i++) {
     const noteHash = noteHashes[i];
     console.log(`   Note hash ${i}: ${noteHash}`);
-    
+
     const leafIndexResults = await aztecNode.findLeavesIndexes(
       await aztecNode.getBlockNumber(),
       MerkleTreeId.NOTE_HASH_TREE,
       [noteHash],
     );
-    
+
     if (leafIndexResults[0]) {
       console.log(`     Found at leaf index: ${leafIndexResults[0].data}`);
       // Use the last note hash (likely the lock note since balance notes come first)
@@ -564,7 +586,9 @@ async function main() {
     noteBlockNumber as any,
     lockNoteLeafIndex,
   );
-  console.log(`   Note hash sibling path length: ${noteHashSiblingPath.toFields().length}`);
+  console.log(
+    `   Note hash sibling path length: ${noteHashSiblingPath.toFields().length}`,
+  );
 
   // Get the block header for the block containing the note
   const blockHeader = await aztecNode.getBlockHeader(noteBlockNumber as any);
@@ -581,12 +605,15 @@ async function main() {
     provenCheckpoint as any,
     archiveLeafIndex,
   );
-  console.log(`   Archive sibling path length: ${archiveSiblingPath.toFields().length}`);
+  console.log(
+    `   Archive sibling path length: ${archiveSiblingPath.toFields().length}`,
+  );
 
   // Compute the storage slot for the lock note
   // The Migrator stores notes in: migration_locks.at(note_owner).insert(...)
   // where note_owner is passed from ExampleMigrationApp as the user (oldRollupUser)
-  const migrationLocksSlot = oldMigrator.artifact.storageLayout['migration_locks'].slot;
+  const migrationLocksSlot =
+    oldMigrator.artifact.storageLayout["migration_locks"].slot;
 
   // Get the actual lock note from PXE with its randomness and nonce
   // The note is stored in the Migrator contract, owned by the oldApp (the caller of lock_migration_note)
@@ -595,33 +622,88 @@ async function main() {
     contractAddress: oldMigrator.address,
     storageSlot: migrationLocksSlot,
   });
-  
-  let lockNoteRandomness: Fr;
-  let noteNonce: Fr;
-  let actualMigrationLocksSlot: Fr;
-  
-  if (lockNotes.length > 0) {
-    console.log(`   Found ${lockNotes.length} lock notes in PXE`);
-    const lockNote = lockNotes[0];
-    lockNoteRandomness = lockNote.randomness;
-    noteNonce = lockNote.noteNonce;
-    actualMigrationLocksSlot = lockNote.storageSlot;  // Use actual storage slot from PXE
-    console.log(`   Note randomness: ${lockNoteRandomness}`);
-    console.log(`   Note nonce: ${noteNonce}`);
-    console.log(`   Note storage slot (from PXE): ${actualMigrationLocksSlot}`);
-    console.log(`   Note contract address: ${lockNote.contractAddress}`);
-    console.log(`   Note data:`, lockNote.note.items.map(f => f.toString()));
-    if (!actualMigrationLocksSlot.equals(migrationLocksSlot)) {
-      console.log(`   ⚠️  Storage slot mismatch! Computed: ${migrationLocksSlot}, actual: ${actualMigrationLocksSlot}`);
-    }
-  } else {
+
+  if (lockNotes.length === 0) {
     throw new Error("No lock notes found in PXE");
+  } else if (lockNotes.length === 1) {
+    console.log(`   Found lock note in PXE`);
+  } else {
+    console.log(
+      `   ⚠️  Multiple (${lockNotes.length}) lock notes found in PXE, using the first one`,
+    );
+  }
+  const lockNote = lockNotes[0];
+
+  // The PXE noteHash is the inner hash, not the unique hash in the tree
+  // We need to compute the unique hash: poseidon2([nonce, siloed_hash], UNIQUE_NOTE_HASH_INDEX)
+  // where siloed_hash = poseidon2([contract_address, inner_hash], SILOED_NOTE_HASH_INDEX)
+  console.log(`   Inner note hash (from PXE): ${lockNote.noteHash}`);
+  console.log(`   Note randomness: ${lockNote.randomness}`);
+  console.log(`   Note nonce: ${lockNote.noteNonce}`);
+  console.log(`   Note storage slot (from PXE): ${lockNote.storageSlot}`);
+  console.log(`   Note contract address: ${lockNote.contractAddress}`);
+  console.log(`   Note owner (from PXE): ${lockNote.owner}`);
+  console.log(
+    `   Note data:`,
+    lockNote.note.items.map((f) => f.toString()),
+  );
+
+  const siloedNoteHash = await siloNoteHash(
+    lockNote.contractAddress,
+    lockNote.noteHash,
+  );
+  console.log(`   Siloed note hash (computed): ${siloedNoteHash}`);
+  const uniqueNoteHash = await computeUniqueNoteHash(
+    lockNote.noteNonce,
+    siloedNoteHash,
+  );
+  console.log(`   Unique note hash (computed): ${uniqueNoteHash}`);
+
+  // Find the leaf index for this computed unique note hash
+  const computedLeafIndexResults = await aztecNode.findLeavesIndexes(
+    await aztecNode.getBlockNumber(),
+    MerkleTreeId.NOTE_HASH_TREE,
+    [uniqueNoteHash],
+  );
+
+  if (!computedLeafIndexResults[0]) {
+    // Fall back to using the last note hash from tx effect
+    console.log(
+      `   ⚠️  Could not find computed unique hash in tree, using tx effect note hash`,
+    );
+  } else {
+    lockNoteLeafIndex = computedLeafIndexResults[0].data;
+    noteBlockNumber = Number(computedLeafIndexResults[0].l2BlockNumber);
+    console.log(
+      `   Note leaf index (from computed unique hash): ${lockNoteLeafIndex}`,
+    );
+    console.log(`   Note block number: ${noteBlockNumber}`);
   }
 
   // ============================================================
   // Step 14: Call migrate_via_proof on NEW rollup
   // ============================================================
   console.log("14. Calling migrate_via_proof on NEW rollup...");
+
+  // Re-fetch block header and sibling paths now that we have the correct note block number
+  const finalBlockHeader = await aztecNode.getBlockHeader(
+    noteBlockNumber as any,
+  );
+  if (!finalBlockHeader) {
+    console.log("   ❌ Could not get block header\n");
+    process.exit(1);
+  }
+
+  const finalNoteHashSiblingPath = await aztecNode.getNoteHashSiblingPath(
+    noteBlockNumber as any,
+    lockNoteLeafIndex,
+  );
+
+  const finalArchiveLeafIndex = BigInt(noteBlockNumber);
+  const finalArchiveSiblingPath = await aztecNode.getArchiveSiblingPath(
+    provenCheckpoint as any,
+    finalArchiveLeafIndex,
+  );
 
   const newBalanceBefore = await newApp.methods
     .get_balance(newRollupUser)
@@ -630,25 +712,25 @@ async function main() {
 
   try {
     // Convert BlockHeader to Noir-compatible format with snake_case keys
-    const noirBlockHeader = blockHeaderToNoir(blockHeader);
-    
+    const noirBlockHeader = blockHeaderToNoir(finalBlockHeader);
+
     const migrateTx = await newApp.methods
       .migrate_via_proof(
-        newMigrator.address,            // migrator_address (NEW)
-        ownerMsk,                       // owner_msk
-        LOCK_AMOUNT,                    // amount
-        NEW_ROLLUP_VERSION,             // destination_rollup
-        actualMigrationLocksSlot,       // lock_note_storage_slot (from PXE)
-        lockNoteRandomness,             // lock_note_randomness
-        oldRollupUser,                  // note_owner (the caller of lock_for_migration)
-        oldMigrator.address,            // old_migrator_address
-        noteNonce,                      // nonce
-        new Fr(lockNoteLeafIndex),      // note_hash_leaf_index
-        noteHashSiblingPath.toFields(), // note_hash_sibling_path
-        noirBlockHeader,                // block_header (converted to snake_case)
-        new Fr(archiveLeafIndex),       // archive_leaf_index
-        archiveSiblingPath.toFields(),  // archive_sibling_path
-        new Fr(provenCheckpoint),       // proven_block_number
+        newMigrator.address, // migrator_address (NEW)
+        ownerMsk, // owner_msk
+        LOCK_AMOUNT, // amount
+        NEW_ROLLUP_VERSION, // destination_rollup
+        lockNote.storageSlot, // lock_note_storage_slot (from PXE)
+        lockNote.randomness, // lock_note_randomness
+        oldRollupUser, // note_owner (the caller of lock_for_migration)
+        oldMigrator.address, // old_migrator_address
+        lockNote.noteNonce, // nonce
+        new Fr(lockNoteLeafIndex), // note_hash_leaf_index
+        finalNoteHashSiblingPath.toFields(), // note_hash_sibling_path
+        noirBlockHeader, // block_header (converted to snake_case)
+        new Fr(finalArchiveLeafIndex), // archive_leaf_index
+        finalArchiveSiblingPath.toFields(), // archive_sibling_path
+        new Fr(provenCheckpoint), // proven_block_number
       )
       .send({ from: newRollupUser })
       .wait();
@@ -660,29 +742,18 @@ async function main() {
       .simulate({ from: newRollupUser });
     console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
 
-    if (BigInt(newBalanceAfter) > BigInt(newBalanceBefore)) {
-      console.log(`   ✅ Successfully migrated ${LOCK_AMOUNT} tokens!\n`);
+    if (BigInt(newBalanceAfter) === LOCK_AMOUNT) {
+      console.log("✅ Cross-rollup migration fully successful!");
     } else {
-      console.log(`   ⚠️  Migration completed but balance didn't increase\n`);
+      console.log("⚠️  Migration completed but balance does not match.");
     }
   } catch (e) {
     console.log(`   ❌ migrate_via_proof failed: ${(e as Error).message}`);
-    console.log(`   This is expected if the note parameters (storage slot, randomness, nonce) are incorrect.`);
-    console.log(`   In production, a proper note discovery mechanism is needed.\n`);
   }
 
-    const finalNewBalance = await newApp.methods
+  const newBalanceAfter = await newApp.methods
     .get_balance(newRollupUser)
     .simulate({ from: newRollupUser });
-  console.log(`  NEW rollup new rollup user balance: ${finalNewBalance}`);
-  console.log("");
-
-  if (BigInt(finalNewBalance) === LOCK_AMOUNT) {
-    console.log("✅ Cross-rollup migration fully successful!");
-  } else {
-    console.log("⚠️  Migration infrastructure test passed but balance does not match.");
-  }
-  
   // ============================================================
   // Summary
   // ============================================================
@@ -700,14 +771,22 @@ async function main() {
   console.log("");
   console.log("Migration Flow:");
   console.log("  1. ✅ User mints tokens on OLD rollup");
-  console.log("  2. ✅ User locks tokens for migration (creates MigrationLockNote)");
-  console.log("  3. ✅ L1 Migrator sends archive root to NEW rollup via L1→L2 message");
-  console.log("  4. ✅ NEW Migrator consumes L1→L2 message and registers archive root");
-  console.log("  5. ✅ migrate_via_proof called (BlockHeader conversion working)");
+  console.log(
+    "  2. ✅ User locks tokens for migration (creates MigrationLockNote)",
+  );
+  console.log(
+    "  3. ✅ L1 Migrator sends archive root to NEW rollup via L1→L2 message",
+  );
+  console.log(
+    "  4. ✅ NEW Migrator consumes L1→L2 message and registers archive root",
+  );
+  console.log(
+    "  5. ✅ migrate_via_proof called (BlockHeader conversion working)",
+  );
   console.log("");
   console.log("Balances:");
   console.log(`  OLD rollup old rollup user balance: ${oldBalanceAfterLock}`);
-  console.log(`  NEW rollup new rollup user balance: ${finalNewBalance}`);
+  console.log(`  NEW rollup new rollup user balance: ${newBalanceAfter}`);
 }
 
 main().catch((e) => {

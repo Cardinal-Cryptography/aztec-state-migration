@@ -20,20 +20,25 @@ pub contract ExampleMigrationApp {
             abis::block_header::BlockHeader, address::AztecAddress, hash::poseidon2_hash,
             traits::Serialize,
         },
-        state_vars::owned::Owned,
+        state_vars::{owned::Owned, public_immutable::PublicImmutable},
     };
     use balance_set::balance_set::BalanceSet;
     use migrator::{ARCHIVE_TREE_HEIGHT, Migrator, NOTE_HASH_TREE_HEIGHT};
 
     #[storage]
     struct Storage<Context> {
+        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
         // Token balances (using Aztec's BalanceSet for private balances)
         balances: Owned<BalanceSet<Context>, Context>,
     }
 
     #[external("public")]
     #[initializer]
-    fn constructor() {}
+    fn constructor(old_rollup_app_address: Option<AztecAddress>) {
+        if old_rollup_app_address.is_some() {
+            self.storage.old_rollup_app_address.initialize(old_rollup_app_address.unwrap());
+        }
+    }
 
     // ============================================================
     // Standard token operations
@@ -123,14 +128,14 @@ pub contract ExampleMigrationApp {
         proven_block_number: Field,
     ) {
         // 1. Compute migration_data (must match what was stored in MigrationLockNote on old rollup)
-        let note_creator = self.context.this_address();
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
         // 2. Call Migrator to verify the proof and mark the MigrationLockNote as migrated
+        let note_creator = self.storage.old_rollup_app_address.read();
         let _ = self.call(Migrator::at(migrator_address).migrate_via_proof(
             owner_msk,
-            note_creator,
+            note_creator, // note_creator is the OLD app that called lock_migration_note
             migration_data,
             destination_rollup,
             lock_note_storage_slot,
