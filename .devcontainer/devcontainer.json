@@ -16,9 +16,6 @@
         ]
     }
   },
-  "mounts": [
-    "source=/home/damian/repos/aztec/aztec-packages,target=/external,type=bind,readonly"
-  ],
   "workspaceMount": "source=${localWorkspaceFolder},target=/root/workspace,type=bind",
   "workspaceFolder": "/root/workspace"
 }
