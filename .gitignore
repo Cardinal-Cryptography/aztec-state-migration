@@ -9,6 +9,11 @@
 *.sln
 *.sw?
 
+# logs
+*.log
+broadcast
+*deployment.json
+
 node_modules
 dependencies
 target

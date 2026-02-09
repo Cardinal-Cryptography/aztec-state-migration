@@ -1,7 +1,4 @@
-import {
-  registerInitialLocalNetworkAccountsInWallet,
-  TestWallet,
-} from "@aztec/test-wallet/server";
+import { TestWallet } from "@aztec/test-wallet/server";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import {
   createPublicClient,
@@ -21,20 +18,16 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { EthAddress } from "@aztec/foundation/eth-address";
-import { Fr } from "@aztec/foundation/curves/bn254";
-import {
-  poseidon2Hash,
-  poseidon2HashWithSeparator,
-} from "@aztec/foundation/crypto/poseidon";
+import { Fr, Fq } from "@aztec/foundation/curves/bn254";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { MerkleTreeId } from "@aztec/stdlib/trees";
 import {
   computeUniqueNoteHash,
-  deriveStorageSlotInMap,
   siloNoteHash,
 } from "@aztec/stdlib/hash";
 import type { BlockHeader } from "@aztec/stdlib/tx";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -94,7 +87,8 @@ function blockHeaderToNoir(header: BlockHeader) {
 }
 
 // Configuration
-const AZTEC_URL = process.env.AZTEC_URL ?? "http://localhost:8080";
+const AZTEC_OLD_URL = process.env.AZTEC_OLD_URL ?? "http://localhost:8080";
+const AZTEC_NEW_URL = process.env.AZTEC_NEW_URL ?? "http://localhost:8081";
 const ETHEREUM_RPC_URL =
   process.env.ETHEREUM_RPC_URL ?? "http://localhost:8545";
 const ANVIL_PRIVATE_KEY =
@@ -148,24 +142,67 @@ async function main() {
   // Step 1: Setup clients
   // ============================================================
   console.log("1. Setting up clients...");
-  const aztecNode = createAztecNodeClient(AZTEC_URL);
-  const l1Contracts = await aztecNode.getL1ContractAddresses();
-  const rollupVersion = await aztecNode.getVersion();
+  const aztecOldNode = createAztecNodeClient(AZTEC_OLD_URL);
+  const aztecNewNode = createAztecNodeClient(AZTEC_NEW_URL);
+  const l1Contracts = await aztecNewNode.getL1ContractAddresses();
+  const registryAddress = l1Contracts.registryAddress;
+  const newInboxAddress = l1Contracts.inboxAddress;
+  const oldRollupVersion = await aztecOldNode.getVersion();
+  const newRollupVersion = await aztecNewNode.getVersion();
   const l1ChainId = getPXEConfig().l1ChainId;
 
   console.log(`   Connected to Aztec network:`);
   console.log(`   - Chain ID: ${l1ChainId}`);
-  console.log(`   - Rollup Version: ${rollupVersion}`);
-  console.log(`   - Registry: ${l1Contracts.registryAddress}`);
+  console.log(`   - Old Rollup Version: ${oldRollupVersion}`);
+  console.log(`   - New Rollup Version: ${newRollupVersion}`);
+  console.log(`   - Registry: ${registryAddress}`);
 
-  // Setup wallets
-  const wallet = await TestWallet.create(aztecNode);
-  const [deployer, oldRollupUser, newRollupUser] =
-    await registerInitialLocalNetworkAccountsInWallet(wallet);
+  // Setup wallets (using TestWallet to create PXE instances)
+  const oldRollupWallet = await TestWallet.create(aztecOldNode);
+  const newRollupWallet = await TestWallet.create(aztecNewNode);
 
-  console.log(`   Deployer: ${deployer}`);
-  console.log(`   Old Rollup User: ${oldRollupUser}`);
-  console.log(`   New Rollup User: ${newRollupUser}`);
+  // Get pre-seeded test accounts data and register them in PXE
+  // (accounts are already deployed on the network via TEST_ACCOUNTS=true)
+  console.log("   Registering test accounts on OLD rollup...");
+  const testAccountsData = await getInitialTestAccountsData();
+
+  // Create account managers (registers in PXE) but don't deploy (already deployed)
+  const oldDeployerManager = await oldRollupWallet.createSchnorrAccount(
+    testAccountsData[0].secret,
+    testAccountsData[0].salt,
+    testAccountsData[0].signingKey,
+  );
+  const oldUserManager = await oldRollupWallet.createSchnorrAccount(
+    testAccountsData[1].secret,
+    testAccountsData[1].salt,
+    testAccountsData[1].signingKey,
+  );
+  const oldDeployer = oldDeployerManager.address;
+  const oldRollupUser = oldUserManager.address;
+  // For wallets, we use the TestWallet which can act as any registered account
+  const oldDeployerWallet = oldRollupWallet;
+  const oldUserWallet = oldRollupWallet;
+  console.log(`   Old Deployer (test account 0): ${oldDeployer}`);
+  console.log(`   Old User (test account 1): ${oldRollupUser}`);
+
+  // Register test accounts on NEW rollup
+  console.log("   Registering test accounts on NEW rollup...");
+  const newDeployerManager = await newRollupWallet.createSchnorrAccount(
+    testAccountsData[0].secret,
+    testAccountsData[0].salt,
+    testAccountsData[0].signingKey,
+  );
+  const newUserManager = await newRollupWallet.createSchnorrAccount(
+    testAccountsData[1].secret,
+    testAccountsData[1].salt,
+    testAccountsData[1].signingKey,
+  );
+  const newDeployer = newDeployerManager.address;
+  const newRollupUser = newUserManager.address;
+  const newDeployerWallet = newRollupWallet;
+  const newUserWallet = newRollupWallet;
+  console.log(`   New Deployer (test account 0): ${newDeployer}`);
+  console.log(`   New User (test account 1): ${newRollupUser}`);
 
   // Setup Ethereum client
   const ethAccount = privateKeyToAccount(ANVIL_PRIVATE_KEY);
@@ -173,20 +210,12 @@ async function main() {
     chain: foundry,
     transport: http(ETHEREUM_RPC_URL),
   });
-  const walletClient = createWalletClient({
+  const l1WalletClient = createWalletClient({
     account: ethAccount,
     chain: foundry,
     transport: http(ETHEREUM_RPC_URL),
   });
   console.log(`   Ethereum account: ${ethAccount.address}\n`);
-
-  // For simulation: both rollups have the same version (since we're on one network)
-  // In reality, these would be different rollup instances
-  const OLD_ROLLUP_VERSION = new Fr(rollupVersion);
-  const NEW_ROLLUP_VERSION = new Fr(rollupVersion);
-
-  console.log(`   OLD rollup version (simulated): ${OLD_ROLLUP_VERSION}`);
-  console.log(`   NEW rollup version (simulated): ${NEW_ROLLUP_VERSION}\n`);
 
   // ============================================================
   // Step 2: Deploy Poseidon2 contract on L1
@@ -194,7 +223,7 @@ async function main() {
   console.log("2. Deploying Poseidon2 contract on L1...");
 
   const poseidon2Bytecode = loadPoseidon2Bytecode();
-  const poseidon2DeployTxHash = await walletClient.sendTransaction({
+  const poseidon2DeployTxHash = await l1WalletClient.sendTransaction({
     data: poseidon2Bytecode,
   });
 
@@ -218,10 +247,10 @@ async function main() {
   const l1MigratorBytecode = loadL1MigratorBytecode();
   const constructorArgs = encodeAbiParameters(
     [{ type: "address" }, { type: "address" }],
-    [l1Contracts.registryAddress.toString() as Hex, poseidon2Address],
+    [registryAddress.toString() as Hex, poseidon2Address],
   );
 
-  const l1MigratorDeployTxHash = await walletClient.sendTransaction({
+  const l1MigratorDeployTxHash = await l1WalletClient.sendTransaction({
     data: (l1MigratorBytecode + constructorArgs.slice(2)) as Hex,
   });
 
@@ -247,21 +276,21 @@ async function main() {
 
   // OLD Migrator - doesn't need L1 migrator since it only creates lock notes
   const oldMigrator = await MigratorContract.deploy(
-    wallet,
+    oldDeployerWallet,
     EthAddress.ZERO, // No L1 migrator (this is the OLD rollup)
     Fr.ZERO, // No "old version" to migrate from
   )
-    .send({ from: deployer })
+    .send({ from: oldDeployer })
     .deployed();
 
   console.log(`   old_migrator deployed at: ${oldMigrator.address}`);
 
   // OLD ExampleApp
-  const oldApp = await ExampleMigrationAppContract.deploy(wallet, {
+  const oldApp = await ExampleMigrationAppContract.deploy(oldDeployerWallet, {
     _is_some: false,
     _value: AztecAddress.ZERO,
   })
-    .send({ from: deployer })
+    .send({ from: oldDeployer })
     .deployed();
 
   console.log(`   old_example_app deployed at: ${oldApp.address}\n`);
@@ -274,21 +303,21 @@ async function main() {
 
   // NEW Migrator - needs L1 migrator to receive archive roots
   const newMigrator = await MigratorContract.deploy(
-    wallet,
+    newDeployerWallet,
     EthAddress.fromString(l1MigratorAddress), // L1 Migrator address
-    OLD_ROLLUP_VERSION, // Old rollup version we're migrating from
+    oldRollupVersion, // Old rollup version we're migrating from
   )
-    .send({ from: deployer })
+    .send({ from: newDeployer })
     .deployed();
 
   console.log(`   new_migrator deployed at: ${newMigrator.address}`);
 
   // NEW ExampleApp
-  const newApp = await ExampleMigrationAppContract.deploy(wallet, {
+  const newApp = await ExampleMigrationAppContract.deploy(newDeployerWallet, {
     _is_some: true,
     _value: oldApp.address,
   })
-    .send({ from: deployer })
+    .send({ from: newDeployer })
     .deployed();
 
   console.log(`   new_example_app deployed at: ${newApp.address}\n`);
@@ -301,7 +330,7 @@ async function main() {
   const MINT_AMOUNT = 1000n;
   await oldApp.methods
     .mint(oldRollupUser, MINT_AMOUNT)
-    .send({ from: oldRollupUser })
+    .send({ from: oldDeployer })
     .wait();
 
   const oldBalanceAfterMint = await oldApp.methods
@@ -324,13 +353,15 @@ async function main() {
   const LOCK_AMOUNT = 500n;
 
   console.log(`   Locking ${LOCK_AMOUNT} tokens...`);
-  console.log(`   Destination rollup: ${NEW_ROLLUP_VERSION}`);
+  console.log(`   Destination rollup: ${newRollupVersion}`);
 
-  const lockTx = await oldApp.methods
+  // Need to use the user wallet to lock tokens (the user is the owner of the balance note)
+  const oldAppAsUser = await ExampleMigrationAppContract.at(oldApp.address, oldUserWallet);
+  const lockTx = await oldAppAsUser.methods
     .lock_for_migration(
       oldMigrator.address, // Migrator on OLD rollup
       LOCK_AMOUNT,
-      NEW_ROLLUP_VERSION, // Destination rollup version
+      newRollupVersion, // Destination rollup version
       ownerMsk,
     )
     .send({ from: oldRollupUser })
@@ -354,7 +385,7 @@ async function main() {
   // Trigger block production
   for (let i = 0; i < 5; i++) {
     try {
-      await oldApp.methods.mint(deployer, 1n).send({ from: deployer }).wait();
+      await oldApp.methods.mint(oldDeployer, 1n).send({ from: oldDeployer }).wait();
     } catch (e) {
       // Ignore errors
     }
@@ -363,7 +394,7 @@ async function main() {
   // Wait for proving
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
-  const provenBlockNumber = await aztecNode.getProvenBlockNumber();
+  const provenBlockNumber = await aztecOldNode.getProvenBlockNumber();
   console.log(`   Lock tx block: ${lockTx.blockNumber}`);
   console.log(`   Current proven block: ${provenBlockNumber}`);
 
@@ -382,7 +413,7 @@ async function main() {
     address: l1MigratorAddress,
     abi: L1MigratorAbi,
     functionName: "getArchiveInfo",
-    args: [BigInt(rollupVersion)],
+    args: [BigInt(oldRollupVersion)],
   });
 
   console.log(`   Archive Root: ${archiveInfo[0]}`);
@@ -393,15 +424,15 @@ async function main() {
   // ============================================================
   console.log("10. Sending archive root from L1 to NEW rollup...");
 
-  const migrateRootsTxHash = await walletClient.writeContract({
+  const migrateRootsTxHash = await l1WalletClient.writeContract({
     address: l1MigratorAddress,
     abi: L1MigratorAbi,
     functionName: "migrateArchiveRoot",
     args: [
-      BigInt(rollupVersion), // oldVersion
+      BigInt(oldRollupVersion), // oldVersion
       {
         actor: toHex(newMigrator.address.toBigInt(), { size: 32 }),
-        version: BigInt(rollupVersion),
+        version: BigInt(newRollupVersion),
       },
     ],
   });
@@ -455,7 +486,7 @@ async function main() {
   const inboxLogs = migrateRootsReceipt.logs.filter(
     (log) =>
       log.address.toLowerCase() ===
-      l1Contracts.inboxAddress.toString().toLowerCase(),
+      newInboxAddress.toString().toLowerCase(),
   );
 
   if (inboxLogs.length === 0) {
@@ -484,14 +515,14 @@ async function main() {
 
   for (let i = 0; i < maxAttempts && !messageReady; i++) {
     const messageBlock =
-      await aztecNode.getL1ToL2MessageBlock(l1ToL2MessageHash);
+      await aztecNewNode.getL1ToL2MessageBlock(l1ToL2MessageHash);
     if (messageBlock !== undefined) {
       messageReady = true;
       console.log(`   Message synced in block ${messageBlock}!`);
     } else {
       console.log(`   Waiting... attempt ${i + 1}/${maxAttempts}`);
       try {
-        await oldApp.methods.mint(deployer, 1n).send({ from: deployer }).wait();
+        await newApp.methods.mint(newDeployer, 1n).send({ from: newDeployer }).wait();
       } catch (e) {
         // Ignore
       }
@@ -511,20 +542,20 @@ async function main() {
 
   const registerTx = await newMigrator.methods
     .register_old_roots(
-      OLD_ROLLUP_VERSION, // old_rollup_version
+      oldRollupVersion, // old_rollup_version
       Fr.fromHexString(eventArgs.archiveRoot), // archive_root
       new Fr(eventArgs.provenCheckpointNumber), // proven_block_number
       Fr.ZERO, // secret = 0 (using SECRET_HASH_FOR_ZERO)
       new Fr(l1ToL2LeafIndex), // leaf_index
     )
-    .send({ from: deployer })
+    .send({ from: newDeployer })
     .wait();
 
   console.log(`   Register tx: ${registerTx.txHash}`);
 
   const storedArchiveRoot = await newMigrator.methods
     .get_old_archive_root(new Fr(eventArgs.provenCheckpointNumber))
-    .simulate({ from: newRollupUser });
+    .simulate({ from: newDeployer });
 
   console.log(`   Stored archive root: ${new Fr(storedArchiveRoot)}`);
   console.log("   ✅ Archive root registered on NEW Migrator!\n");
@@ -535,7 +566,7 @@ async function main() {
   console.log("13. Computing lock note hash and getting merkle proofs...");
 
   // Get note hashes from the lock transaction
-  const lockTxEffect = await aztecNode.getTxEffect(lockTx.txHash);
+  const lockTxEffect = await aztecOldNode.getTxEffect(lockTx.txHash);
 
   if (!lockTxEffect) {
     console.log("   ❌ Could not get lock transaction effect\n");
@@ -558,8 +589,8 @@ async function main() {
     const noteHash = noteHashes[i];
     console.log(`   Note hash ${i}: ${noteHash}`);
 
-    const leafIndexResults = await aztecNode.findLeavesIndexes(
-      await aztecNode.getBlockNumber(),
+    const leafIndexResults = await aztecOldNode.findLeavesIndexes(
+      await aztecOldNode.getBlockNumber(),
       MerkleTreeId.NOTE_HASH_TREE,
       [noteHash],
     );
@@ -582,7 +613,7 @@ async function main() {
   console.log(`   Note was added in block: ${noteBlockNumber}`);
 
   // Get the note hash sibling path
-  const noteHashSiblingPath = await aztecNode.getNoteHashSiblingPath(
+  const noteHashSiblingPath = await aztecOldNode.getNoteHashSiblingPath(
     noteBlockNumber as any,
     lockNoteLeafIndex,
   );
@@ -591,7 +622,7 @@ async function main() {
   );
 
   // Get the block header for the block containing the note
-  const blockHeader = await aztecNode.getBlockHeader(noteBlockNumber as any);
+  const blockHeader = await aztecOldNode.getBlockHeader(noteBlockNumber as any);
   if (!blockHeader) {
     console.log("   ❌ Could not get block header\n");
     process.exit(1);
@@ -601,7 +632,7 @@ async function main() {
   // Get the archive sibling path
   const provenCheckpoint = Number(eventArgs.provenCheckpointNumber);
   const archiveLeafIndex = BigInt(noteBlockNumber);
-  const archiveSiblingPath = await aztecNode.getArchiveSiblingPath(
+  const archiveSiblingPath = await aztecOldNode.getArchiveSiblingPath(
     provenCheckpoint as any,
     archiveLeafIndex,
   );
@@ -617,7 +648,7 @@ async function main() {
 
   // Get the actual lock note from PXE with its randomness and nonce
   // The note is stored in the Migrator contract, owned by the oldApp (the caller of lock_migration_note)
-  const lockNotes = await wallet.getNotes({
+  const lockNotes = await oldUserWallet.getNotes({
     owner: oldRollupUser,
     contractAddress: oldMigrator.address,
     storageSlot: migrationLocksSlot,
@@ -660,8 +691,8 @@ async function main() {
   console.log(`   Unique note hash (computed): ${uniqueNoteHash}`);
 
   // Find the leaf index for this computed unique note hash
-  const computedLeafIndexResults = await aztecNode.findLeavesIndexes(
-    await aztecNode.getBlockNumber(),
+  const computedLeafIndexResults = await aztecOldNode.findLeavesIndexes(
+    await aztecOldNode.getBlockNumber(),
     MerkleTreeId.NOTE_HASH_TREE,
     [uniqueNoteHash],
   );
@@ -686,7 +717,7 @@ async function main() {
   console.log("14. Calling migrate_via_proof on NEW rollup...");
 
   // Re-fetch block header and sibling paths now that we have the correct note block number
-  const finalBlockHeader = await aztecNode.getBlockHeader(
+  const finalBlockHeader = await aztecOldNode.getBlockHeader(
     noteBlockNumber as any,
   );
   if (!finalBlockHeader) {
@@ -694,13 +725,13 @@ async function main() {
     process.exit(1);
   }
 
-  const finalNoteHashSiblingPath = await aztecNode.getNoteHashSiblingPath(
+  const finalNoteHashSiblingPath = await aztecOldNode.getNoteHashSiblingPath(
     noteBlockNumber as any,
     lockNoteLeafIndex,
   );
 
   const finalArchiveLeafIndex = BigInt(noteBlockNumber);
-  const finalArchiveSiblingPath = await aztecNode.getArchiveSiblingPath(
+  const finalArchiveSiblingPath = await aztecOldNode.getArchiveSiblingPath(
     provenCheckpoint as any,
     finalArchiveLeafIndex,
   );
@@ -714,12 +745,14 @@ async function main() {
     // Convert BlockHeader to Noir-compatible format with snake_case keys
     const noirBlockHeader = blockHeaderToNoir(finalBlockHeader);
 
-    const migrateTx = await newApp.methods
+    // Need to use the user wallet on NEW rollup for migration
+    const newAppAsUser = await ExampleMigrationAppContract.at(newApp.address, newUserWallet);
+    const migrateTx = await newAppAsUser.methods
       .migrate_via_proof(
         newMigrator.address, // migrator_address (NEW)
         ownerMsk, // owner_msk
         LOCK_AMOUNT, // amount
-        NEW_ROLLUP_VERSION, // destination_rollup
+        newRollupVersion, // destination_rollup
         lockNote.storageSlot, // lock_note_storage_slot (from PXE)
         lockNote.randomness, // lock_note_randomness
         oldRollupUser, // note_owner (the caller of lock_for_migration)

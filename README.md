@@ -17,12 +17,18 @@ yarn noir:codegen
 ```
 2.
 ```sh
-# start local aztec network
-aztec start --local-network
+# start local aztec rollups (on anvil)
+yarn test:setup
 ```
 
 3.
 ```sh
 # run the test
 yarn test:migration
+```
+
+4.
+```sh
+# stop the rollups
+yarn test:stop
 ```
