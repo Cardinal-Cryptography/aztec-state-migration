@@ -21,13 +21,11 @@ import { EthAddress } from "@aztec/foundation/eth-address";
 import { Fr, Fq } from "@aztec/foundation/curves/bn254";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { MerkleTreeId } from "@aztec/stdlib/trees";
-import {
-  computeUniqueNoteHash,
-  siloNoteHash,
-} from "@aztec/stdlib/hash";
+import { computeUniqueNoteHash, siloNoteHash } from "@aztec/stdlib/hash";
 import type { BlockHeader } from "@aztec/stdlib/tx";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
+import { BlockNumber } from "@aztec/foundation/branded-types";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -277,8 +275,16 @@ async function main() {
   // OLD Migrator - doesn't need L1 migrator since it only creates lock notes
   const oldMigrator = await MigratorContract.deploy(
     oldDeployerWallet,
-    EthAddress.ZERO, // No L1 migrator (this is the OLD rollup)
-    Fr.ZERO, // No "old version" to migrate from
+    // No L1 Migrator (this is the OLD rollup)
+    {
+      _is_some: false,
+      _value: EthAddress.ZERO,
+    },
+    // No old L2 Migrator (this is the OLD rollup)
+    {
+      _is_some: false,
+      _value: { version: 0n, address: AztecAddress.ZERO },
+    },
   )
     .send({ from: oldDeployer })
     .deployed();
@@ -301,11 +307,23 @@ async function main() {
   console.log("5. Deploying NEW rollup L2 contracts...");
   console.log("   (new_migrator consumes L1 messages with archive roots)");
 
-  // NEW Migrator - needs L1 migrator to receive archive roots
+  // NEW Migrator - needs L1 Migrator to receive archive roots
+  // and old L2 Migrator info for verifying lock notes
   const newMigrator = await MigratorContract.deploy(
     newDeployerWallet,
-    EthAddress.fromString(l1MigratorAddress), // L1 Migrator address
-    oldRollupVersion, // Old rollup version we're migrating from
+    // L1 Migrator
+    {
+      _is_some: true,
+      _value: EthAddress.fromString(l1MigratorAddress),
+    },
+    // old L2 Migrator
+    {
+      _is_some: true,
+      _value: {
+        address: oldMigrator.address,
+        version: oldRollupVersion,
+      },
+    },
   )
     .send({ from: newDeployer })
     .deployed();
@@ -347,8 +365,8 @@ async function main() {
   console.log("7. Locking tokens for migration on OLD rollup...");
 
   // User's migration secret key (should be derived from wallet secret in production)
-  const ownerMsk = new Fr(12345n);
-  console.log(`   Owner MSK: ${ownerMsk}`);
+  const msk = new Fr(12345n);
+  console.log(`   Owner MSK: ${msk}`);
 
   const LOCK_AMOUNT = 500n;
 
@@ -356,13 +374,16 @@ async function main() {
   console.log(`   Destination rollup: ${newRollupVersion}`);
 
   // Need to use the user wallet to lock tokens (the user is the owner of the balance note)
-  const oldAppAsUser = await ExampleMigrationAppContract.at(oldApp.address, oldUserWallet);
+  const oldAppAsUser = ExampleMigrationAppContract.at(
+    oldApp.address,
+    oldUserWallet,
+  );
   const lockTx = await oldAppAsUser.methods
     .lock_for_migration(
       oldMigrator.address, // Migrator on OLD rollup
       LOCK_AMOUNT,
       newRollupVersion, // Destination rollup version
-      ownerMsk,
+      msk,
     )
     .send({ from: oldRollupUser })
     .wait();
@@ -381,27 +402,24 @@ async function main() {
   // Step 8: Trigger more blocks to ensure lock note is proven
   // ============================================================
   console.log("8. Waiting for lock note block to be proven...");
-
-  // Trigger block production
-  for (let i = 0; i < 5; i++) {
+  let provenBlockNumber = await aztecOldNode.getProvenBlockNumber();
+  console.log(`   Lock tx block: ${lockTx.blockNumber}`);
+  console.log(`   Current proven block: ${provenBlockNumber}`);
+  while (provenBlockNumber < lockTx.blockNumber!) {
+    console.log("   ⚠️  Block not yet proven. Waiting more...");
+    // Trigger more blocks by sending dummy transactions (if needed) to speed up proving
     try {
-      await oldApp.methods.mint(oldDeployer, 1n).send({ from: oldDeployer }).wait();
+      await oldApp.methods
+        .mint(oldDeployer, 1n)
+        .send({ from: oldDeployer })
+        .wait();
     } catch (e) {
       // Ignore errors
     }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    provenBlockNumber = await aztecOldNode.getProvenBlockNumber();
   }
-
-  // Wait for proving
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-
-  const provenBlockNumber = await aztecOldNode.getProvenBlockNumber();
-  console.log(`   Lock tx block: ${lockTx.blockNumber}`);
-  console.log(`   Current proven block: ${provenBlockNumber}`);
-
-  if (provenBlockNumber < lockTx.blockNumber!) {
-    console.log("   ⚠️  Block not yet proven. Waiting more...");
-    await new Promise((resolve) => setTimeout(resolve, 10000));
-  }
+  console.log("   ✅  Block proven.");
   console.log("");
 
   // ============================================================
@@ -481,12 +499,13 @@ async function main() {
   console.log(`   Archive Root sent: ${eventArgs.archiveRoot}`);
   console.log(`   Proven Block: ${eventArgs.provenCheckpointNumber}`);
   console.log(`   L1→L2 Message Leaf Index: ${eventArgs.messageLeafIndex}`);
+  const provenArchiveRoot = Fr.fromHexString(eventArgs.archiveRoot);
+  provenBlockNumber = BlockNumber.fromBigInt(eventArgs.provenCheckpointNumber);
 
   // Get L1→L2 message hash from Inbox
   const inboxLogs = migrateRootsReceipt.logs.filter(
     (log) =>
-      log.address.toLowerCase() ===
-      newInboxAddress.toString().toLowerCase(),
+      log.address.toLowerCase() === newInboxAddress.toString().toLowerCase(),
   );
 
   if (inboxLogs.length === 0) {
@@ -499,10 +518,8 @@ async function main() {
     topics: inboxLogs[0].topics,
   });
 
-  const l1ToL2LeafIndex = (messageSentEvent.args as any).index as bigint;
-  const l1ToL2MessageHash = new Fr(
-    BigInt((messageSentEvent.args as any).hash as string),
-  );
+  const l1ToL2LeafIndex = messageSentEvent.args.index;
+  const l1ToL2MessageHash = new Fr(BigInt(messageSentEvent.args.hash));
   console.log(`   L1→L2 message hash: ${l1ToL2MessageHash}\n`);
 
   // ============================================================
@@ -522,7 +539,10 @@ async function main() {
     } else {
       console.log(`   Waiting... attempt ${i + 1}/${maxAttempts}`);
       try {
-        await newApp.methods.mint(newDeployer, 1n).send({ from: newDeployer }).wait();
+        await newApp.methods
+          .mint(newDeployer, 1n)
+          .send({ from: newDeployer })
+          .wait();
       } catch (e) {
         // Ignore
       }
@@ -542,9 +562,8 @@ async function main() {
 
   const registerTx = await newMigrator.methods
     .register_old_roots(
-      oldRollupVersion, // old_rollup_version
-      Fr.fromHexString(eventArgs.archiveRoot), // archive_root
-      new Fr(eventArgs.provenCheckpointNumber), // proven_block_number
+      provenArchiveRoot, // archive_root
+      provenBlockNumber, // proven_block_number
       Fr.ZERO, // secret = 0 (using SECRET_HASH_FOR_ZERO)
       new Fr(l1ToL2LeafIndex), // leaf_index
     )
@@ -554,7 +573,7 @@ async function main() {
   console.log(`   Register tx: ${registerTx.txHash}`);
 
   const storedArchiveRoot = await newMigrator.methods
-    .get_old_archive_root(new Fr(eventArgs.provenCheckpointNumber))
+    .get_old_archive_root(provenBlockNumber)
     .simulate({ from: newDeployer });
 
   console.log(`   Stored archive root: ${new Fr(storedArchiveRoot)}`);
@@ -574,7 +593,7 @@ async function main() {
   }
 
   // Get note hashes from tx effect
-  const noteHashes = (lockTxEffect as any).data?.noteHashes || [];
+  const noteHashes = lockTxEffect.data?.noteHashes || [];
   console.log(`   Lock tx has ${noteHashes.length} note hashes`);
 
   // Find the lock note in the tree - it should be one of the note hashes
@@ -582,15 +601,13 @@ async function main() {
   // For now, we'll try each note hash until we find one that works
 
   let lockNoteLeafIndex: bigint | undefined;
-  let lockNoteHash: Fr | undefined;
-  let noteBlockNumber: number | undefined;
 
   for (let i = 0; i < noteHashes.length; i++) {
     const noteHash = noteHashes[i];
     console.log(`   Note hash ${i}: ${noteHash}`);
 
     const leafIndexResults = await aztecOldNode.findLeavesIndexes(
-      await aztecOldNode.getBlockNumber(),
+      provenBlockNumber,
       MerkleTreeId.NOTE_HASH_TREE,
       [noteHash],
     );
@@ -599,22 +616,19 @@ async function main() {
       console.log(`     Found at leaf index: ${leafIndexResults[0].data}`);
       // Use the last note hash (likely the lock note since balance notes come first)
       lockNoteLeafIndex = leafIndexResults[0].data;
-      lockNoteHash = new Fr(BigInt(noteHash.toString()));
-      noteBlockNumber = Number(leafIndexResults[0].l2BlockNumber);
     }
   }
 
-  if (!lockNoteLeafIndex || !lockNoteHash || !noteBlockNumber) {
+  if (!lockNoteLeafIndex) {
     console.log("   ❌ Could not find lock note in tree\n");
     process.exit(1);
   }
 
   console.log(`   Using lock note at leaf index: ${lockNoteLeafIndex}`);
-  console.log(`   Note was added in block: ${noteBlockNumber}`);
 
   // Get the note hash sibling path
   const noteHashSiblingPath = await aztecOldNode.getNoteHashSiblingPath(
-    noteBlockNumber as any,
+    provenBlockNumber,
     lockNoteLeafIndex,
   );
   console.log(
@@ -622,7 +636,7 @@ async function main() {
   );
 
   // Get the block header for the block containing the note
-  const blockHeader = await aztecOldNode.getBlockHeader(noteBlockNumber as any);
+  const blockHeader = await aztecOldNode.getBlockHeader(provenBlockNumber);
   if (!blockHeader) {
     console.log("   ❌ Could not get block header\n");
     process.exit(1);
@@ -630,10 +644,12 @@ async function main() {
   console.log(`   Block header hash: ${await blockHeader.hash()}`);
 
   // Get the archive sibling path
-  const provenCheckpoint = Number(eventArgs.provenCheckpointNumber);
-  const archiveLeafIndex = BigInt(noteBlockNumber);
+  // Archive tree leaf index == block number (leaves are stored in block order by design)
+  const archiveLeafIndex = BigInt(provenBlockNumber);
+  // 1st arg: tree snapshot (which block's tree state to use)
+  // 2nd arg: leaf index (which block header to get the path for)
   const archiveSiblingPath = await aztecOldNode.getArchiveSiblingPath(
-    provenCheckpoint as any,
+    provenBlockNumber,
     archiveLeafIndex,
   );
   console.log(
@@ -698,17 +714,8 @@ async function main() {
   );
 
   if (!computedLeafIndexResults[0]) {
-    // Fall back to using the last note hash from tx effect
-    console.log(
-      `   ⚠️  Could not find computed unique hash in tree, using tx effect note hash`,
-    );
-  } else {
-    lockNoteLeafIndex = computedLeafIndexResults[0].data;
-    noteBlockNumber = Number(computedLeafIndexResults[0].l2BlockNumber);
-    console.log(
-      `   Note leaf index (from computed unique hash): ${lockNoteLeafIndex}`,
-    );
-    console.log(`   Note block number: ${noteBlockNumber}`);
+    console.log("   ❌  Could not find computed unique hash in tree\n");
+    process.exit(1);
   }
 
   // ============================================================
@@ -716,23 +723,24 @@ async function main() {
   // ============================================================
   console.log("14. Calling migrate_via_proof on NEW rollup...");
 
-  // Re-fetch block header and sibling paths now that we have the correct note block number
-  const finalBlockHeader = await aztecOldNode.getBlockHeader(
-    noteBlockNumber as any,
-  );
+  // Use provenCheckpoint for block header and sibling paths.
+  // The note hash tree is append-only, so the tree at the checkpoint block still contains
+  // the note from the earlier block at the same leaf index.
+  // This way block_header.block_number == provenCheckpoint, matching the key in old_archive_roots.
+  const finalBlockHeader = await aztecOldNode.getBlockHeader(provenBlockNumber);
   if (!finalBlockHeader) {
     console.log("   ❌ Could not get block header\n");
     process.exit(1);
   }
 
   const finalNoteHashSiblingPath = await aztecOldNode.getNoteHashSiblingPath(
-    noteBlockNumber as any,
+    provenBlockNumber,
     lockNoteLeafIndex,
   );
 
-  const finalArchiveLeafIndex = BigInt(noteBlockNumber);
+  const finalArchiveLeafIndex = BigInt(provenBlockNumber);
   const finalArchiveSiblingPath = await aztecOldNode.getArchiveSiblingPath(
-    provenCheckpoint as any,
+    provenBlockNumber,
     finalArchiveLeafIndex,
   );
 
@@ -746,24 +754,23 @@ async function main() {
     const noirBlockHeader = blockHeaderToNoir(finalBlockHeader);
 
     // Need to use the user wallet on NEW rollup for migration
-    const newAppAsUser = await ExampleMigrationAppContract.at(newApp.address, newUserWallet);
+    const newAppAsUser = await ExampleMigrationAppContract.at(
+      newApp.address,
+      newUserWallet,
+    );
     const migrateTx = await newAppAsUser.methods
       .migrate_via_proof(
         newMigrator.address, // migrator_address (NEW)
-        ownerMsk, // owner_msk
-        LOCK_AMOUNT, // amount
-        newRollupVersion, // destination_rollup
+        msk,
+        LOCK_AMOUNT,
         lockNote.storageSlot, // lock_note_storage_slot (from PXE)
         lockNote.randomness, // lock_note_randomness
-        oldRollupUser, // note_owner (the caller of lock_for_migration)
-        oldMigrator.address, // old_migrator_address
         lockNote.noteNonce, // nonce
         new Fr(lockNoteLeafIndex), // note_hash_leaf_index
         finalNoteHashSiblingPath.toFields(), // note_hash_sibling_path
         noirBlockHeader, // block_header (converted to snake_case)
         new Fr(finalArchiveLeafIndex), // archive_leaf_index
         finalArchiveSiblingPath.toFields(), // archive_sibling_path
-        new Fr(provenCheckpoint), // proven_block_number
       )
       .send({ from: newRollupUser })
       .wait();

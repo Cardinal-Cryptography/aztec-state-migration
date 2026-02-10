@@ -536,7 +536,6 @@ cat > "$DEPLOYMENT_FILE" << EOF
     "address": "$NEW_ROLLUP_ADDRESS",
     "version": "$ROLLUP2_VERSION"
   },
-  "payloadAddress": "$PAYLOAD_ADDRESS",
   "l1RpcUrl": "$L1_RPC_URL",
   "node1Port": $NODE1_PORT,
   "node2Port": $NODE2_PORT

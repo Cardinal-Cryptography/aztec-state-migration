@@ -6,11 +6,6 @@ use aztec::macros::aztec;
 /// Users call `lock_for_migration()` to:
 /// 1. Nullify their original token note
 /// 2. Create a MigrationLockNote that can be proven on the new rollup
-///
-/// The MigrationLockNote stores:
-/// - owner_npk_m: For cross-rollup ownership proof
-/// - original_note_hash: Hash of the original note (for app-specific verification)
-/// - destination_rollup: Prevents cross-rollup replay
 #[aztec]
 pub contract ExampleMigrationApp {
     use aztec::{
@@ -103,52 +98,42 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn migrate_via_proof(
         migrator_address: AztecAddress,
-        // Owner's migration secret key
-        owner_msk: Field,
+        // migration secret key
+        msk: Field,
         // MigrationLockNote fields
         amount: u128,
-        destination_rollup: Field,
         // Lock note hashing data
         lock_note_storage_slot: Field,
         lock_note_randomness: Field,
-        // Note owner address (included in note hash by #[note] macro)
-        note_owner: AztecAddress,
-        // Siloing data (old lock contract address)
-        old_migrator_address: AztecAddress,
-        nonce: Field,
+        // Siloing data
+        lock_note_nonce: Field,
         // Note hash tree membership proof
-        note_hash_leaf_index: Field,
-        note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+        lock_note_hash_leaf_index: Field,
+        lock_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
         // Full block header (to verify note_hash_tree_root is bound to archive)
-        block_header: BlockHeader,
+        archive_block_header: BlockHeader,
         // Archive membership proof (proves block header hash is in archive)
         archive_leaf_index: Field,
         archive_sibling_path: [Field; ARCHIVE_HEIGHT],
-        // Which registered archive root to verify against
-        proven_block_number: Field,
     ) {
         // 1. Compute migration_data (must match what was stored in MigrationLockNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
         // 2. Call Migrator to verify the proof and mark the MigrationLockNote as migrated
-        let note_creator = self.storage.old_rollup_app_address.read();
+        let lock_note_creator = self.storage.old_rollup_app_address.read();
         let _ = self.call(Migrator::at(migrator_address).migrate_via_proof(
-            owner_msk,
-            note_creator, // note_creator is the OLD app that called lock_migration_note
+            msk,
+            lock_note_creator, // lock_note_creator is the OLD app that called lock_migration_note
             migration_data,
-            destination_rollup,
             lock_note_storage_slot,
             lock_note_randomness,
-            note_owner,
-            old_migrator_address,
-            nonce,
-            note_hash_leaf_index,
-            note_hash_sibling_path,
-            block_header,
+            lock_note_nonce,
+            lock_note_hash_leaf_index,
+            lock_note_hash_sibling_path,
+            archive_block_header,
             archive_leaf_index,
             archive_sibling_path,
-            proven_block_number,
         ));
 
         // 3. If successful, mint the migrated tokens to the user on the new rollup
