@@ -17,6 +17,12 @@ AZTEC_INSTALL_URI="https://install.aztec.network/${AZTEC_VERSION}"
 echo "  VERSION: ${AZTEC_VERSION}"
 echo "  BIN_PATH: ${AZTEC_BIN_PATH}"
 
+# Create .aztec directory with version file so the aztec CLI wrapper
+# knows which Docker image tag to use (otherwise it defaults to "latest")
+mkdir -p "$HOME/.aztec"
+echo "${AZTEC_VERSION}" > "$HOME/.aztec/default_version"
+echo "  Created $HOME/.aztec/default_version -> ${AZTEC_VERSION}"
+
 # Pull the Docker image
 echo "Pulling aztec version ${AZTEC_VERSION}..."
 docker pull "aztecprotocol/aztec:${AZTEC_VERSION}"
