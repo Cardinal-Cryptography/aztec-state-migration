@@ -5,7 +5,7 @@ use aztec::macros::aztec;
 /// This contract demonstrates how to implement Mode A locking on the OLD rollup.
 /// Users call `lock_for_migration()` to:
 /// 1. Nullify their original token note
-/// 2. Create a MigrationLockNote that can be proven on the new rollup
+/// 2. Create a MigrationNote that can be proven on the new rollup
 #[aztec]
 pub contract ExampleMigrationApp {
     use aztec::{
@@ -60,7 +60,7 @@ pub contract ExampleMigrationApp {
     /// This function:
     /// 1. Takes a UintNote from the caller's balance
     /// 2. Nullifies the original note (preventing double-spend)
-    /// 3. Creates a MigrationLockNote that can be proven on the destination rollup
+    /// 3. Creates a MigrationNote that can be proven on the destination rollup
     #[external("private")]
     fn lock_for_migration(
         migrator_address: AztecAddress,
@@ -79,7 +79,7 @@ pub contract ExampleMigrationApp {
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 3. Call Migrator contract to create and store the MigrationLockNote
+        // 3. Call Migrator contract to create and store the MigrationNote
         let _ = self.call(Migrator::at(migrator_address).lock_migration_note(
             note_owner,
             destination_rollup,
@@ -96,41 +96,41 @@ pub contract ExampleMigrationApp {
     // ============================================================
 
     #[external("private")]
-    fn migrate_via_proof(
+    fn migrate(
         migrator_address: AztecAddress,
         // migration secret key
         msk: Field,
-        // MigrationLockNote fields
+        // MigrationNote fields
         amount: u128,
         // Lock note hashing data
-        lock_note_storage_slot: Field,
-        lock_note_randomness: Field,
+        migration_note_storage_slot: Field,
+        migration_note_randomness: Field,
         // Siloing data
-        lock_note_nonce: Field,
+        migration_note_nonce: Field,
         // Note hash tree membership proof
-        lock_note_hash_leaf_index: Field,
-        lock_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+        migration_note_hash_leaf_index: Field,
+        migration_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
         // Full block header (to verify note_hash_tree_root is bound to archive)
         archive_block_header: BlockHeader,
         // Archive membership proof (proves block header hash is in archive)
         archive_leaf_index: Field,
         archive_sibling_path: [Field; ARCHIVE_HEIGHT],
     ) {
-        // 1. Compute migration_data (must match what was stored in MigrationLockNote on old rollup)
+        // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 2. Call Migrator to verify the proof and mark the MigrationLockNote as migrated
-        let lock_note_creator = self.storage.old_rollup_app_address.read();
-        let _ = self.call(Migrator::at(migrator_address).migrate_via_proof(
+        // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
+        let migration_note_creator = self.storage.old_rollup_app_address.read();
+        let _ = self.call(Migrator::at(migrator_address).migrate_mode_a(
             msk,
-            lock_note_creator, // lock_note_creator is the OLD app that called lock_migration_note
+            migration_note_creator, // migration_note_creator is the OLD app that called lock_migration_note
             migration_data,
-            lock_note_storage_slot,
-            lock_note_randomness,
-            lock_note_nonce,
-            lock_note_hash_leaf_index,
-            lock_note_hash_sibling_path,
+            migration_note_storage_slot,
+            migration_note_randomness,
+            migration_note_nonce,
+            migration_note_hash_leaf_index,
+            migration_note_hash_sibling_path,
             archive_block_header,
             archive_leaf_index,
             archive_sibling_path,

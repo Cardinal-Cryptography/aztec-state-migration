@@ -10,7 +10,7 @@ use dep::aztec::{
     },
 };
 
-/// MigrationLockNote - a note that locks a user's original note for migration.
+/// MigrationNote - a note that locks a user's original note for migration.
 ///
 /// Uses #[custom_note] because ownership is determined by the migration public key (mpk),
 /// not by an Aztec account address. The note hash intentionally excludes the standard `owner`
@@ -18,7 +18,7 @@ use dep::aztec::{
 /// old rollup identities).
 #[derive(Deserialize, Eq, Serialize, Packable)]
 #[custom_note]
-pub struct MigrationLockNote {
+pub struct MigrationNote {
     /// Address of the note creator (typically app contract)
     pub note_creator: AztecAddress,
     /// Migration public key (mpk).
@@ -30,7 +30,7 @@ pub struct MigrationLockNote {
     pub migration_data: Field,
 }
 
-impl NoteHash for MigrationLockNote {
+impl NoteHash for MigrationNote {
     fn compute_note_hash(
         self,
         _owner: AztecAddress,
@@ -57,7 +57,7 @@ impl NoteHash for MigrationLockNote {
         _owner: AztecAddress,
         note_hash_for_nullification: Field,
     ) -> Field {
-        // Trait fallback - not used in the migration flow (which calls MigrationLockNote::compute_nullifier
+        // Trait fallback - not used in the migration flow (which calls MigrationNote::compute_nullifier
         // with msk directly).
         // Ideally, the msk should be requested from the context.
         //
@@ -81,7 +81,7 @@ impl NoteHash for MigrationLockNote {
     }
 }
 
-impl MigrationLockNote {
+impl MigrationNote {
     pub fn new(
         note_creator: AztecAddress,
         mpk: Field,

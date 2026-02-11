@@ -1,13 +1,13 @@
 use aztec::macros::aztec as aztec_contract;
 
-mod migration_lock_note;
+mod migration_note;
 pub mod types;
 pub use aztec::protocol_types::constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT};
-pub use migration_lock_note::MigrationLockNote;
+pub use migration_note::MigrationNote;
 
 #[aztec_contract]
 pub contract Migrator {
-    use crate::{migration_lock_note::MigrationLockNote, types::L2Actor};
+    use crate::{migration_note::MigrationNote, types::L2Actor};
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         note::note_interface::NoteHash,
@@ -40,8 +40,8 @@ pub contract Migrator {
         // Track the latest registered proven block (for convenience)
         latest_proven_block: PublicMutable<u32, Context>,
 
-        // Migration lock notes created by users (in old rollup)
-        migration_locks: Owned<PrivateSet<MigrationLockNote, Context>, Context>,
+        // Migration notes created by users (in old rollup)
+        migration_notes: Owned<PrivateSet<MigrationNote, Context>, Context>,
     }
 
     #[external("public")]
@@ -57,10 +57,10 @@ pub contract Migrator {
         }
     }
 
-    // Register old rollup archive roots by consuming L1-L2 message from L1Migrator
+    // Register old rollup archive root by consuming L1-L2 message from L1Migrator
     // Can be called multiple times to register new snapshots as users create lock notes
     #[external("public")]
-    fn register_old_roots(
+    fn register_archive_root(
         archive_root: Field,
         proven_block_number: u32,
         secret: Field,
@@ -106,9 +106,9 @@ pub contract Migrator {
     ) {
         let note_creator = self.context.msg_sender().unwrap();
         let owner_mpk = poseidon2_hash([owner_msk]);
-        let lock_note =
-            MigrationLockNote::new(note_creator, owner_mpk, destination_rollup, migration_data);
-        self.storage.migration_locks.at(note_owner).insert(lock_note).deliver(
+        let migration_note =
+            MigrationNote::new(note_creator, owner_mpk, destination_rollup, migration_data);
+        self.storage.migration_notes.at(note_owner).insert(migration_note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
     }
@@ -118,34 +118,34 @@ pub contract Migrator {
     // ============================================================
     //
     // User flow:
-    // 1. On OLD rollup: User calls app contract to nullify original note and create MigrationLockNote
-    // 2. On NEW rollup: User calls app contract which calls this function to prove the MigrationLockNote exists
+    // 1. On OLD rollup: User calls app contract to nullify original note and create MigrationNote
+    // 2. On NEW rollup: User calls app contract which calls this function to prove the MigrationNote exists
     //
-    // MigrationLockNote structure:
+    // MigrationNote structure:
     //   - owner_msk: Point      (migration secret key - for ownership proof)
     //   - migration_data: Field (e.g. hash of original note data)
     //   - destination_rollup: Field (must match current rollup)
     //
     // Verification chain:
-    //   lock_note_hash -> (merkle proof) -> note_hash_tree_root
+    //   migration_note_hash -> (merkle proof) -> note_hash_tree_root
     //       -> (part of) -> block_header
     //           -> (hash to) -> block_header_hash
     //               -> (merkle proof) -> archive_root (trusted from L1)
     #[external("private")]
-    fn migrate_via_proof(
+    fn migrate_mode_a(
         // migration secret key
         msk: Field,
-        // MigrationLockNote fields
-        lock_note_creator: AztecAddress,
+        // MigrationNote fields
+        migration_note_creator: AztecAddress,
         migration_data: Field,
         // Lock note hashing data
-        lock_note_storage_slot: Field,
-        lock_note_randomness: Field,
+        migration_note_storage_slot: Field,
+        migration_note_randomness: Field,
         // Siloing data
-        lock_note_nonce: Field,
+        migration_note_nonce: Field,
         // Note hash tree membership proof
-        lock_note_hash_leaf_index: Field,
-        lock_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+        migration_note_hash_leaf_index: Field,
+        migration_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
         // Full block header (to verify note_hash_tree_root is bound to archive)
         archive_block_header: BlockHeader,
         // Archive membership proof (proves block header hash is in archive)
@@ -156,14 +156,14 @@ pub contract Migrator {
         let current_rollup = self.context.version();
         // 1. Verify ownership: caller must know msk corresponding to mpk
         let mpk = poseidon2_hash([msk]);
-        // 2. Compute the MigrationLockNote hash
+        // 2. Compute the MigrationNote hash
         //    Owner is ignored by our #[custom_note] - mpk serves as ownership proof
         let migration_note =
-            MigrationLockNote::new(lock_note_creator, mpk, current_rollup, migration_data);
+            MigrationNote::new(migration_note_creator, mpk, current_rollup, migration_data);
         let migration_note_hash = migration_note.compute_note_hash(
             AztecAddress::zero(),
-            lock_note_storage_slot,
-            lock_note_randomness,
+            migration_note_storage_slot,
+            migration_note_randomness,
         );
 
         // 3. Compute siloed note hash (tied to the old lock contract)
@@ -172,14 +172,14 @@ pub contract Migrator {
             migration_note_hash,
         );
         // 4. Compute unique note hash (what's actually in the tree)
-        let unique_note_hash = compute_unique_note_hash(lock_note_nonce, siloed_note_hash);
+        let unique_note_hash = compute_unique_note_hash(migration_note_nonce, siloed_note_hash);
         // 5. Extract note_hash_tree_root from block header
         let note_hash_tree_root = archive_block_header.state.partial.note_hash_tree.root;
         // 6. Verify unique_note_hash is in the note_hash_tree
         let computed_note_hash_tree_root = root_from_sibling_path(
             unique_note_hash,
-            lock_note_hash_leaf_index,
-            lock_note_hash_sibling_path,
+            migration_note_hash_leaf_index,
+            migration_note_hash_sibling_path,
         );
         assert(
             computed_note_hash_tree_root == note_hash_tree_root,
@@ -196,7 +196,7 @@ pub contract Migrator {
         );
 
         // 9. Compute and push migration nullifier (prevents double-claiming)
-        let migration_nullifier = MigrationLockNote::compute_nullifier(
+        let migration_nullifier = MigrationNote::compute_nullifier(
             migration_note_hash,
             msk,
         );

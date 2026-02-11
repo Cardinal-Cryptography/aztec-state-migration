@@ -561,7 +561,7 @@ async function main() {
   console.log("12. Registering old archive roots on NEW Migrator...");
 
   const registerTx = await newMigrator.methods
-    .register_old_roots(
+    .register_archive_root(
       provenArchiveRoot, // archive_root
       provenBlockNumber, // proven_block_number
       Fr.ZERO, // secret = 0 (using SECRET_HASH_FOR_ZERO)
@@ -719,9 +719,9 @@ async function main() {
   }
 
   // ============================================================
-  // Step 14: Call migrate_via_proof on NEW rollup
+  // Step 14: Call migrate on NEW rollup
   // ============================================================
-  console.log("14. Calling migrate_via_proof on NEW rollup...");
+  console.log("14. Calling migrate on NEW rollup...");
 
   // Use provenCheckpoint for block header and sibling paths.
   // The note hash tree is append-only, so the tree at the checkpoint block still contains
@@ -759,15 +759,15 @@ async function main() {
       newUserWallet,
     );
     const migrateTx = await newAppAsUser.methods
-      .migrate_via_proof(
+      .migrate(
         newMigrator.address, // migrator_address (NEW)
         msk,
         LOCK_AMOUNT,
-        lockNote.storageSlot, // lock_note_storage_slot (from PXE)
-        lockNote.randomness, // lock_note_randomness
-        lockNote.noteNonce, // nonce
-        new Fr(lockNoteLeafIndex), // note_hash_leaf_index
-        finalNoteHashSiblingPath.toFields(), // note_hash_sibling_path
+        lockNote.storageSlot, // migration_note_storage_slot (from PXE)
+        lockNote.randomness, // migration_note_randomness
+        lockNote.noteNonce, // migration_note_nonce
+        new Fr(lockNoteLeafIndex), // migration_note_hash_leaf_index
+        finalNoteHashSiblingPath.toFields(), // migration_note_hash_sibling_path
         noirBlockHeader, // block_header (converted to snake_case)
         new Fr(finalArchiveLeafIndex), // archive_leaf_index
         finalArchiveSiblingPath.toFields(), // archive_sibling_path
@@ -788,7 +788,7 @@ async function main() {
       console.log("⚠️  Migration completed but balance does not match.");
     }
   } catch (e) {
-    console.log(`   ❌ migrate_via_proof failed: ${(e as Error).message}`);
+    console.log(`   ❌ migrate failed: ${(e as Error).message}`);
   }
 
   const newBalanceAfter = await newApp.methods
@@ -812,7 +812,7 @@ async function main() {
   console.log("Migration Flow:");
   console.log("  1. ✅ User mints tokens on OLD rollup");
   console.log(
-    "  2. ✅ User locks tokens for migration (creates MigrationLockNote)",
+    "  2. ✅ User locks tokens for migration (creates MigrationNote)",
   );
   console.log(
     "  3. ✅ L1 Migrator sends archive root to NEW rollup via L1→L2 message",
@@ -821,7 +821,7 @@ async function main() {
     "  4. ✅ NEW Migrator consumes L1→L2 message and registers archive root",
   );
   console.log(
-    "  5. ✅ migrate_via_proof called (BlockHeader conversion working)",
+    "  5. ✅ migrate called (BlockHeader conversion working)",
   );
   console.log("");
   console.log("Balances:");
