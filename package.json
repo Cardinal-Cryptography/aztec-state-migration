@@ -16,6 +16,7 @@
     "test:setup": "./scripts/utils/dual-rollup-setup.sh",
     "test:stop": "./scripts/utils/dual-rollup-stop.sh",
     "test:migration": "npx tsx scripts/migration.test.ts",
+    "test:registry": "npx tsx scripts/migration_key_registry.test.ts",
     "test:hash": "./scripts/hash_compatibility.sh"
   },
   "dependencies": {
