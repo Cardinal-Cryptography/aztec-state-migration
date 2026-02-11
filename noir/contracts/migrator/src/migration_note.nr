@@ -57,8 +57,8 @@ impl NoteHash for MigrationNote {
         _owner: AztecAddress,
         note_hash_for_nullification: Field,
     ) -> Field {
-        // Trait fallback - not used in the migration flow (which calls MigrationNote::compute_nullifier
-        // with msk directly).
+        // Trait fallback - not used in the migration flow (which calls
+        // MigrationNote::compute_destination_rollup_nullifier with msk directly).
         // Ideally, the msk should be requested from the context.
         //
         // Return a deterministic dummy so PXE note discovery
@@ -94,7 +94,7 @@ impl MigrationNote {
     /// Computes the migration nullifier. Includes msk (migration secret key) so that
     /// observers cannot link old/new rollup identities by predicting the nullifier from
     /// public note fields.
-    pub fn compute_nullifier(
+    pub fn compute_destination_rollup_nullifier(
         note_hash_for_nullification: Field,
         msk: Field,
     ) -> Field {
@@ -104,7 +104,7 @@ impl MigrationNote {
         )
     }
 
-    unconstrained fn compute_nullifier_unconstrained(
+    unconstrained fn compute_destination_rollup_nullifier_unconstrained(
         note_hash_for_nullification: Field,
         msk: Field,
     ) -> Field {

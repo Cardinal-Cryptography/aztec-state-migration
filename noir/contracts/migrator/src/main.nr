@@ -26,7 +26,6 @@ pub contract Migrator {
     };
     use aztec::messages::message_delivery::MessageDelivery;
 
-
     #[storage]
     struct Storage<Context> {
         // L1 Migrator address
@@ -196,10 +195,8 @@ pub contract Migrator {
         );
 
         // 9. Compute and push migration nullifier (prevents double-claiming)
-        let migration_nullifier = MigrationNote::compute_nullifier(
-            migration_note_hash,
-            msk,
-        );
+        let migration_nullifier =
+            MigrationNote::compute_destination_rollup_nullifier(migration_note_hash, msk);
         self.context.push_nullifier(migration_nullifier);
 
         // 10. Call public function to verify archive root
