@@ -5,12 +5,7 @@ use aztec::macros::aztec;
 /// This contract demonstrates how to implement Mode A locking on the OLD rollup.
 /// Users call `lock_for_migration()` to:
 /// 1. Nullify their original token note
-/// 2. Create a MigrationLockNote that can be proven on the new rollup
-///
-/// The MigrationLockNote stores:
-/// - owner_npk_m: For cross-rollup ownership proof
-/// - original_note_hash: Hash of the original note (for app-specific verification)
-/// - destination_rollup: Prevents cross-rollup replay
+/// 2. Create a MigrationNote that can be proven on the new rollup
 #[aztec]
 pub contract ExampleMigrationApp {
     use aztec::{
@@ -65,7 +60,7 @@ pub contract ExampleMigrationApp {
     /// This function:
     /// 1. Takes a UintNote from the caller's balance
     /// 2. Nullifies the original note (preventing double-spend)
-    /// 3. Creates a MigrationLockNote that can be proven on the destination rollup
+    /// 3. Creates a MigrationNote that can be proven on the destination rollup
     #[external("private")]
     fn lock_for_migration(
         migrator_address: AztecAddress,
@@ -84,7 +79,7 @@ pub contract ExampleMigrationApp {
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 3. Call Migrator contract to create and store the MigrationLockNote
+        // 3. Call Migrator contract to create and store the MigrationNote
         let _ = self.call(Migrator::at(migrator_address).lock_migration_note(
             note_owner,
             destination_rollup,
@@ -101,54 +96,44 @@ pub contract ExampleMigrationApp {
     // ============================================================
 
     #[external("private")]
-    fn migrate_via_proof(
+    fn migrate(
         migrator_address: AztecAddress,
-        // Owner's migration secret key
-        owner_msk: Field,
-        // MigrationLockNote fields
+        // migration secret key
+        msk: Field,
+        // MigrationNote fields
         amount: u128,
-        destination_rollup: Field,
         // Lock note hashing data
-        lock_note_storage_slot: Field,
-        lock_note_randomness: Field,
-        // Note owner address (included in note hash by #[note] macro)
-        note_owner: AztecAddress,
-        // Siloing data (old lock contract address)
-        old_migrator_address: AztecAddress,
-        nonce: Field,
+        migration_note_storage_slot: Field,
+        migration_note_randomness: Field,
+        // Siloing data
+        migration_note_nonce: Field,
         // Note hash tree membership proof
-        note_hash_leaf_index: Field,
-        note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+        migration_note_hash_leaf_index: Field,
+        migration_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
         // Full block header (to verify note_hash_tree_root is bound to archive)
-        block_header: BlockHeader,
+        archive_block_header: BlockHeader,
         // Archive membership proof (proves block header hash is in archive)
         archive_leaf_index: Field,
         archive_sibling_path: [Field; ARCHIVE_HEIGHT],
-        // Which registered archive root to verify against
-        proven_block_number: Field,
     ) {
-        // 1. Compute migration_data (must match what was stored in MigrationLockNote on old rollup)
+        // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 2. Call Migrator to verify the proof and mark the MigrationLockNote as migrated
-        let note_creator = self.storage.old_rollup_app_address.read();
-        let _ = self.call(Migrator::at(migrator_address).migrate_via_proof(
-            owner_msk,
-            note_creator, // note_creator is the OLD app that called lock_migration_note
+        // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
+        let migration_note_creator = self.storage.old_rollup_app_address.read();
+        let _ = self.call(Migrator::at(migrator_address).migrate_mode_a(
+            msk,
+            migration_note_creator, // migration_note_creator is the OLD app that called lock_migration_note
             migration_data,
-            destination_rollup,
-            lock_note_storage_slot,
-            lock_note_randomness,
-            note_owner,
-            old_migrator_address,
-            nonce,
-            note_hash_leaf_index,
-            note_hash_sibling_path,
-            block_header,
+            migration_note_storage_slot,
+            migration_note_randomness,
+            migration_note_nonce,
+            migration_note_hash_leaf_index,
+            migration_note_hash_sibling_path,
+            archive_block_header,
             archive_leaf_index,
             archive_sibling_path,
-            proven_block_number,
         ));
 
         // 3. If successful, mint the migrated tokens to the user on the new rollup
