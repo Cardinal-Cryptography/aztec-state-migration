@@ -657,17 +657,17 @@ async function main() {
   );
 
   // Compute the storage slot for the lock note
-  // The Migrator stores notes in: migration_locks.at(note_owner).insert(...)
+  // The Migrator stores notes in: migration_notes.at(note_owner).insert(...)
   // where note_owner is passed from ExampleMigrationApp as the user (oldRollupUser)
-  const migrationLocksSlot =
-    oldMigrator.artifact.storageLayout["migration_locks"].slot;
+  const migrationNotesSlot =
+    oldMigrator.artifact.storageLayout["migration_notes"].slot;
 
   // Get the actual lock note from PXE with its randomness and nonce
   // The note is stored in the Migrator contract, owned by the oldApp (the caller of lock_migration_note)
   const lockNotes = await oldUserWallet.getNotes({
     owner: oldRollupUser,
     contractAddress: oldMigrator.address,
-    storageSlot: migrationLocksSlot,
+    storageSlot: migrationNotesSlot,
   });
 
   if (lockNotes.length === 0) {
