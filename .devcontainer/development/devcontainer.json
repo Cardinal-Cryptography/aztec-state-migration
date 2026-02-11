@@ -1,0 +1,32 @@
+{
+  "build": {
+    "context": ".",
+    "dockerfile": "Dockerfile"
+  },
+  "features": { "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+},
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached"
+  ],
+  "postCreateCommand": "bash .devcontainer/development/postCreate.sh",
+  "customizations": {
+    // Configure properties specific to VS Code.
+    "vscode": {
+      // Set *default* container specific settings.json values on container create.
+      "settings": {
+        "claude.apiKey": "${localEnv:ANTHROPIC_API_KEY}",
+        "noir.nargoPath": "/root/.nargo/bin/nargo"
+      },
+      "extensions": [
+          "noir-lang.vscode-noir",
+          "NomicFoundation.hardhat-solidity",
+          "anthropic.claude-code"
+        ]
+    }
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/root/workspace,type=bind",
+  "workspaceFolder": "/root/workspace",
+  "remoteEnv": {
+    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}"
+  }
+}
