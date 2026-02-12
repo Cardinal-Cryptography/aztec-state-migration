@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(nargo *)",
+      "Bash(aztec *)",
+      "Bash(forge *)",
+      "Bash(yarn test*)",
+      "Bash(yarn build*)"
+    ]
+  }
+}
