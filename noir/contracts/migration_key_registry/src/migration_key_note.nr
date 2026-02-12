@@ -7,15 +7,16 @@ use dep::aztec::{
         address::AztecAddress,
         constants::{GENERATOR_INDEX__NOTE_HASH, GENERATOR_INDEX__NOTE_NULLIFIER},
         hash::poseidon2_hash_with_separator,
-        traits::{Deserialize, Hash, Packable, Serialize},
+        traits::{Deserialize, Hash, Packable, Serialize, ToField},
     },
 };
 
 /// MigrationKeyNote - stores a user's migration public key hash.
 ///
-/// Uses #[custom_note] because ownership is implicit via the Owned<PrivateSet> storage,
-/// not via a standard owner field in the note. The note hash excludes the owner parameter,
-/// matching the pattern used by MigrationNote in the migrator contract.
+/// Uses #[custom_note] because ownership is determined by the migration public key hash,
+/// not by a standard Aztec account key. The note hash INCLUDES the owner parameter to
+/// bind the registration to a specific address, enabling cross-rollup ownership proofs
+/// in Mode B migration.
 #[derive(Deserialize, Eq, Serialize, Packable)]
 #[custom_note]
 pub struct MigrationKeyNote {
@@ -25,12 +26,13 @@ pub struct MigrationKeyNote {
 impl NoteHash for MigrationKeyNote {
     fn compute_note_hash(
         self,
-        _owner: AztecAddress,
+        owner: AztecAddress,
         storage_slot: Field,
         randomness: Field,
     ) -> Field {
+        // Owner is included so Mode B can prove a specific address registered this mpk_hash
         poseidon2_hash_with_separator(
-            [self.mpk_hash, storage_slot, randomness],
+            [self.mpk_hash, owner.to_field(), storage_slot, randomness],
             GENERATOR_INDEX__NOTE_HASH,
         )
     }
