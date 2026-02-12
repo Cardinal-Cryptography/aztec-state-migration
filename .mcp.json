@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aztec-docs": {
+      "command": "npx",
+      "args": ["-y", "aztec-mcp-server@latest"]
+    }
+  }
+}
