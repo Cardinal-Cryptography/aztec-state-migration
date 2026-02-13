@@ -11,6 +11,6 @@
     "rootDir": ".",
     "declaration": true
   },
-  "include": ["noir/artifacts/**/*", "scripts/**/*.ts"],
+  "include": ["noir/target/artifacts/**/*", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
