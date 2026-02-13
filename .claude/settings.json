@@ -9,7 +9,11 @@
       "Bash(aztec *)",
       "Bash(forge *)",
       "Bash(yarn test*)",
-      "Bash(yarn build*)"
+      "Bash(yarn build*)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)"
     ]
   }
 }

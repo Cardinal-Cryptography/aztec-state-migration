@@ -176,3 +176,15 @@ These skills are read-only by design and should not run long tests automatically
    - Confirm changes match the plan/spec.
 4) If anything was not verified
    - State exactly what was skipped and why, and what command should be run next.
+
+
+## Bx) Local workflow commands (no GitHub)
+- `/review-pr [range]`: Review local diff like a pull request (defaults to `main..HEAD`).
+- `/fix-issue <text-or-path>`: Apply a fix from local text, with fast checks by default.
+
+Additional local security skills:
+- `/differential-review`
+- `/variant-analysis`
+- `/static-analysis`
+- `/building-secure-contracts`
+- `/property-based-testing`
