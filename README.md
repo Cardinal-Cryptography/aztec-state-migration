@@ -23,8 +23,14 @@ yarn test:setup
 
 3.
 ```sh
-# run the test
-yarn test:migration
+# run Mode A migration test (requires dual-rollup setup)
+yarn test:mode-a
+
+# run Mode B emergency snapshot migration test (requires dual-rollup setup)
+yarn test:mode-b
+
+# run MigrationKeyRegistry test (single-node, only needs old rollup on :8080)
+yarn test:registry
 ```
 
 4.
