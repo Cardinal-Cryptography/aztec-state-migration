@@ -1,3 +1,8 @@
+---
+name: property-based-testing
+description: Provides guidance for property-based testing across multiple languages and smart contracts. Use when writing tests, reviewing code with serialization/validation/parsing patterns, designing features, or when property-based testing would provide stronger coverage than example-based tests.
+---
+
 # Project focus (Aztec + Noir)
 When working in this repo, prioritize these areas:
 - Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
@@ -10,10 +15,6 @@ Default behavior:
 - Prefer compile-only or unit tests before E2E.
 - Do not fetch from GitHub.
 
----
-name: property-based-testing
-description: Provides guidance for property-based testing across multiple languages and smart contracts. Use when writing tests, reviewing code with serialization/validation/parsing patterns, designing features, or when property-based testing would provide stronger coverage than example-based tests.
----
 
 # Property-Based Testing Guide
 

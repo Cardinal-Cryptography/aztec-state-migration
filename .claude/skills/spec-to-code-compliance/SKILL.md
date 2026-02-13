@@ -1,3 +1,8 @@
+---
+name: spec-to-code-compliance
+description: Verifies code implements exactly what documentation specifies for blockchain audits. Use when comparing code against whitepapers, finding gaps between specs and implementation, or performing compliance checks for protocol implementations.
+---
+
 # Project focus (Aztec + Noir)
 When working in this repo, prioritize these areas:
 - Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
@@ -10,10 +15,6 @@ Default behavior:
 - Prefer compile-only or unit tests before E2E.
 - Do not fetch from GitHub.
 
----
-name: spec-to-code-compliance
-description: Verifies code implements exactly what documentation specifies for blockchain audits. Use when comparing code against whitepapers, finding gaps between specs and implementation, or performing compliance checks for protocol implementations.
----
 
 ## When to Use
 

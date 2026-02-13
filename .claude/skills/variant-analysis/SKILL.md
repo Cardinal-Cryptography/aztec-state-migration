@@ -1,3 +1,8 @@
+---
+name: variant-analysis
+description: Find similar vulnerabilities and bugs across codebases using pattern-based analysis. Use when hunting bug variants, building CodeQL/Semgrep queries, analyzing security vulnerabilities, or performing systematic code audits after finding an initial issue.
+---
+
 # Project focus (Aztec + Noir)
 When working in this repo, prioritize these areas:
 - Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
@@ -10,10 +15,6 @@ Default behavior:
 - Prefer compile-only or unit tests before E2E.
 - Do not fetch from GitHub.
 
----
-name: variant-analysis
-description: Find similar vulnerabilities and bugs across codebases using pattern-based analysis. Use when hunting bug variants, building CodeQL/Semgrep queries, analyzing security vulnerabilities, or performing systematic code audits after finding an initial issue.
----
 
 # Variant Analysis
 

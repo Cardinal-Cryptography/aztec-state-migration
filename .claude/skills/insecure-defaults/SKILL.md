@@ -1,3 +1,13 @@
+---
+name: insecure-defaults
+description: "Detects fail-open insecure defaults (hardcoded secrets, weak auth, permissive security) that allow apps to run insecurely in production. Use when auditing security, reviewing config management, or analyzing environment variable handling."
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash
+---
+
 # Project focus (Aztec + Noir)
 When working in this repo, prioritize these areas:
 - Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
@@ -10,15 +20,6 @@ Default behavior:
 - Prefer compile-only or unit tests before E2E.
 - Do not fetch from GitHub.
 
----
-name: insecure-defaults
-description: "Detects fail-open insecure defaults (hardcoded secrets, weak auth, permissive security) that allow apps to run insecurely in production. Use when auditing security, reviewing config management, or analyzing environment variable handling."
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
----
 
 # Insecure Defaults Detection
 

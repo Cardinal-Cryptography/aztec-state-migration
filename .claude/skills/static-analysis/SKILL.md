@@ -1,15 +1,3 @@
-# Project focus (Aztec + Noir)
-When working in this repo, prioritize these areas:
-- Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
-- Solidity contracts: solidity/** (especially solidity/contracts/**)
-- TypeScript scripts/tests: scripts/**/*.ts
-- Spec: docs/spec/migration-spec.md
-
-Default behavior:
-- Read and reason first; do not run long E2E flows unless explicitly needed.
-- Prefer compile-only or unit tests before E2E.
-- Do not fetch from GitHub.
-
 ---
 name: semgrep
 description: Run Semgrep static analysis scan on a codebase using parallel subagents. Automatically
@@ -29,6 +17,19 @@ allowed-tools:
   - TaskUpdate
   - WebFetch
 ---
+
+# Project focus (Aztec + Noir)
+When working in this repo, prioritize these areas:
+- Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
+- Solidity contracts: solidity/** (especially solidity/contracts/**)
+- TypeScript scripts/tests: scripts/**/*.ts
+- Spec: docs/spec/migration-spec.md
+
+Default behavior:
+- Read and reason first; do not run long E2E flows unless explicitly needed.
+- Prefer compile-only or unit tests before E2E.
+- Do not fetch from GitHub.
+
 
 # Semgrep Security Scan
 

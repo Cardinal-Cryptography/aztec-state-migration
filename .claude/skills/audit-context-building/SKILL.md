@@ -1,3 +1,8 @@
+---
+name: audit-context-building
+description: Enables ultra-granular, line-by-line code analysis to build deep architectural context before vulnerability or bug finding.
+---
+
 # Project focus (Aztec + Noir)
 When working in this repo, prioritize these areas:
 - Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
@@ -9,11 +14,6 @@ Default behavior:
 - Read and reason first; do not run long E2E flows unless explicitly needed.
 - Prefer compile-only or unit tests before E2E.
 - Do not fetch from GitHub.
-
----
-name: audit-context-building
-description: Enables ultra-granular, line-by-line code analysis to build deep architectural context before vulnerability or bug finding.
----
 
 # Deep Context Builder Skill (Ultra-Granular Pure Context Mode)
 

@@ -8,9 +8,8 @@
       }
     },
     "aztec-local": {
-      "type": "filesystem",
-      "path": "node_modules/@aztec",
-      "description": "NPM packages - TypeScript types and compiled code (v3.0.0-devnet.6-patch.1)"
-    }
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "node_modules/@aztec"]
+}
   }
 }

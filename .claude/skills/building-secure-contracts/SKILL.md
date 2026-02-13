@@ -1,3 +1,8 @@
+---
+name: algorand-vulnerability-scanner
+description: Scans Algorand smart contracts for 11 common vulnerabilities including rekeying attacks, unchecked transaction fees, missing field validations, and access control issues. Use when auditing Algorand projects (TEAL/PyTeal).
+---
+
 # Project focus (Aztec + Noir)
 When working in this repo, prioritize these areas:
 - Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
@@ -10,10 +15,6 @@ Default behavior:
 - Prefer compile-only or unit tests before E2E.
 - Do not fetch from GitHub.
 
----
-name: algorand-vulnerability-scanner
-description: Scans Algorand smart contracts for 11 common vulnerabilities including rekeying attacks, unchecked transaction fees, missing field validations, and access control issues. Use when auditing Algorand projects (TEAL/PyTeal).
----
 
 # Algorand Vulnerability Scanner
 
