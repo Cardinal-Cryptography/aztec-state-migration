@@ -64,6 +64,7 @@ pub fn lock_migration_notes<let N: u32>(
     migration_data: [Field; N],
 ) {
     assert(mpk.y * mpk.y == mpk.x * mpk.x * mpk.x - 17, "mpk not on Grumpkin curve");
+    assert(!mpk.is_infinite, "mpk cannot be point at infinity");
 
     let note_creator = context.this_address();
     for i in 0..N {

@@ -18,17 +18,15 @@ schnorr_verify(sig, mpk, msg)
 
 ## 2. Single Note per Migration Transaction
 
-**Current:** The TS client (`prepareMigrateModeA`) retrieves `lockNotes[0]` and builds a proof for exactly one `FullMigrationNote`. Users who locked multiple notes must call `migrate_mode_a` once per note.
+**Current:** The TS client (`prepareMigrateModeA`) retrieves `lockNotes[0]` and builds a proof for exactly one `FullMigrationNote`. For the ExampleApp this is sufficient — `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data` hash (the total amount), producing one MigrationNote per lock call.
 
-**Production:** Should support batching - retrieve all migration notes and build an array of `FullMigrationNote` proofs sharing the same `MigrationArgs` (archive proof + Schnorr signature). The Noir circuit already supports `[FullMigrationNote; N]`.
+**Production:** Apps that create multiple MigrationNotes per lock (e.g. locking distinct asset types) would need the TS client to retrieve all migration notes and build an array of `FullMigrationNote` proofs sharing the same `MigrationArgs`. The Noir circuit already supports `[FullMigrationNote; N]`.
 
 ## 3. migration_data is a Single Field
 
-**Current:** Each `MigrationNote` carries one `migration_data: Field`. The example app hashes the token amount into this field (`poseidon2(amount.serialize())`), and the new rollup re-derives the hash to verify.
-
-**Limitation:** Apps with richer note structures (multiple fields, nested data) must compress everything into a single field hash, losing the ability to inspect individual fields in the migration circuit.
-
-**Production:** Consider a variable-length `migration_data: [Field; M]` or a commitment scheme that allows selective disclosure of migrated fields.
+Each `MigrationNote` carries one `migration_data: Field`. This is intentionally minimal — apps handle complexity at their level:
+- Hash multiple fields/nested data into a single field and reconstruct on the new rollup (as the ExampleApp does with `poseidon2(amount.serialize())`)
+- Lock multiple `MigrationNote`s if distinct pieces of data need to be migrated independently
 
 ## 4. Supply Cap
 
@@ -36,13 +34,7 @@ schnorr_verify(sig, mpk, msg)
 
 **Production:** Should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup. Without this, a bug or compromised archive root could allow unlimited minting.
 
-## 5. mpk Curve Validation
-
-**Current:** `lock_migration_notes` checks `y^2 = x^3 - 17` (the Grumpkin curve equation) but does not verify the point is not the point at infinity or that it lies in the correct prime-order subgroup.
-
-**Production:** Should additionally assert `!mpk.is_infinite` and verify subgroup membership. A point at infinity or low-order point would make `msk` recovery trivial or allow multiple secret keys to match.
-
-## 6. old_app_address is an Unchecked Witness
+## 7. old_app_address is an Unchecked Witness
 
 **Current:** On the new rollup, `old_app_address` is read from ExampleApp's `PublicImmutable` storage (set at deployment). The migration circuit trusts this value when siloing the reconstructed note hash.
 
@@ -50,13 +42,13 @@ schnorr_verify(sig, mpk, msg)
 
 **Production:** Consider an on-chain registry that maps old rollup app addresses to new rollup app addresses, verified via L1 or governance.
 
-## 7. L1 migrateArchiveRoot is Permissionless
+## 8. L1 migrateArchiveRoot is Permissionless
 
 **Current:** Anyone can call `L1Migrator.migrateArchiveRoot()` to bridge an archive root snapshot. This is by design (users self-serve), but each call consumes an L1-to-L2 message slot.
 
 **Consideration:** An attacker could spam `migrateArchiveRoot` calls to fill L1-to-L2 message trees or increase costs. Consider rate limiting or requiring a small bond.
 
-## 8. MSK Persistence is Caller's Responsibility
+## 9. MSK Persistence is Caller's Responsibility
 
 **Current:** `prepareMigrationNoteLock()` generates a random `msk` and returns it. The caller must persist it across the lock-bridge-migrate flow (potentially days or weeks). If lost, locked funds are unrecoverable.
 
