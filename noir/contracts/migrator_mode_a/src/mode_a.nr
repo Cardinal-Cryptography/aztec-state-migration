@@ -12,9 +12,9 @@ use aztec::{
         traits::{Deserialize, Hash, Packable, Serialize},
     },
 };
-use std::embedded_curve_ops::multi_scalar_mul;
 pub use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 pub use std::embedded_curve_ops::EmbeddedCurveScalar as Scalar;
+use std::embedded_curve_ops::fixed_base_scalar_mul;
 
 #[derive(Serialize)]
 pub struct MigrationArgs {
@@ -105,7 +105,7 @@ pub fn migrate_notes<let N: u32>(
 ) {
     // 1. Derive mpk from msk to authenticate the migrating user
     let current_rollup = context.version();
-    let mpk = multi_scalar_mul([Point::generator()], [migration_args.msk]);
+    let mpk = fixed_base_scalar_mul(migration_args.msk);
 
     // 2. Verify each note's inclusion in the old rollup's note hash tree
     let note_hash_tree_root = migration_args.archive_block_header.state.partial.note_hash_tree.root;
