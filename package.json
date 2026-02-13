@@ -16,7 +16,9 @@
     "test:setup": "./scripts/utils/dual-rollup-setup.sh",
     "test:stop": "./scripts/utils/dual-rollup-stop.sh",
     "test:migration": "npx tsx scripts/migration.test.ts",
-    "test:hash": "./scripts/hash_compatibility.sh"
+    "test:hash": "./scripts/hash_compatibility.sh",
+    "check:fast": "./scripts/check-fast.sh",
+    "check:full": "./scripts/check-full.sh"
   },
   "dependencies": {
     "@aztec/accounts": "v3.0.0-devnet.6-patch.1",

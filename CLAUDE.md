@@ -63,6 +63,17 @@ We keep docs in `docs/` using a layout that can be reused across projects.
 - Clean: `yarn clean`
 
 ### Testing
+
+### Recommended verification defaults
+- Fast checks (default): `yarn check:fast`
+- Full E2E (only when needed): `yarn check:full`
+
+Use `yarn check:full` when changes affect:
+- migration flow logic across old/new rollup
+- archive root verification
+- L1↔L2 message consumption
+- note hashing / nullifier behavior that the E2E test exercises
+
 - Unit tests (Noir): `nargo test --show-output`
 
 ### E2E migration test (complex flow)
