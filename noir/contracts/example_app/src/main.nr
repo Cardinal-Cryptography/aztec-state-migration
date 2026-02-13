@@ -153,7 +153,6 @@ pub contract ExampleMigrationApp {
         // Authentication
         msk: Field,
         amount: u128,
-        snapshot_height: u32,
 
         // UintNote (balance note) fields
         balance_note_owner: AztecAddress,
@@ -198,7 +197,6 @@ pub contract ExampleMigrationApp {
         // 1. Call MigratorModeB to verify all proofs
         let _ = self.call(MigratorModeB::at(migrator_address).migrate_mode_b(
             msk,
-            snapshot_height,
             balance_note_owner,
             amount,
             balance_note_storage_slot,

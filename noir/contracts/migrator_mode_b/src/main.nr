@@ -129,7 +129,6 @@ pub contract MigratorModeB {
     fn migrate_mode_b(
         // Authentication
         msk: Field,
-        snapshot_height: u32,
 
         // UintNote (balance note) fields
         balance_note_owner: AztecAddress,
@@ -177,11 +176,8 @@ pub contract MigratorModeB {
         // 1. Authentication: verify msk corresponds to the registered mpk_hash
         let mpk_hash = poseidon2_hash([msk]);
 
-        // 2. Verify block header is at the claimed snapshot height
-        assert(
-            archive_block_header.global_variables.block_number == snapshot_height,
-            "Block header must be at snapshot height",
-        );
+        // 2. Extract snapshot height from block header (verified against stored value in public call)
+        let snapshot_height = archive_block_header.global_variables.block_number;
 
         // ============================================================
         // 3. Compute UintNote hash (two-step formula from uint_note.nr)

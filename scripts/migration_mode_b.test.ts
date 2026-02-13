@@ -786,7 +786,6 @@ async function main() {
         // Auth
         msk,
         migrateAmount,
-        effectiveSnapshotHeight,
         // UintNote fields
         oldRollupUser, // balance_note_owner
         balanceNote.storageSlot, // balance_note_storage_slot
