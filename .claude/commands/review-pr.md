@@ -20,4 +20,4 @@ Review local changes like a pull request, without GitHub.
    - suggested fixes
 4) Tests:
    - default to compile/unit tests first
-   - do not run `yarn test:setup` / `yarn test:migration` unless a change clearly affects E2E behavior
+   - do not run `yarn test:setup` / `yarn test:mode-a` / `yarn test:mode-b` unless a change clearly affects E2E behavior

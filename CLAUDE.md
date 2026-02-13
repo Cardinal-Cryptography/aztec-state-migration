@@ -74,11 +74,13 @@ Use `yarn check:full` when changes affect:
 
 ### E2E migration test (complex flow)
 1) Setup (starts dual rollup sandboxes):
-   - `yarn test:setup`  
+   - `yarn test:setup`
    - OLD sandbox: `http://localhost:8080`
    - NEW sandbox: `http://localhost:8081`
-2) Run migration test:
-   - `yarn test:migration`
+2) Run migration tests:
+   - `yarn test:mode-a` (Mode A migration)
+   - `yarn test:mode-b` (Mode B emergency snapshot)
+   - Or run both: `yarn check:full`
 3) Stop and clean up:
    - `yarn test:stop`
 
@@ -137,10 +139,7 @@ If there is any mismatch, stop and resolve it before making code changes.
 These are available as slash commands:
 
 - /audit-context-building: Build system context (assets, trust assumptions, flows).
-- /entry-point-analyzer: Enumerate external entry points in Noir/Solidity/TS and what state they can change.
 - /spec-to-code-compliance: Map docs/spec statements to code + tests, list gaps.
-- /insecure-defaults: Identify unsafe defaults and missing checks (especially around migration and replay protection).
-- /sharp-edges: Identify confusing or error-prone interfaces and propose safer patterns.
 
 These skills are read-only by design and should not run long tests automatically.
 
@@ -183,6 +182,3 @@ These skills are read-only by design and should not run long tests automatically
 
 Additional local security skills:
 - `/differential-review`
-- `/variant-analysis`
-- `/static-analysis`
-- `/property-based-testing`

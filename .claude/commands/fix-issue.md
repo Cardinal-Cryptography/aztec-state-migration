@@ -14,7 +14,8 @@ Fix an issue described in local text (no GitHub).
    - noir/contracts/migrator/**
    - noir/contracts/example_app/**
    - solidity/**
-   - scripts/migration.test.ts
+   - scripts/migration_mode_a.test.ts
+   - scripts/migration_mode_b.test.ts
    - docs/spec/migration-spec.md
 3) Implement smallest safe fix.
 4) Verify (fast by default):
@@ -25,6 +26,6 @@ Fix an issue described in local text (no GitHub).
    - `yarn test:hash` if hashing or serialization could be affected
 5) Run E2E only when needed:
    - `yarn test:setup`
-   - `yarn test:migration`
+   - `yarn test:mode-a` and/or `yarn test:mode-b`
    - `yarn test:stop`
 

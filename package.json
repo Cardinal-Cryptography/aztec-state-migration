@@ -16,7 +16,6 @@
     "build": "tsc",
     "test:setup": "./scripts/utils/dual-rollup-setup.sh",
     "test:stop": "./scripts/utils/dual-rollup-stop.sh",
-    "test:migration": "npx tsx scripts/migration.test.ts",
     "check:full": "./scripts/check-full.sh",
     "test:mode-a": "npx tsx scripts/migration_mode_a.test.ts",
     "test:mode-b": "npx tsx scripts/migration_mode_b.test.ts",
