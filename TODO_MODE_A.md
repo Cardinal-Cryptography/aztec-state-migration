@@ -1,32 +1,25 @@
 # Mode A PoC - Known Limitations & Future Work
 
-## 1. Schnorr-Based Authentication & Randomness-Based Nullifier
+## 1. Schnorr-Based Authentication (remove msk from circuit)
 
-**Current:** `msk` (migration secret key) serves double duty in the circuit: it's used to derive `mpk` (authentication) AND to compute the migration nullifier (`poseidon2([note_hash, msk.hi, msk.lo])`). This forces `msk` to be a full Scalar witness (2 field elements) in the migration circuit.
+**Done:** The migration nullifier now uses note `randomness` instead of `msk`:
+```
+nullifier = poseidon2([note_hash, randomness], GEN_NULLIFIER)
+```
+This also fixed the dummy nullifier problem — `compute_nullifier` now returns the real nullifier (PXE knows the randomness), so note tracking works correctly.
 
-**Production:** Decouple authentication from nullification:
+**Remaining:** `msk` is still a Scalar witness in the circuit for authentication (`mpk = fixed_base_scalar_mul(msk)`). Replace with Schnorr signature verification:
 
-- **Nullifier:** Use the note's `randomness` instead of `msk`. Since `randomness` is already a circuit witness (needed to reconstruct the note hash) and is secret (only known to the note owner via PXE), this provides the same unlinkability guarantees at zero additional cost:
-  ```
-  nullifier = poseidon2([note_hash, randomness], GEN_NULLIFIER)
-  ```
+```
+// off-chain:
+msg = poseidon2(CLAIM_DOMAIN, note_hash, recipient, new_app_address)
+sig = schnorr_sign(msk, msg)
 
-- **Authentication:** Replace in-circuit `msk` scalar multiplication with Schnorr signature verification. The user signs a domain-separated message off-chain, and the circuit verifies the signature against `mpk` (already reconstructed from the MigrationNote):
-  ```
-  msg = poseidon2(CLAIM_DOMAIN, note_hash, recipient, new_app_address)
-  sig = schnorr_sign(msk, msg)
-  // circuit: schnorr_verify(sig, mpk, msg)
-  ```
+// in-circuit:
+schnorr_verify(sig, mpk, msg)
+```
 
-This removes `msk` from the circuit entirely, reduces witness size, and enables richer authentication (the signed message can bind the claim to a specific recipient and contract, preventing front-running).
-
-### 1a. Dummy Nullifier in MigrationNote
-
-**Current:** `compute_nullifier` returns a deterministic dummy (`poseidon2([note_hash], GEN_NULLIFIER)`) so PXE note discovery can track the note without crashing. This nullifier is never submitted on-chain on the old rollup.
-
-**Problem:** The dummy nullifier is predictable from public note data. If PXE or any indexer submits it (e.g. during note cleanup), the MigrationNote would appear spent on the old rollup even though no migration happened.
-
-**Production:** With the Schnorr approach above, the real nullifier uses `randomness` (known to PXE), so `compute_nullifier` could return the correct value directly. Alternatively, ensure PXE never auto-nullifies custom notes.
+This would remove `msk` from the circuit entirely and enable richer authentication (the signed message can bind the claim to a specific recipient and contract, preventing front-running).
 
 ## 2. Single Note per Migration Transaction
 

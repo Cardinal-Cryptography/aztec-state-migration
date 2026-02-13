@@ -9,7 +9,7 @@ use aztec::{
         traits::{Deserialize, Packable, Serialize, ToField},
     },
 };
-use std::embedded_curve_ops::{EmbeddedCurvePoint as Point, EmbeddedCurveScalar as Scalar};
+use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
 // poseidon2_hash([0x6d6967726174696f6e5f6d6f64655f61]) where input is "migration_mode_a" as ASCII
 pub global MIGRATION_NOTE_STORAGE_SLOT: Field = 0x28ca34e829f0cda691d3713e01bb3a812dc678348c01617bbe9bd8549bd76eda;
@@ -17,30 +17,31 @@ pub global MIGRATION_NOTE_STORAGE_SLOT: Field = 0x28ca34e829f0cda691d3713e01bb3a
 /// MigrationNote - a note that locks a user's original note for migration.
 ///
 /// Uses #[custom_note] because ownership is determined by the migration public key (mpk),
-/// not by an Aztec account address. The note hash intentionally excludes the standard `owner`
+/// not by an Aztec owner address. The note hash intentionally excludes the standard `owner`
 /// parameter, simplifying cross-rollup verification (the new rollup doesn't need to know
 /// old rollup identities).
+/// # Fields
+/// - `note_creator`: Address of the note creator (typically app contract)
+/// - `mpk`: Migration public key (Grumpkin curve point).
+/// - `destination_rollup`: Identifier of the destination rollup (prevents cross-rollup replay)
+/// - `migration_data`: Data to migrate (e.g., hash of original note data
 #[derive(Deserialize, Eq, Serialize, Packable)]
 #[custom_note]
 pub struct MigrationNote {
-    /// Address of the note creator (typically app contract)
     pub note_creator: AztecAddress,
-    /// Migration public key (Grumpkin curve point).
     pub mpk: Point,
-    /// Identifier of the destination rollup (prevents cross-rollup replay)
     pub destination_rollup: Field,
-    /// Data to migrate (e.g., hash of original note data)
     pub migration_data: Field,
 }
 
 impl NoteHash for MigrationNote {
+    // Owner is intentionally excluded - `mpk` serves as the ownership proof.
     fn compute_note_hash(
         self,
         _owner: AztecAddress,
         storage_slot: Field,
         randomness: Field,
     ) -> Field {
-        // Owner is intentionally excluded - mpk serves as the ownership proof.
         poseidon2_hash_with_separator(
             [
                 self.note_creator.to_field(),
@@ -55,31 +56,38 @@ impl NoteHash for MigrationNote {
         )
     }
 
+
+    /// Returns the non-siloed migration nullifier,
+    /// which will be later siloed by contract address by the kernels before being committed to the state tree.
+    ///
+    /// Instead of owner address, includes migration note randomness so that
+    /// observers cannot link old/new rollup identities by predicting the nullifier from
+    /// public note fields.
+    /// # Parameters:
+    /// - `note_hash_for_nullification`: the note hash of the migration note being claimed
+    /// - `wrapped_randomness`: the randomness of the migration note being claimed,
+    ///                         wrapped in an [AztecAddress] for compatibility with the NoteHash trait; the inner field is used as the randomness
     fn compute_nullifier(
         self,
         _context: &mut PrivateContext,
-        _owner: AztecAddress,
+        wrapped_randomness: AztecAddress,
         note_hash_for_nullification: Field,
     ) -> Field {
-        // Trait fallback - not used in the migration flow (which calls
-        // MigrationNote::compute_destination_rollup_nullifier with msk directly).
-        // Ideally, the msk should be requested from the context.
-        //
-        // Return a deterministic dummy so PXE note discovery
-        // can track the note without crashing.
+        let randomness = wrapped_randomness.inner;
         poseidon2_hash_with_separator(
-            [note_hash_for_nullification],
+            [note_hash_for_nullification, randomness],
             GENERATOR_INDEX__NOTE_NULLIFIER,
         )
     }
 
     unconstrained fn compute_nullifier_unconstrained(
         self,
-        _owner: AztecAddress,
+        wrapped_randomness: AztecAddress,
         note_hash_for_nullification: Field,
     ) -> Field {
+        let randomness = wrapped_randomness.inner;
         poseidon2_hash_with_separator(
-            [note_hash_for_nullification],
+            [note_hash_for_nullification, randomness],
             GENERATOR_INDEX__NOTE_NULLIFIER,
         )
     }
@@ -93,28 +101,5 @@ impl MigrationNote {
         migration_data: Field,
     ) -> Self {
         Self { note_creator, mpk, destination_rollup, migration_data }
-    }
-
-    /// Computes the migration nullifier. Includes msk (migration secret key) so that
-    /// observers cannot link old/new rollup identities by predicting the nullifier from
-    /// public note fields.
-    pub fn compute_destination_rollup_nullifier(
-        note_hash_for_nullification: Field,
-        msk: Scalar,
-    ) -> Field {
-        poseidon2_hash_with_separator(
-            [note_hash_for_nullification, msk.hi, msk.lo],
-            GENERATOR_INDEX__NOTE_NULLIFIER,
-        )
-    }
-
-    unconstrained fn compute_destination_rollup_nullifier_unconstrained(
-        note_hash_for_nullification: Field,
-        msk: Scalar,
-    ) -> Field {
-        poseidon2_hash_with_separator(
-            [note_hash_for_nullification, msk.hi, msk.lo],
-            GENERATOR_INDEX__NOTE_NULLIFIER,
-        )
     }
 }

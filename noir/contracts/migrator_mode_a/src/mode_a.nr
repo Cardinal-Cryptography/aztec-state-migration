@@ -88,7 +88,7 @@ pub fn lock_migration_notes<let N: u32>(
 ///   4. Enqueue a public call to the MigratorRegistry to verify the computed
 ///      archive root matches the one registered on-chain (bridged from L1).
 ///
-/// Each verified note emits a nullifier (keyed to `msk`) to prevent double-claiming.
+/// Each verified note emits a nullifier (keyed to note randomness) to prevent double-claiming.
 ///
 /// # Parameters
 /// - `context`: the calling app contract's private context on the new rollup
@@ -115,7 +115,6 @@ pub fn migrate_notes<let N: u32>(
             context,
             old_app_address,
             mpk,
-            migration_args.msk,
             current_rollup,
             full_notes[i],
             note_hash_tree_root,
@@ -150,7 +149,6 @@ fn migrate_note(
     context: &mut PrivateContext,
     old_app_address: AztecAddress,
     mpk: Point,
-    msk: Scalar,
     current_rollup: Field,
     full_note: FullMigrationNote,
     note_hash_tree_root: Field,
@@ -181,9 +179,10 @@ fn migrate_note(
     );
     assert(computed_note_hash_tree_root == note_hash_tree_root, "Lock note not in note hash tree");
 
-    // Emit nullifier keyed to msk (prevents double-claiming, preserves privacy
-    // since observers cannot link old/new rollup identities)
+    // Emit nullifier keyed to note randomness (prevents double-claiming, preserves
+    // privacy since observers cannot link old/new rollup identities)
+    let wrapped_randomness = AztecAddress { inner: full_note.randomness };
     let migration_nullifier =
-        MigrationNote::compute_destination_rollup_nullifier(migration_note_hash, msk);
+        migration_note.compute_nullifier(context, wrapped_randomness, migration_note_hash);
     context.push_nullifier(migration_nullifier);
 }
