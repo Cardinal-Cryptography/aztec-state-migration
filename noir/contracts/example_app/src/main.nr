@@ -2,10 +2,10 @@ use aztec::macros::aztec;
 
 /// Example migration-aware token contract.
 ///
-/// This contract demonstrates how to implement Mode A locking on the OLD rollup.
-/// Users call `lock_for_migration()` to:
-/// 1. Nullify their original token note
-/// 2. Create a MigrationNote that can be proven on the new rollup
+/// Supports both Mode A (routine lock-and-claim) and Mode B (emergency snapshot) migration.
+///
+/// Mode A: Users call `lock_for_migration()` on old rollup, then `migrate()` on new rollup.
+/// Mode B: Users prove note existence + non-nullification at snapshot height H.
 #[aztec]
 pub contract ExampleMigrationApp {
     use aztec::{
@@ -19,6 +19,7 @@ pub contract ExampleMigrationApp {
     };
     use balance_set::balance_set::BalanceSet;
     use migrator::{ARCHIVE_HEIGHT, Migrator, NOTE_HASH_TREE_HEIGHT};
+    use migrator_mode_b::{MigratorModeB, NULLIFIER_TREE_HEIGHT};
 
     #[storage]
     struct Storage<Context> {
@@ -137,6 +138,95 @@ pub contract ExampleMigrationApp {
         ));
 
         // 3. If successful, mint the migrated tokens to the user on the new rollup
+        self.storage.balances.at(self.context.msg_sender().unwrap()).add(amount).deliver(
+            MessageDelivery.CONSTRAINED_ONCHAIN,
+        );
+    }
+
+    // ============================================================
+    // Mode B: Emergency Snapshot Migration (on NEW rollup)
+    // ============================================================
+
+    #[external("private")]
+    fn migrate_mode_b(
+        migrator_address: AztecAddress,
+        // Authentication
+        msk: Field,
+        amount: u128,
+
+        // UintNote (balance note) fields
+        balance_note_owner: AztecAddress,
+        balance_note_storage_slot: Field,
+        balance_note_randomness: Field,
+        balance_note_nonce: Field,
+
+        // UintNote inclusion proof
+        balance_note_leaf_index: Field,
+        balance_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+
+        // UintNote non-nullification proof
+        balance_note_siloed_nullifier: Field,
+        balance_low_nullifier_value: Field,
+        balance_low_nullifier_next_value: Field,
+        balance_low_nullifier_next_index: Field,
+        balance_low_nullifier_leaf_index: Field,
+        balance_low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
+
+        // MigrationKeyNote fields
+        key_note_storage_slot: Field,
+        key_note_randomness: Field,
+        key_note_nonce: Field,
+
+        // MigrationKeyNote inclusion proof
+        key_note_leaf_index: Field,
+        key_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+
+        // MigrationKeyNote non-nullification proof
+        key_note_siloed_nullifier: Field,
+        key_low_nullifier_value: Field,
+        key_low_nullifier_next_value: Field,
+        key_low_nullifier_next_index: Field,
+        key_low_nullifier_leaf_index: Field,
+        key_low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
+
+        // Block header at snapshot height + archive proof
+        archive_block_header: BlockHeader,
+        archive_leaf_index: Field,
+        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+    ) {
+        // 1. Call MigratorModeB to verify all proofs
+        let _ = self.call(MigratorModeB::at(migrator_address).migrate_mode_b(
+            msk,
+            balance_note_owner,
+            amount,
+            balance_note_storage_slot,
+            balance_note_randomness,
+            balance_note_nonce,
+            balance_note_leaf_index,
+            balance_note_sibling_path,
+            balance_note_siloed_nullifier,
+            balance_low_nullifier_value,
+            balance_low_nullifier_next_value,
+            balance_low_nullifier_next_index,
+            balance_low_nullifier_leaf_index,
+            balance_low_nullifier_sibling_path,
+            key_note_storage_slot,
+            key_note_randomness,
+            key_note_nonce,
+            key_note_leaf_index,
+            key_note_sibling_path,
+            key_note_siloed_nullifier,
+            key_low_nullifier_value,
+            key_low_nullifier_next_value,
+            key_low_nullifier_next_index,
+            key_low_nullifier_leaf_index,
+            key_low_nullifier_sibling_path,
+            archive_block_header,
+            archive_leaf_index,
+            archive_sibling_path,
+        ));
+
+        // 2. Mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(self.context.msg_sender().unwrap()).add(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );

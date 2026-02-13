@@ -74,6 +74,44 @@ contract Migrator {
         );
     }
 
+    /// @notice Send archive root at a specific block height to a new rollup app via L1→L2 message
+    /// @param oldVersion The old rollup version to read archive root from
+    /// @param blockNumber The block number to read the archive root at (must be <= proven checkpoint)
+    /// @param l2Migrator The L2 migrator on new rollup that will store the roots
+    /// @return leaf The L1→L2 message leaf hash
+    /// @return leafIndex The index in the L1→L2 message tree
+    function migrateArchiveRootAtBlock(
+        uint256 oldVersion,
+        uint256 blockNumber,
+        DataStructures.L2Actor calldata l2Migrator
+    ) external returns (bytes32 leaf, uint256 leafIndex) {
+        IRollup oldRollup = IRollup(address(REGISTRY.getRollup(oldVersion)));
+        IRollup newRollup = IRollup(address(REGISTRY.getRollup(l2Migrator.version)));
+
+        // Ensure the requested block is finalized
+        uint256 provenCheckpointNumber = oldRollup.getProvenCheckpointNumber();
+        require(blockNumber <= provenCheckpointNumber, "Block not yet proven");
+
+        bytes32 archiveRoot = oldRollup.archiveAt(blockNumber);
+
+        bytes32 content = bytes32(
+            POSEIDON2.hash_3(oldVersion, uint256(archiveRoot), blockNumber)
+        );
+
+        IInbox inbox = newRollup.getInbox();
+        (leaf, leafIndex) = inbox.sendL2Message(l2Migrator, content, SECRET_HASH_FOR_ZERO);
+
+        emit ArchiveRootMigrated(
+            oldVersion,
+            l2Migrator.version,
+            l2Migrator.actor,
+            archiveRoot,
+            blockNumber,
+            leaf,
+            leafIndex
+        );
+    }
+
     /// @notice Get archive root info from a rollup version (view function for off-chain use)
     /// @param version The rollup version to query
     /// @return archiveRoot The current archive root
