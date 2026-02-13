@@ -6,7 +6,8 @@
   "features": { "ghcr.io/devcontainers/features/docker-in-docker:2": {}
 },
   "mounts": [
-    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached"
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.claude,target=/root/.claude,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/development/claude.settings.local.json,target=/root/workspace/.claude/settings.local.json,type=bind,consistency=cached"
   ],
   "postCreateCommand": "bash .devcontainer/development/postCreate.sh",
   "customizations": {
