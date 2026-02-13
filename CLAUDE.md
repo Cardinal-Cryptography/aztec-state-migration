@@ -197,5 +197,4 @@ Additional local security skills:
 - `/differential-review`
 - `/variant-analysis`
 - `/static-analysis`
-- `/building-secure-contracts`
 - `/property-based-testing`
