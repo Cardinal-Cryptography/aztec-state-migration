@@ -65,7 +65,6 @@ We keep docs in `docs/` using a layout that can be reused across projects.
 ### Testing
 
 ### Recommended verification defaults
-- Fast checks (default): `yarn check:fast`
 - Full E2E (only when needed): `yarn check:full`
 
 Use `yarn check:full` when changes affect:

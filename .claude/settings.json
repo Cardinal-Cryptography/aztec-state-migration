@@ -18,7 +18,6 @@
       "Bash(git diff*)",
       "Bash(git log*)",
       "Bash(git show*)",
-      "Bash(yarn check:fast*)",
       "Bash(yarn check:full*)"
     ]
   }
