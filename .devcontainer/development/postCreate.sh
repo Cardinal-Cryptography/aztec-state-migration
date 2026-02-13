@@ -77,21 +77,18 @@ echo "✓ Solidity dependencies installed"
 # Sync Aztec MCP repos (idempotent - only if not already present)
 echo "Checking Aztec MCP repositories..."
 if [ ! -d "$HOME/.aztec-mcp/repos/aztec-packages" ]; then
-  echo "Syncing Aztec repos for MCP (first time - may take a few minutes)..."
-  echo "Note: This downloads Aztec docs, source code, and examples for Claude Code MCP access"
-  # Try to run sync via Node if aztec-mcp-server is available
-  npx --yes --package=aztec-mcp-server -- node -e "
-    (async () => {
-      try {
-        // Note: aztec_sync_repos will be called via Claude Code MCP on first use
-        // This is just an optimization to pre-download repos during container build
-        console.log('Aztec MCP repos will sync automatically on first Claude Code use');
-        console.log('Or run: aztec_sync_repos({ version: \"v3.0.0-devnet.6-patch.1\" })');
-      } catch (err) {
-        console.log('MCP repos will sync on first Claude Code use');
-      }
-    })();
-  " || echo "Note: Aztec MCP repos will sync automatically when first accessed via Claude Code"
+  echo "Downloading Aztec repos for MCP (Pre-warming - this takes a minute)..."
+  
+  # Create the target directory
+  mkdir -p "$HOME/.aztec-mcp/repos"
+  
+  # Fast shallow clone of the exact Aztec version to pre-warm the MCP cache
+  echo "Cloning aztec-packages..."
+  git clone --depth 1 --branch "aztec-packages-v${AZTEC_VERSION}" https://github.com/AztecProtocol/aztec-packages.git "$HOME/.aztec-mcp/repos/aztec-packages" || \
+  git clone --depth 1 --branch "v${AZTEC_VERSION}" https://github.com/AztecProtocol/aztec-packages.git "$HOME/.aztec-mcp/repos/aztec-packages" || \
+  git clone --depth 1 --branch "${AZTEC_VERSION}" https://github.com/AztecProtocol/aztec-packages.git "$HOME/.aztec-mcp/repos/aztec-packages"
+  
+  echo "✓ Aztec MCP repos downloaded successfully"
 else
   echo "✓ Aztec MCP repos already synced"
 fi

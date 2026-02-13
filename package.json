@@ -13,6 +13,7 @@
     "noir:compile": "cd noir && aztec compile",
     "sol:compile": "cd solidity && forge build",
     "noir:codegen": "cd noir && aztec codegen ./target -o ./target/artifacts",
+    "build": "tsc",
     "test:setup": "./scripts/utils/dual-rollup-setup.sh",
     "test:stop": "./scripts/utils/dual-rollup-stop.sh",
     "test:migration": "npx tsx scripts/migration.test.ts",
