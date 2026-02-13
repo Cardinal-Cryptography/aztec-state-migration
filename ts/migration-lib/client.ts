@@ -2,6 +2,9 @@ import { GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { generatePublicKey } from "@aztec/aztec.js/keys";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { BlockNumber } from "@aztec/foundation/branded-types";
+import { poseidon2Hash, poseidon2HashWithSeparator } from "@aztec/foundation/crypto/poseidon";
+import { Schnorr } from "@aztec/foundation/crypto/schnorr";
+import { GeneratorIndex } from "@aztec/constants";
 import { toHex, decodeEventLog, parseAbi } from "viem";
 
 import { blockHeaderToNoir } from "./noir-helpers/block-header.js";
@@ -235,6 +238,8 @@ export class MigrationClient {
       oldUserWallet,
       oldOwner,
       provenBlockNumber,
+      newRecipient,
+      newAppAddress,
     } = input;
 
     // 1. Get the MigrationNote from the old PXE
@@ -279,12 +284,46 @@ export class MigrationClient {
       );
     }
 
-    // 5. Assemble MigrationArgs + FullMigrationNote
+    // 4. Extract migration data and derive mpk
     // MigrationNote fields: [note_creator, mpk.x, mpk.y, mpk.is_infinite, destination_rollup, migration_data]
     const migrationData = lockNote.note.items[5];
+    const mpk = await generatePublicKey(msk);
 
+    // 5. Compute the migration note hash (must match Noir's compute_note_hash)
+    // In the Noir circuit, note_creator = old_app_address, destination_rollup = current_rollup (new)
+    const noteHash = await poseidon2HashWithSeparator(
+      [
+        oldAppAddress,
+        mpk.x,
+        mpk.y,
+        this.config.newRollupVersion,
+        migrationData,
+        MIGRATION_NOTE_SLOT,
+        lockNote.randomness,
+      ],
+      GeneratorIndex.NOTE_HASH,
+    );
+
+    // 6. Build domain-separated message and sign with Schnorr
+    // Must match: poseidon2_hash([CLAIM_DOMAIN_A, old_rollup, current_rollup, notes_hash, recipient, new_app_address])
+    const notesHash = await poseidon2Hash([noteHash]);
+    const oldRollupVersion = new Fr(blockHeader.globalVariables.version);
+    const msg = await poseidon2Hash([
+      MIGRATION_NOTE_SLOT, // CLAIM_DOMAIN_A = MIGRATION_NOTE_STORAGE_SLOT
+      oldRollupVersion,
+      new Fr(this.config.newRollupVersion),
+      notesHash,
+      newRecipient,
+      newAppAddress,
+    ]);
+    const msgBytes = msg.toBuffer(); // 32 bytes big-endian
+    const schnorr = new Schnorr();
+    const signature = await schnorr.constructSignature(msgBytes, msk);
+
+    // 7. Assemble MigrationArgs + FullMigrationNote
     const migrationArgs = {
-      msk,
+      mpk: pointToNoir(mpk),
+      signature: [...signature.toBuffer()],
       archive_block_header: blockHeaderToNoir(blockHeader),
       archive_leaf_index: new Fr(BigInt(provenBlockNumber)),
       archive_sibling_path: archiveSiblingPath.toFields(),

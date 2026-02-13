@@ -135,15 +135,22 @@ export interface PrepareMigrateModeAInput {
 
   /** Proven block number from BridgeResult. */
   provenBlockNumber: number;
+
+  /** The recipient address on the new rollup (context.msg_sender() in the Noir circuit). */
+  newRecipient: AztecAddress;
+
+  /** The app contract address on the new rollup (context.this_address() in the Noir circuit). */
+  newAppAddress: AztecAddress;
 }
 
 export interface MigrateArgs {
   /** Address of the Migrator contract on the new rollup. */
   migratorAddress: AztecAddress;
 
-  /** MigrationArgs struct — archive proof + msk. */
+  /** MigrationArgs struct — archive proof + mpk + Schnorr signature. */
   migrationArgs: {
-    msk: GrumpkinScalar;
+    mpk: { x: Fr; y: Fr; is_infinite: boolean };
+    signature: number[];
     archive_block_header: ReturnType<
       typeof import("./noir-helpers/block-header.js").blockHeaderToNoir
     >;

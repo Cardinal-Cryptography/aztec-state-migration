@@ -137,6 +137,8 @@ async function main() {
     oldUserWallet,
     oldOwner: oldRollupUser,
     provenBlockNumber: bridgeResult.provenBlockNumber,
+    newRecipient: newRollupUser,
+    newAppAddress: newApp.address,
   });
   console.log("   Migration args prepared.\n");
 

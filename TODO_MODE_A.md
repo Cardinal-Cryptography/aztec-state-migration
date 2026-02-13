@@ -1,31 +1,26 @@
 # Mode A PoC - Known Limitations & Future Work
 
-## 1. Schnorr-Based Authentication (remove msk from circuit)
+## 1. ~~Schnorr-Based Authentication~~ (Done)
 
-**Done:** The migration nullifier now uses note `randomness` instead of `msk`:
+- Nullifier uses note `randomness` instead of `msk`, fixing the dummy nullifier problem.
+- `msk` removed from `MigrationArgs` — the circuit receives `mpk` directly.
+- Schnorr signature authenticates the migrating user. The signed message binds the claim to a specific recipient and app contract, preventing front-running:
 ```
-nullifier = poseidon2([note_hash, randomness], GEN_NULLIFIER)
-```
-This also fixed the dummy nullifier problem — `compute_nullifier` now returns the real nullifier (PXE knows the randomness), so note tracking works correctly.
-
-**Remaining:** `msk` is still a Scalar witness in the circuit for authentication (`mpk = fixed_base_scalar_mul(msk)`). Replace with Schnorr signature verification:
-
-```
-// off-chain:
-msg = poseidon2(CLAIM_DOMAIN, note_hash, recipient, new_app_address)
+// off-chain (TS client):
+notes_hash = poseidon2([note_hash_1, ..., note_hash_N])
+msg = poseidon2(CLAIM_DOMAIN_A, old_rollup, new_rollup, notes_hash, recipient, new_app_address)
 sig = schnorr_sign(msk, msg)
 
-// in-circuit:
+// in-circuit (Noir):
 schnorr_verify(sig, mpk, msg)
 ```
-
-This would remove `msk` from the circuit entirely and enable richer authentication (the signed message can bind the claim to a specific recipient and contract, preventing front-running).
+`msk` stays entirely off-chain — only used for deriving `mpk` and signing.
 
 ## 2. Single Note per Migration Transaction
 
 **Current:** The TS client (`prepareMigrateModeA`) retrieves `lockNotes[0]` and builds a proof for exactly one `FullMigrationNote`. Users who locked multiple notes must call `migrate_mode_a` once per note.
 
-**Production:** Should support batching - retrieve all migration notes and build an array of `FullMigrationNote` proofs sharing the same `MigrationArgs` (archive proof + msk). The Noir circuit already supports `[FullMigrationNote; N]`.
+**Production:** Should support batching - retrieve all migration notes and build an array of `FullMigrationNote` proofs sharing the same `MigrationArgs` (archive proof + Schnorr signature). The Noir circuit already supports `[FullMigrationNote; N]`.
 
 ## 3. migration_data is a Single Field
 
@@ -65,4 +60,4 @@ This would remove `msk` from the circuit entirely and enable richer authenticati
 
 **Current:** `prepareMigrationNoteLock()` generates a random `msk` and returns it. The caller must persist it across the lock-bridge-migrate flow (potentially days or weeks). If lost, locked funds are unrecoverable.
 
-**Production:** Consider built-in key derivation from the user's existing Aztec account keys (e.g. `msk = derive(account_secret, "migration", nonce)`), so the migration key can be re-derived without explicit storage. With the Schnorr approach (item 1), `msk` is only needed off-chain for signing, not as a circuit witness, making wallet-managed key derivation more practical.
+**Production:** Consider built-in key derivation from the user's existing Aztec account keys (e.g. `msk = derive(account_secret, "migration", nonce)`), so the migration key can be re-derived without explicit storage. Since `msk` is now purely off-chain (item 1), wallet-managed key derivation is straightforward.

@@ -7,18 +7,20 @@ use aztec::{
         abis::block_header::BlockHeader,
         address::AztecAddress,
         constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT},
-        hash::{compute_siloed_note_hash, compute_unique_note_hash},
+        hash::{poseidon2_hash, compute_siloed_note_hash, compute_unique_note_hash},
         merkle_tree::root::root_from_sibling_path,
-        traits::{Deserialize, Hash, Packable, Serialize},
+        traits::{Deserialize, Hash, Packable, Serialize, ToField},
     },
 };
 pub use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 pub use std::embedded_curve_ops::EmbeddedCurveScalar as Scalar;
-use std::embedded_curve_ops::fixed_base_scalar_mul;
+
+pub global CLAIM_DOMAIN_A: Field = MIGRATION_NOTE_STORAGE_SLOT; // poseidon2 of "migration_mode_a" as ASCII
 
 #[derive(Serialize)]
 pub struct MigrationArgs {
-    pub(crate) msk: Scalar,
+    mpk: Point,
+    pub(crate) signature: [u8; 64],
     // Block header
     pub archive_block_header: BlockHeader,
     // Archive membership proof
@@ -103,23 +105,30 @@ pub fn migrate_notes<let N: u32>(
     full_notes: [FullMigrationNote; N],
     migration_args: MigrationArgs,
 ) {
-    // 1. Derive mpk from msk to authenticate the migrating user
+    // 1. Verify each note's inclusion in the old rollup's note hash tree
+    let mut notes_hashes: [Field; N] = [0; N];
     let current_rollup = context.version();
-    let mpk = fixed_base_scalar_mul(migration_args.msk);
-
-    // 2. Verify each note's inclusion in the old rollup's note hash tree
     let note_hash_tree_root = migration_args.archive_block_header.state.partial.note_hash_tree.root;
 
     for i in 0..N {
-        migrate_note(
+        let note_hash = migrate_note(
             context,
             old_app_address,
-            mpk,
+            migration_args.mpk,
             current_rollup,
             full_notes[i],
             note_hash_tree_root,
         );
+        notes_hashes[i] = note_hash;
     }
+
+    // 2. Verify the migration signature over the set of notes and migration context
+    let notes_hash = poseidon2_hash(notes_hashes);
+    let old_rollup = migration_args.archive_block_header.global_variables.version;
+    let recipient = context.msg_sender().unwrap().to_field();
+    let new_app_address = context.this_address().to_field();
+    let msg = poseidon2_hash([CLAIM_DOMAIN_A, old_rollup, current_rollup, notes_hash, recipient, new_app_address]);
+    assert(schnorr::verify_signature(migration_args.mpk, migration_args.signature, msg.to_be_bytes::<32>()), "Invalid migration signature");
 
     // 3. Recompute archive root from block header + sibling path
     let archive_block_header_hash = migration_args.archive_block_header.hash();
@@ -152,9 +161,8 @@ fn migrate_note(
     current_rollup: Field,
     full_note: FullMigrationNote,
     note_hash_tree_root: Field,
-) {
+) -> Field {
     // Reconstruct the MigrationNote and compute its hash
-    // (owner is ignored by #[custom_note] - mpk serves as ownership proof)
     let migration_note = MigrationNote::new(
         old_app_address,
         mpk,
@@ -162,7 +170,7 @@ fn migrate_note(
         full_note.migration_data,
     );
     let migration_note_hash = migration_note.compute_note_hash(
-        AztecAddress::zero(),
+        AztecAddress::zero(), // (owner is ignored by #[custom_note] - mpk serves as ownership proof)
         MIGRATION_NOTE_STORAGE_SLOT,
         full_note.randomness,
     );
@@ -185,4 +193,5 @@ fn migrate_note(
     let migration_nullifier =
         migration_note.compute_nullifier(context, wrapped_randomness, migration_note_hash);
     context.push_nullifier(migration_nullifier);
+    migration_note_hash
 }
