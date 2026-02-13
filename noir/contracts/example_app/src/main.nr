@@ -164,8 +164,7 @@ pub contract ExampleMigrationApp {
         balance_note_leaf_index: Field,
         balance_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
 
-        // UintNote non-nullification proof
-        balance_note_siloed_nullifier: Field,
+        // UintNote non-nullification proof (nullifier is computed in-circuit from nsk)
         balance_low_nullifier_value: Field,
         balance_low_nullifier_next_value: Field,
         balance_low_nullifier_next_index: Field,
@@ -181,8 +180,7 @@ pub contract ExampleMigrationApp {
         key_note_leaf_index: Field,
         key_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
 
-        // MigrationKeyNote non-nullification proof
-        key_note_siloed_nullifier: Field,
+        // MigrationKeyNote non-nullification proof (nullifier is computed in-circuit from nsk)
         key_low_nullifier_value: Field,
         key_low_nullifier_next_value: Field,
         key_low_nullifier_next_index: Field,
@@ -193,6 +191,17 @@ pub contract ExampleMigrationApp {
         archive_block_header: BlockHeader,
         archive_leaf_index: Field,
         archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+
+        // Address preimage: nsk (hi/lo) + public keys + partial address
+        nsk_hi: Field,
+        nsk_lo: Field,
+        ivpk_m_x: Field,
+        ivpk_m_y: Field,
+        ovpk_m_x: Field,
+        ovpk_m_y: Field,
+        tpk_m_x: Field,
+        tpk_m_y: Field,
+        partial_address: Field,
     ) {
         // 1. Call MigratorModeB to verify all proofs
         let _ = self.call(MigratorModeB::at(migrator_address).migrate_mode_b(
@@ -204,7 +213,6 @@ pub contract ExampleMigrationApp {
             balance_note_nonce,
             balance_note_leaf_index,
             balance_note_sibling_path,
-            balance_note_siloed_nullifier,
             balance_low_nullifier_value,
             balance_low_nullifier_next_value,
             balance_low_nullifier_next_index,
@@ -215,7 +223,6 @@ pub contract ExampleMigrationApp {
             key_note_nonce,
             key_note_leaf_index,
             key_note_sibling_path,
-            key_note_siloed_nullifier,
             key_low_nullifier_value,
             key_low_nullifier_next_value,
             key_low_nullifier_next_index,
@@ -224,6 +231,15 @@ pub contract ExampleMigrationApp {
             archive_block_header,
             archive_leaf_index,
             archive_sibling_path,
+            nsk_hi,
+            nsk_lo,
+            ivpk_m_x,
+            ivpk_m_y,
+            ovpk_m_x,
+            ovpk_m_y,
+            tpk_m_x,
+            tpk_m_y,
+            partial_address,
         ));
 
         // 2. Mint the migrated tokens to the user on the new rollup

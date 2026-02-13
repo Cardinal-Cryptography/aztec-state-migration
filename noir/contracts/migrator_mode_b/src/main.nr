@@ -10,16 +10,17 @@ pub contract MigratorModeB {
         macros::{functions::{external, initializer}, storage::storage},
         protocol_types::{
             abis::block_header::BlockHeader,
-            address::{AztecAddress, EthAddress},
+            address::{partial_address::PartialAddress, AztecAddress, EthAddress},
             constants::{
                 ARCHIVE_HEIGHT, GENERATOR_INDEX__NOTE_HASH, GENERATOR_INDEX__NOTE_NULLIFIER,
-                NOTE_HASH_TREE_HEIGHT, NULLIFIER_TREE_HEIGHT,
+                GENERATOR_INDEX__NSK_M, NOTE_HASH_TREE_HEIGHT, NULLIFIER_TREE_HEIGHT,
             },
             hash::{
-                compute_siloed_note_hash, compute_unique_note_hash, poseidon2_hash,
-                poseidon2_hash_with_separator,
+                compute_siloed_note_hash, compute_siloed_nullifier, compute_unique_note_hash,
+                poseidon2_hash, poseidon2_hash_with_separator,
             },
             merkle_tree::root::root_from_sibling_path,
+            public_keys::{IvpkM, NpkM, OvpkM, PublicKeys, TpkM},
             traits::{Hash, ToField},
             utils::field::{full_field_greater_than, full_field_less_than},
         },
@@ -27,6 +28,7 @@ pub contract MigratorModeB {
             map::Map, public_immutable::PublicImmutable, public_mutable::PublicMutable,
         },
     };
+    use std::embedded_curve_ops::{EmbeddedCurvePoint, EmbeddedCurveScalar, fixed_base_scalar_mul};
     #[storage]
     struct Storage<Context> {
         // L1 Migrator address (for L1-to-L2 message consumption)
@@ -118,12 +120,13 @@ pub contract MigratorModeB {
     // ============================================================
     //
     // Verification chain:
-    //   1. UintNote (balance) inclusion in note_hash_tree at snapshot H
-    //   2. UintNote non-nullification at snapshot H (low-leaf indexed tree proof)
-    //   3. MigrationKeyNote inclusion in note_hash_tree at snapshot H
-    //   4. MigrationKeyNote non-nullification at snapshot H
-    //   5. Authentication: poseidon2(msk) == mpk_hash from key note
-    //   6. Archive root verification via block header + merkle proof
+    //   1. Address verification: nsk -> npk_m, verify pubkeys match owner address
+    //   2. UintNote (balance) inclusion in note_hash_tree at snapshot H
+    //   3. UintNote non-nullification at snapshot H (constrained nullifier derivation)
+    //   4. MigrationKeyNote inclusion in note_hash_tree at snapshot H
+    //   5. MigrationKeyNote non-nullification at snapshot H (constrained nullifier derivation)
+    //   6. Authentication: poseidon2(msk) == mpk_hash from key note
+    //   7. Archive root verification via block header + merkle proof
 
     #[external("private")]
     fn migrate_mode_b(
@@ -141,9 +144,7 @@ pub contract MigratorModeB {
         balance_note_leaf_index: Field,
         balance_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
 
-        // UintNote non-nullification proof
-        // NOTE: siloed_nullifier is an unchecked witness from PXE (see TODO_MODE_B.md)
-        balance_note_siloed_nullifier: Field,
+        // UintNote non-nullification proof (low-leaf witnesses only; nullifier is computed)
         balance_low_nullifier_value: Field,
         balance_low_nullifier_next_value: Field,
         balance_low_nullifier_next_index: Field,
@@ -159,8 +160,7 @@ pub contract MigratorModeB {
         key_note_leaf_index: Field,
         key_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
 
-        // MigrationKeyNote non-nullification proof
-        key_note_siloed_nullifier: Field,
+        // MigrationKeyNote non-nullification proof (low-leaf witnesses only; nullifier is computed)
         key_low_nullifier_value: Field,
         key_low_nullifier_next_value: Field,
         key_low_nullifier_next_index: Field,
@@ -172,15 +172,58 @@ pub contract MigratorModeB {
         // Archive membership proof
         archive_leaf_index: Field,
         archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+
+        // Address preimage: master nullifier secret key (hi/lo) + other public keys + partial address
+        // nsk is used to derive npk_m (via EC scalar mul) and nsk_app (for nullifier computation)
+        nsk_hi: Field,
+        nsk_lo: Field,
+        ivpk_m_x: Field,
+        ivpk_m_y: Field,
+        ovpk_m_x: Field,
+        ovpk_m_y: Field,
+        tpk_m_x: Field,
+        tpk_m_y: Field,
+        partial_address: Field,
     ) {
         // 1. Authentication: verify msk corresponds to the registered mpk_hash
         let mpk_hash = poseidon2_hash([msk]);
 
-        // 2. Extract snapshot height from block header (verified against stored value in public call)
+        // ============================================================
+        // 2. Address verification: derive npk_m from nsk, verify address
+        // ============================================================
+        // Derive nullifier public key from nullifier secret key via Grumpkin scalar mul
+        let nsk = EmbeddedCurveScalar { lo: nsk_lo, hi: nsk_hi };
+        let npk_m_point = fixed_base_scalar_mul(nsk);
+
+        // Construct full public keys from derived npk_m + witness keys
+        let public_keys = PublicKeys {
+            npk_m: NpkM {
+                inner: npk_m_point,
+            },
+            ivpk_m: IvpkM {
+                inner: EmbeddedCurvePoint { x: ivpk_m_x, y: ivpk_m_y, is_infinite: false },
+            },
+            ovpk_m: OvpkM {
+                inner: EmbeddedCurvePoint { x: ovpk_m_x, y: ovpk_m_y, is_infinite: false },
+            },
+            tpk_m: TpkM {
+                inner: EmbeddedCurvePoint { x: tpk_m_x, y: tpk_m_y, is_infinite: false },
+            },
+        };
+
+        // Verify the computed address matches the balance note owner
+        let computed_address =
+            AztecAddress::compute(public_keys, PartialAddress::from_field(partial_address));
+        assert(
+            computed_address == balance_note_owner,
+            "Address does not match public keys derived from nsk",
+        );
+
+        // 3. Extract snapshot height from block header (verified against stored value in public call)
         let snapshot_height = archive_block_header.global_variables.block_number;
 
         // ============================================================
-        // 3. Compute UintNote hash (two-step formula from uint_note.nr)
+        // 4. Compute UintNote hash (two-step formula from uint_note.nr)
         // ============================================================
         // Step 1: partial commitment = poseidon2([owner, storage_slot, randomness], GEN_NOTE_HASH)
         let balance_partial = poseidon2_hash_with_separator(
@@ -203,7 +246,7 @@ pub contract MigratorModeB {
         let balance_unique = compute_unique_note_hash(balance_note_nonce, balance_siloed);
 
         // ============================================================
-        // 4. Verify UintNote inclusion in note hash tree
+        // 5. Verify UintNote inclusion in note hash tree
         // ============================================================
         let note_hash_tree_root = archive_block_header.state.partial.note_hash_tree.root;
         let computed_note_root = root_from_sibling_path(
@@ -217,8 +260,23 @@ pub contract MigratorModeB {
         );
 
         // ============================================================
-        // 5. Verify UintNote non-nullification (low-leaf indexed tree proof)
+        // 6. Compute and verify UintNote non-nullification
         // ============================================================
+        // Derive nsk_app for the old app contract:
+        //   nsk_app = poseidon2([nsk.hi, nsk.lo, contract_address], GENERATOR_INDEX__NSK_M)
+        let nsk_app_balance = poseidon2_hash_with_separator(
+            [nsk_hi, nsk_lo, old_app.to_field()],
+            GENERATOR_INDEX__NSK_M,
+        );
+        // inner_nullifier = poseidon2([note_hash, nsk_app], NOTE_NULLIFIER)
+        let balance_inner_nullifier = poseidon2_hash_with_separator(
+            [balance_note_hash, nsk_app_balance],
+            GENERATOR_INDEX__NOTE_NULLIFIER,
+        );
+        // siloed_nullifier = poseidon2([contract_address, inner_nullifier], OUTER_NULLIFIER)
+        let balance_note_siloed_nullifier =
+            compute_siloed_nullifier(old_app, balance_inner_nullifier);
+
         let nullifier_tree_root = archive_block_header.state.partial.nullifier_tree.root;
 
         // Compute low leaf hash: poseidon2_hash([nullifier, next_nullifier, next_index])
@@ -252,7 +310,7 @@ pub contract MigratorModeB {
         );
 
         // ============================================================
-        // 6. Compute MigrationKeyNote hash (includes owner for binding)
+        // 7. Compute MigrationKeyNote hash (includes owner for binding)
         // ============================================================
         // Hash formula: poseidon2([mpk_hash, owner, storage_slot, randomness], GEN_NOTE_HASH)
         let key_note_hash = poseidon2_hash_with_separator(
@@ -271,7 +329,7 @@ pub contract MigratorModeB {
         let key_unique = compute_unique_note_hash(key_note_nonce, key_siloed);
 
         // ============================================================
-        // 7. Verify MigrationKeyNote inclusion in note hash tree
+        // 8. Verify MigrationKeyNote inclusion in note hash tree
         // ============================================================
         let computed_key_note_root = root_from_sibling_path(
             key_unique,
@@ -284,8 +342,20 @@ pub contract MigratorModeB {
         );
 
         // ============================================================
-        // 8. Verify MigrationKeyNote non-nullification
+        // 9. Compute and verify MigrationKeyNote non-nullification
         // ============================================================
+        // Derive nsk_app for the old key registry contract
+        let nsk_app_key = poseidon2_hash_with_separator(
+            [nsk_hi, nsk_lo, old_registry.to_field()],
+            GENERATOR_INDEX__NSK_M,
+        );
+        let key_inner_nullifier = poseidon2_hash_with_separator(
+            [key_note_hash, nsk_app_key],
+            GENERATOR_INDEX__NOTE_NULLIFIER,
+        );
+        let key_note_siloed_nullifier =
+            compute_siloed_nullifier(old_registry, key_inner_nullifier);
+
         let key_low_leaf_hash = poseidon2_hash([
             key_low_nullifier_value,
             key_low_nullifier_next_value,
@@ -311,7 +381,7 @@ pub contract MigratorModeB {
         );
 
         // ============================================================
-        // 9. Compute archive root from block header
+        // 10. Compute archive root from block header
         // ============================================================
         let archive_block_header_hash = archive_block_header.hash();
         let computed_archive_root = root_from_sibling_path(
@@ -321,7 +391,7 @@ pub contract MigratorModeB {
         );
 
         // ============================================================
-        // 10. Push migration nullifier (prevents double-claiming)
+        // 11. Push migration nullifier (prevents double-claiming)
         // ============================================================
         let migration_nullifier = poseidon2_hash_with_separator(
             [balance_unique, msk],
@@ -330,7 +400,7 @@ pub contract MigratorModeB {
         self.context.push_nullifier(migration_nullifier);
 
         // ============================================================
-        // 11. Enqueue public verification of archive root and snapshot height
+        // 12. Enqueue public verification of archive root and snapshot height
         // ============================================================
         MigratorModeB::at(self.context.this_address())
             .complete_migration_mode_b(snapshot_height, computed_archive_root)

@@ -20,14 +20,28 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { EthAddress } from "@aztec/foundation/eth-address";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
+import {
+  poseidon2Hash,
+  poseidon2HashWithSeparator,
+} from "@aztec/foundation/crypto/poseidon";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { MerkleTreeId } from "@aztec/stdlib/trees";
-import { computeUniqueNoteHash, siloNoteHash } from "@aztec/stdlib/hash";
+import {
+  computeUniqueNoteHash,
+  siloNoteHash,
+  siloNullifier,
+} from "@aztec/stdlib/hash";
 import type { BlockHeader } from "@aztec/stdlib/tx";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import { BlockNumber } from "@aztec/foundation/branded-types";
+import {
+  deriveMasterNullifierSecretKey,
+  computeAppNullifierSecretKey,
+} from "@aztec/stdlib/keys";
+
+// Generator index for NOTE_NULLIFIER (from Aztec protocol constants)
+const GENERATOR_INDEX__NOTE_NULLIFIER = 53;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -176,6 +190,26 @@ async function main() {
   const oldUserWallet = oldRollupWallet;
   console.log(`   Old Deployer: ${oldDeployer}`);
   console.log(`   Old User (Alice): ${oldRollupUser}`);
+
+  // Derive master nullifier secret key and get address preimage for constrained nullifiers
+  const userSecret = testAccountsData[1].secret;
+  const nsk_m = deriveMasterNullifierSecretKey(userSecret);
+  const nsk_m_hi = nsk_m.hi;
+  const nsk_m_lo = nsk_m.lo;
+  console.log(`   nsk_m.hi: ${nsk_m_hi}`);
+  console.log(`   nsk_m.lo: ${nsk_m_lo}`);
+
+  // Get complete address (public keys + partial address)
+  const userCompleteAddress = await oldUserManager.getCompleteAddress();
+  const userPublicKeys = userCompleteAddress.publicKeys;
+  const userPartialAddress = userCompleteAddress.partialAddress;
+  const ivpk_m = userPublicKeys.masterIncomingViewingPublicKey;
+  const ovpk_m = userPublicKeys.masterOutgoingViewingPublicKey;
+  const tpk_m = userPublicKeys.masterTaggingPublicKey;
+  console.log(`   partial_address: ${userPartialAddress}`);
+  console.log(`   ivpk_m: (${ivpk_m.x}, ${ivpk_m.y})`);
+  console.log(`   ovpk_m: (${ovpk_m.x}, ${ovpk_m.y})`);
+  console.log(`   tpk_m: (${tpk_m.x}, ${tpk_m.y})`);
 
   const newDeployerManager = await newRollupWallet.createSchnorrAccount(
     testAccountsData[0].secret,
@@ -640,11 +674,24 @@ async function main() {
     `   Balance note hash sibling path length: ${balanceNoteHashSiblingPath.toFields().length}`,
   );
 
-  // Get low nullifier witness for balance note non-nullification proof
+  // Compute siloed nullifier for balance note (constrained — matches in-circuit computation)
+  // nsk_app = poseidon2([nsk.hi, nsk.lo, contract_address], GENERATOR_INDEX__NSK_M=48)
+  const balanceNskApp = await computeAppNullifierSecretKey(nsk_m, oldApp.address);
+  // inner_nullifier = poseidon2([note_hash, nsk_app], GENERATOR_INDEX__NOTE_NULLIFIER=53)
+  const balanceInnerNullifier = await poseidon2HashWithSeparator(
+    [balanceNote.noteHash, balanceNskApp],
+    GENERATOR_INDEX__NOTE_NULLIFIER,
+  );
+  // siloed_nullifier = poseidon2([contract_address, inner_nullifier], OUTER_NULLIFIER=7)
+  const balanceSiloedNullifier = await siloNullifier(oldApp.address, balanceInnerNullifier);
+  console.log(`   Balance computed siloed nullifier: ${balanceSiloedNullifier}`);
+  console.log(`   Balance PXE siloed nullifier:      ${balanceNote.siloedNullifier}`);
+
+  // Get low nullifier witness using the computed siloed nullifier
   const balanceLowNullifierWitness =
     await aztecOldNode.getLowNullifierMembershipWitness(
       effectiveSnapshotHeight,
-      balanceNote.siloedNullifier,
+      balanceSiloedNullifier,
     );
   if (!balanceLowNullifierWitness) {
     throw new Error("Could not get low nullifier witness for balance note");
@@ -718,11 +765,21 @@ async function main() {
     `   Key note hash sibling path length: ${keyNoteHashSiblingPath.toFields().length}`,
   );
 
-  // Get low nullifier witness for key note
+  // Compute siloed nullifier for key note (constrained — matches in-circuit computation)
+  const keyNskApp = await computeAppNullifierSecretKey(nsk_m, keyRegistry.address);
+  const keyInnerNullifier = await poseidon2HashWithSeparator(
+    [keyNote.noteHash, keyNskApp],
+    GENERATOR_INDEX__NOTE_NULLIFIER,
+  );
+  const keySiloedNullifier = await siloNullifier(keyRegistry.address, keyInnerNullifier);
+  console.log(`   Key computed siloed nullifier: ${keySiloedNullifier}`);
+  console.log(`   Key PXE siloed nullifier:      ${keyNote.siloedNullifier}`);
+
+  // Get low nullifier witness using the computed siloed nullifier
   const keyLowNullifierWitness =
     await aztecOldNode.getLowNullifierMembershipWitness(
       effectiveSnapshotHeight,
-      keyNote.siloedNullifier,
+      keySiloedNullifier,
     );
   if (!keyLowNullifierWitness) {
     throw new Error("Could not get low nullifier witness for key note");
@@ -794,8 +851,7 @@ async function main() {
         // UintNote inclusion proof
         new Fr(balanceLeafIndex), // balance_note_leaf_index
         balanceNoteHashSiblingPath.toFields(), // balance_note_sibling_path
-        // UintNote non-nullification proof
-        balanceNote.siloedNullifier, // balance_note_siloed_nullifier
+        // UintNote non-nullification proof (nullifier computed in-circuit from nsk)
         new Fr(balanceLowNullifierWitness.leafPreimage.getKey()), // balance_low_nullifier_value
         new Fr(balanceLowNullifierWitness.leafPreimage.getNextKey()), // balance_low_nullifier_next_value
         new Fr(balanceLowNullifierWitness.leafPreimage.getNextIndex()), // balance_low_nullifier_next_index
@@ -808,8 +864,7 @@ async function main() {
         // MigrationKeyNote inclusion proof
         new Fr(keyLeafIndex), // key_note_leaf_index
         keyNoteHashSiblingPath.toFields(), // key_note_sibling_path
-        // MigrationKeyNote non-nullification proof
-        keyNote.siloedNullifier, // key_note_siloed_nullifier
+        // MigrationKeyNote non-nullification proof (nullifier computed in-circuit from nsk)
         new Fr(keyLowNullifierWitness.leafPreimage.getKey()), // key_low_nullifier_value
         new Fr(keyLowNullifierWitness.leafPreimage.getNextKey()), // key_low_nullifier_next_value
         new Fr(keyLowNullifierWitness.leafPreimage.getNextIndex()), // key_low_nullifier_next_index
@@ -819,6 +874,16 @@ async function main() {
         noirBlockHeader,
         new Fr(archiveLeafIndex),
         archiveSiblingPath.toFields(),
+        // Address preimage: nsk (hi/lo) + public keys + partial address
+        nsk_m_hi, // nsk_hi
+        nsk_m_lo, // nsk_lo
+        ivpk_m.x, // ivpk_m_x
+        ivpk_m.y, // ivpk_m_y
+        ovpk_m.x, // ovpk_m_x
+        ovpk_m.y, // ovpk_m_y
+        tpk_m.x, // tpk_m_x
+        tpk_m.y, // tpk_m_y
+        userPartialAddress, // partial_address
       )
       .send({ from: newDeployer })
       .wait();

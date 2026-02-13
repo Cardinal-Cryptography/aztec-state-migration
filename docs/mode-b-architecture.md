@@ -78,7 +78,7 @@ unique = compute_unique_note_hash(nonce, siloed)
 
 **Why include owner in the hash:** Without owner binding, any party who knows the note preimage (e.g., from observing note delivery messages) could claim any user's balance by providing that user's key registration note hash. Including the owner means the MigratorModeB circuit proves that *this specific address* registered *this specific mpk_hash*, and since the balance note is also bound to an owner, the two are linked through the shared `balance_note_owner` parameter used in both hash computations.
 
-This was a deliberate breaking change from the initial MigrationKeyNote implementation. The `#[custom_note]` macro was used specifically because standard note types ignore the owner parameter in `compute_note_hash`.
+The standard `#[note]` macro automatically includes the owner in the note hash, making this binding happen by default.
 
 ## Nullifier Non-Inclusion (Low-Leaf Indexed Tree Pattern)
 
@@ -115,18 +115,19 @@ sig = schnorr_sign(msk, msg)
 
 The circuit would verify `sig` under the full Grumpkin point `mpk` (not just its hash). This prevents replay attacks and binds the claim to a specific recipient and token contract.
 
-## Siloed Nullifier as Unchecked Witness
+## Constrained Nullifier Derivation
 
-The `siloed_nullifier` values for both the balance note and key registration note are accepted as unchecked witnesses from PXE. This is the most significant security compromise in the PoC.
+Both siloed nullifiers (for the balance note and key registration note) are fully constrained in-circuit. The user provides their master nullifier secret key (`nsk`) as a witness, and the circuit:
 
-**Why it cannot be recomputed in-circuit:** Computing a siloed nullifier requires `nsk_app` (the app-scoped nullifier secret key). On the new rollup, `request_nsk_app()` is scoped to the *current* contract address, not the old rollup's contract address. There is no way to request the `nsk_app` for a contract that doesn't exist on the current rollup.
+1. **Derives `npk_m`** from `nsk` via Grumpkin scalar multiplication: `npk_m = nsk * G`
+2. **Reconstructs the address** from the full public keys preimage (`npk_m`, `ivpk_m`, `ovpk_m`, `tpk_m`) and `partial_address` using `AztecAddress::compute`, then asserts it matches `balance_note_owner`
+3. **Derives `nsk_app`** per contract: `nsk_app = poseidon2([nsk.hi, nsk.lo, contract_address], GENERATOR_INDEX__NSK_M)`
+4. **Computes `inner_nullifier`**: `poseidon2([note_hash, nsk_app], GENERATOR_INDEX__NOTE_NULLIFIER)`
+5. **Computes `siloed_nullifier`**: `compute_siloed_nullifier(contract_address, inner_nullifier)`
 
-**The attack vector:** An attacker who knows `msk` but not the nullifier secret key (`nsk`) could fabricate a fake nullifier. Since the fake nullifier genuinely is not in the nullifier tree, the non-inclusion proof would pass — allowing claims on already-spent notes.
+Two separate `nsk_app` values are derived from the same `nsk` — one scoped to the old token contract (`old_app`) and one scoped to the old key registry (`old_registry`). This ensures the nullifier non-inclusion proofs target the correct nullifiers that the old rollup's kernel would have produced.
 
-**Production mitigation:** The user would provide `nsk_app` as an additional witness. The circuit would verify:
-1. `inner_nullifier = poseidon2([note_hash, nsk_app], GENERATOR_INDEX__NOTE_NULLIFIER)`
-2. `siloed_nullifier = poseidon2([contract_address, inner_nullifier], GENERATOR_INDEX__OUTER_NULLIFIER)`
-3. That `nsk_app` derives from the note owner's nullifier public key (requires protocol-level key registry integration)
+**Why `nsk` instead of `nsk_app`:** On the new rollup, `request_nsk_app()` is scoped to the *current* contract address, not the old rollup's contract address. By accepting the master `nsk` and deriving `nsk_app` in-circuit, the contract can compute nullifiers for any old-rollup contract address. The address verification step (asserting `AztecAddress::compute(public_keys, partial_address) == balance_note_owner`) ensures the `nsk` truly belongs to the note owner.
 
 ## Migration Nullifier (Double-Claim Prevention)
 
