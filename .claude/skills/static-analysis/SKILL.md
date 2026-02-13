@@ -1,5 +1,5 @@
 ---
-name: semgrep
+name: static-analysis
 description: Run Semgrep static analysis scan on a codebase using parallel subagents. Automatically
   detects and uses Semgrep Pro for cross-file analysis when available. Use when asked to scan
   code for vulnerabilities, run a security audit with Semgrep, find bugs, or perform
