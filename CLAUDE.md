@@ -112,6 +112,7 @@ Use it for:
 **Hard rule**
 Prefer Aztec plugin commands + MCP search over guessing syntax or APIs.
 
+
 ## B2) Session start rule (version alignment)
 At the start of a session where Aztec/Noir changes are expected:
 - Run `/aztec-version` and align it to the versions in Section A.
@@ -126,7 +127,19 @@ If there is any mismatch, stop and resolve it before making code changes.
 - Deploy: `/aztec:deploy <Contract>`
 - Generate client: `/aztec:generate-client <Contract>`
 
-## B4) Documentation mandate (strict consistency check)
+## B4) Local security skills (project-scoped)
+These are available as slash commands:
+
+- /audit-context-building: Build system context (assets, trust assumptions, flows).
+- /entry-point-analyzer: Enumerate external entry points in Noir/Solidity/TS and what state they can change.
+- /spec-to-code-compliance: Map docs/spec statements to code + tests, list gaps.
+- /insecure-defaults: Identify unsafe defaults and missing checks (especially around migration and replay protection).
+- /sharp-edges: Identify confusing or error-prone interfaces and propose safer patterns.
+
+These skills are read-only by design and should not run long tests automatically.
+
+
+## B5) Documentation mandate (strict consistency check)
 **Every code change requires a docs update in this workspace. No exceptions.**
 
 ### Minimum required docs update (every change)
@@ -146,13 +159,13 @@ If there is any mismatch, stop and resolve it before making code changes.
 - Keep docs in the same repo (no external docs).
 - When describing behavior, link to the spec/flow doc where possible.
 
-## B5) Solidity guidelines (only when `.sol` is edited)
+## B6) Solidity guidelines (only when `.sol` is edited)
 - Keep changes minimal and easy to review.
 - Never change an external interface (public/external function signatures, events) without updating docs.
 - Add or update tests that cover the Solidity behavior change.
 - Document Solidity-facing interfaces in `docs/solidity/overview.md` (create if missing).
 
-## B6) End-of-turn checklist (must be satisfied before you stop)
+## B7) End-of-turn checklist (must be satisfied before you stop)
 1) Tests
    - Run the relevant commands from Section A.
    - State results and any failures.

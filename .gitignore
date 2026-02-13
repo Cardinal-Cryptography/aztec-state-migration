@@ -19,3 +19,9 @@ dependencies
 target
 codegenCache.json
 cache
+
+# Claude Code per-user overrides (do not commit)
+.claude/settings.local.json
+
+# temp workspace
+.tmp/
