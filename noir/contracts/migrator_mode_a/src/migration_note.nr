@@ -1,4 +1,4 @@
-use dep::aztec::{
+use aztec::{
     context::PrivateContext,
     macros::notes::custom_note,
     note::note_interface::NoteHash,
@@ -9,6 +9,10 @@ use dep::aztec::{
         traits::{Deserialize, Packable, Serialize, ToField},
     },
 };
+use std::embedded_curve_ops::{EmbeddedCurvePoint as Point, EmbeddedCurveScalar as Scalar};
+
+// poseidon2_hash([0x6d6967726174696f6e5f6d6f64655f61]) where input is "migration_mode_a" as ASCII
+pub global MIGRATION_NOTE_STORAGE_SLOT: Field = 0x28ca34e829f0cda691d3713e01bb3a812dc678348c01617bbe9bd8549bd76eda;
 
 /// MigrationNote - a note that locks a user's original note for migration.
 ///
@@ -21,9 +25,8 @@ use dep::aztec::{
 pub struct MigrationNote {
     /// Address of the note creator (typically app contract)
     pub note_creator: AztecAddress,
-    /// Migration public key (mpk).
-    /// Used for cross-rollup ownership proof - user proves knowledge of migration secret key (msk).
-    pub mpk: Field,
+    /// Migration public key (Grumpkin curve point).
+    pub mpk: Point,
     /// Identifier of the destination rollup (prevents cross-rollup replay)
     pub destination_rollup: Field,
     /// Data to migrate (e.g., hash of original note data)
@@ -41,7 +44,8 @@ impl NoteHash for MigrationNote {
         poseidon2_hash_with_separator(
             [
                 self.note_creator.to_field(),
-                self.mpk,
+                self.mpk.x,
+                self.mpk.y,
                 self.destination_rollup,
                 self.migration_data,
                 storage_slot,
@@ -84,7 +88,7 @@ impl NoteHash for MigrationNote {
 impl MigrationNote {
     pub fn new(
         note_creator: AztecAddress,
-        mpk: Field,
+        mpk: Point,
         destination_rollup: Field,
         migration_data: Field,
     ) -> Self {
@@ -96,20 +100,20 @@ impl MigrationNote {
     /// public note fields.
     pub fn compute_destination_rollup_nullifier(
         note_hash_for_nullification: Field,
-        msk: Field,
+        msk: Scalar,
     ) -> Field {
         poseidon2_hash_with_separator(
-            [note_hash_for_nullification, msk],
+            [note_hash_for_nullification, msk.hi, msk.lo],
             GENERATOR_INDEX__NOTE_NULLIFIER,
         )
     }
 
     unconstrained fn compute_destination_rollup_nullifier_unconstrained(
         note_hash_for_nullification: Field,
-        msk: Field,
+        msk: Scalar,
     ) -> Field {
         poseidon2_hash_with_separator(
-            [note_hash_for_nullification, msk],
+            [note_hash_for_nullification, msk.hi, msk.lo],
             GENERATOR_INDEX__NOTE_NULLIFIER,
         )
     }

@@ -4,21 +4,20 @@ use aztec::macros::aztec;
 ///
 /// Supports both Mode A (routine lock-and-claim) and Mode B (emergency snapshot) migration.
 ///
-/// Mode A: Users call `lock_for_migration()` on old rollup, then `migrate()` on new rollup.
+/// Mode A: Users call `lock_migration_notes_mode_a()` on old rollup, then `migrate_mode_a()` on new rollup.
 /// Mode B: Users prove note existence + non-nullification at snapshot height H.
 #[aztec]
 pub contract ExampleMigrationApp {
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol_types::{
-            abis::block_header::BlockHeader, address::AztecAddress, hash::poseidon2_hash,
-            traits::Serialize,
-        },
+        protocol_types::{address::AztecAddress, hash::poseidon2_hash, traits::Serialize, constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT}, abis::block_header::BlockHeader,},
         state_vars::{owned::Owned, public_immutable::PublicImmutable},
     };
     use balance_set::balance_set::BalanceSet;
-    use migrator::{ARCHIVE_HEIGHT, Migrator, NOTE_HASH_TREE_HEIGHT};
+    use migrator_mode_a::{
+        mode_a::{FullMigrationNote, migrate_notes, lock_migration_notes, MigrationArgs, Point}
+    };
     use migrator_mode_b::{MigratorModeB, NULLIFIER_TREE_HEIGHT};
 
     #[storage]
@@ -63,12 +62,7 @@ pub contract ExampleMigrationApp {
     /// 2. Nullifies the original note (preventing double-spend)
     /// 3. Creates a MigrationNote that can be proven on the destination rollup
     #[external("private")]
-    fn lock_for_migration(
-        migrator_address: AztecAddress,
-        amount: u128,
-        destination_rollup: Field,
-        owner_msk: Field,
-    ) {
+    fn lock_migration_notes_mode_a(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
         // 1. Subtract from balance (this nullifies notes internally)
@@ -80,16 +74,13 @@ pub contract ExampleMigrationApp {
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 3. Call Migrator contract to create and store the MigrationNote
-        let _ = self.call(Migrator::at(migrator_address).lock_migration_note(
+        lock_migration_notes(
+            self.context,
             note_owner,
             destination_rollup,
-            owner_msk,
-            migration_data,
-        ));
-
-        // The lock note is now in the note hash tree and can be proven
-        // on the new rollup using migrate_via_proof()
+            mpk,
+            [migration_data],
+        );
     }
 
     // ============================================================
@@ -97,47 +88,38 @@ pub contract ExampleMigrationApp {
     // ============================================================
 
     #[external("private")]
-    fn migrate(
-        migrator_address: AztecAddress,
-        // migration secret key
-        msk: Field,
-        // MigrationNote fields
+    fn migrate_mode_a(
+        // Amount is not strictly needed for the migration (the proof of the MigrationNote is sufficient),
+        // but including it in the arguments allows the contract to verify it matches the migration_data hash,
+        // preventing mismatches between the old and new rollup states and mint the correct amount on the new rollup.
         amount: u128,
-        // Lock note hashing data
-        migration_note_storage_slot: Field,
-        migration_note_randomness: Field,
-        // Siloing data
-        migration_note_nonce: Field,
-        // Note hash tree membership proof
-        migration_note_hash_leaf_index: Field,
-        migration_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
-        // Full block header (to verify note_hash_tree_root is bound to archive)
-        archive_block_header: BlockHeader,
-        // Archive membership proof (proves block header hash is in archive)
-        archive_leaf_index: Field,
-        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+        // Address of the Migrator on the new rollup
+        migrator_address: AztecAddress,
+        // Migration arguments
+        migration_args: MigrationArgs,
+        //
+        full_migration_note: FullMigrationNote,
     ) {
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
-        let migration_note_creator = self.storage.old_rollup_app_address.read();
-        let _ = self.call(Migrator::at(migrator_address).migrate_mode_a(
-            msk,
-            migration_note_creator, // migration_note_creator is the OLD app that called lock_migration_note
-            migration_data,
-            migration_note_storage_slot,
-            migration_note_randomness,
-            migration_note_nonce,
-            migration_note_hash_leaf_index,
-            migration_note_hash_sibling_path,
-            archive_block_header,
-            archive_leaf_index,
-            archive_sibling_path,
-        ));
+        assert(
+            migration_data == full_migration_note.migration_data,
+            "Migration data hash mismatch",
+        );
 
-        // 3. If successful, mint the migrated tokens to the user on the new rollup
+        let old_app_address = self.storage.old_rollup_app_address.read();
+
+        migrate_notes(
+            self.context,
+            migrator_address,
+            old_app_address,
+            [full_migration_note],
+            migration_args,
+        );
+
+        // 4. If successful, mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(self.context.msg_sender().unwrap()).add(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
