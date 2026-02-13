@@ -27,4 +27,4 @@ Fix an issue described in local text (no GitHub).
    - `yarn test:setup`
    - `yarn test:migration`
    - `yarn test:stop`
-6) Update `docs/DEVLOG.md` with what changed and exact commands run.
+

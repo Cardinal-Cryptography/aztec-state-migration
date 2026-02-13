@@ -46,9 +46,6 @@ We keep docs in `docs/` using a layout that can be reused across projects.
 - `docs/ops/deploy.md`           ← if deploy exists in this repo
 - `docs/ops/troubleshooting.md`  ← common local network issues
 
-**Change log (mandatory for every code change)**
-- `docs/DEVLOG.md`
-
 **Rules**
 1) Any time you need "how Aztec works" or "standard library details," check the local `node_modules/@aztec/` implementation first.
 2) Treat `node_modules/@aztec/` as **read-only** unless the task explicitly asks to change it.
@@ -90,7 +87,6 @@ Use `yarn check:full` when changes affect:
 2) If you change ports, endpoints, or scripts, update:
    - `README.md`
    - `docs/ops/testing.md`
-   - and `docs/DEVLOG.md`
 
 ## A4) “No guessing” rule for Aztec standard library and helpers
 - If the task references “standard library,” “aztec-nr,” or a helper function:
@@ -150,15 +146,9 @@ These skills are read-only by design and should not run long tests automatically
 
 
 ## B5) Documentation mandate (strict consistency check)
-**Every code change requires a docs update in this workspace. No exceptions.**
+**Update docs when code changes affect documented behavior.**
 
-### Minimum required docs update (every change)
-- Add an entry to `docs/DEVLOG.md` containing:
-  - What changed (bullet list)
-  - Files/areas affected
-  - How to verify (exact commands run, or exact commands to run)
-
-### Additional required docs updates (when applicable)
+### Required docs updates (when applicable)
 - Setup/start changed → update `README.md` and `docs/ops/testing.md`
 - Contract interface changed (public functions, events, externally visible behavior) → update `docs/arch/flows.md` and/or a contract reference doc
 - Test approach changed → update `docs/ops/testing.md`
@@ -180,8 +170,7 @@ These skills are read-only by design and should not run long tests automatically
    - Run the relevant commands from Section A.
    - State results and any failures.
 2) Docs
-   - Confirm `docs/DEVLOG.md` was updated.
-   - List any other doc files updated.
+   - List any doc files updated.
 3) Diff sanity
    - Confirm changes match the plan/spec.
 4) If anything was not verified
