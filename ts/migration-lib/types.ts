@@ -1,18 +1,6 @@
-import type { AztecNode } from "@aztec/aztec.js/node";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { Fr } from "@aztec/foundation/curves/bn254";
-import type { GrumpkinScalar, Point } from "@aztec/aztec.js/fields";
-import type { TxHash } from "@aztec/stdlib/tx";
 import type { NoteDao, NotesFilter } from "@aztec/stdlib/note";
-import type {
-  PublicClient,
-  WalletClient,
-  Hex,
-  Chain,
-  Transport,
-  Account,
-} from "viem";
-import type { MigratorModeAContract } from "../../noir/target/artifacts/MigratorModeA.js";
+import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 
 /** Minimal interface for a wallet/PXE that can retrieve notes. */
 export interface NoteProvider {
@@ -20,158 +8,61 @@ export interface NoteProvider {
 }
 
 // ============================================================
-// Configuration
+// MigrationNote proof (Mode A)
 // ============================================================
 
-export interface MigrationConfig {
-  /** Aztec node client for the OLD rollup. */
-  oldNode: AztecNode;
+export interface MigrationNoteProofData {
+  migration_data: Fr;
+  randomness: Fr;
+  nonce: Fr;
+  leaf_index: Fr;
+  sibling_path: Fr[];
+}
 
-  /** Aztec node client for the NEW rollup. */
-  newNode: AztecNode;
 
-  /** Viem public client for reading L1 state. */
-  l1PublicClient: PublicClient;
+// ============================================================
+// Note proof (Mode B)
+// ============================================================
 
-  /** Viem wallet client for writing L1 transactions. */
-  l1WalletClient: WalletClient<Transport, Chain, Account>;
-
-  /** Deployed L1 Migrator contract address. */
-  l1MigratorAddress: Hex;
-
-  /** Deployed L2 Migrator contract on the NEW rollup. */
-  newMigrator: MigratorModeAContract;
-
-  /** Version number of the OLD rollup. */
-  oldRollupVersion: number;
-
-  /** Version number of the NEW rollup. */
-  newRollupVersion: number;
-
-  /** L1 Inbox contract address for the NEW rollup (for parsing MessageSent events). */
-  newInboxAddress: string;
+/** Generic note proof data: inclusion + non-nullification. */
+export interface NoteProofData {
+  /** Raw note field values from NoteDao.note.items. Caller maps to typed note struct. */
+  noteItems: Fr[];
+  storage_slot: Fr;
+  randomness: Fr;
+  nonce: Fr;
+  leaf_index: Fr;
+  sibling_path: Fr[];
+  low_nullifier_value: Fr;
+  low_nullifier_next_value: Fr;
+  low_nullifier_next_index: Fr;
+  low_nullifier_leaf_index: Fr;
+  low_nullifier_sibling_path: Fr[];
 }
 
 // ============================================================
-// Phase 1: Lock
+// Archive proof
 // ============================================================
 
-export interface LockArgs {
-  /** Rollup version of the destination (new) rollup. */
-  destinationRollup: number;
-
-  /** Migration public key in Noir-compatible format. */
-  mpk: { x: Fr; y: Fr; is_infinite: boolean };
-}
-
-export interface PrepareMigrationNoteLockResult {
-  /** Scheme arguments to pass into the app's lock function. */
-  lockArgs: LockArgs;
-
-  /**
-   * Migration secret key. MUST be persisted by the developer.
-   * Required in Phase 3 (prepareMigrate) to prove ownership.
-   */
-  msk: GrumpkinScalar;
-
-  /** Migration public key (full Point, derivable from msk). */
-  mpk: Point;
+/** Archive membership proof: block header + archive sibling path. */
+export interface ArchiveProof {
+  archive_block_header: ReturnType<typeof blockHeaderToNoir>;
+  archive_leaf_index: Fr;
+  archive_sibling_path: Fr[];
 }
 
 // ============================================================
-// Phase 2: Bridge
+// L1 bridge result
 // ============================================================
 
-export interface BridgeOptions {
-  /** The sender address for the register_archive_root call on the new rollup. */
-  newRollupSender: AztecAddress;
-
-  /** Max poll attempts waiting for the old rollup to prove the lock block. Default: 60. */
-  proofPollMaxAttempts?: number;
-
-  /** Milliseconds between proof poll attempts. Default: 2000. */
-  proofPollIntervalMs?: number;
-
-  /** Max poll attempts waiting for L1->L2 message sync. Default: 30. */
-  messagePollMaxAttempts?: number;
-
-  /** Milliseconds between message poll attempts. Default: 2000. */
-  messagePollIntervalMs?: number;
-
-  /** Callback on each proof poll iteration. Can advance the chain or log progress. */
-  onProofPoll?: (currentProvenBlock: number) => Promise<void>;
-
-  /** Callback on each L1->L2 message poll iteration. Can advance the chain or log progress. */
-  onMessagePoll?: (attempt: number) => Promise<void>;
-}
-
-export interface BridgeResult {
+/** Result of calling migrateArchiveRoot on L1. */
+export interface L1MigrationResult {
   /** The proven block number from the old rollup. */
   provenBlockNumber: number;
-
-  /** The archive root registered on the new rollup's Migrator. */
+  /** The archive root that was migrated. */
   provenArchiveRoot: Fr;
-
-  /** Transaction hash of the register_archive_root call on the new rollup. */
-  registerTxHash: TxHash;
-}
-
-// ============================================================
-// Phase 3: Migrate
-// ============================================================
-
-export interface PrepareMigrateModeAInput {
-  /** Migration secret key (from PrepareMigrationNoteLockResult.msk). */
-  msk: GrumpkinScalar;
-
-  /** Address of the app contract on the old rollup that created the lock note. */
-  oldAppAddress: AztecAddress;
-
-  /** The user's wallet/PXE on the old rollup (needs getNotes access). */
-  oldUserWallet: NoteProvider;
-
-  /** The owner address on the old rollup (for getNotes query). */
-  oldOwner: AztecAddress;
-
-  /** Proven block number from BridgeResult. */
-  provenBlockNumber: number;
-
-  /** The recipient address on the new rollup (context.msg_sender() in the Noir circuit). */
-  newRecipient: AztecAddress;
-
-  /** The app contract address on the new rollup (context.this_address() in the Noir circuit). */
-  newAppAddress: AztecAddress;
-}
-
-export interface MigrateArgs {
-  /** Address of the Migrator contract on the new rollup. */
-  migratorAddress: AztecAddress;
-
-  /** MigrationArgs struct — archive proof + mpk + Schnorr signature. */
-  migrationArgs: {
-    mpk: { x: Fr; y: Fr; is_infinite: boolean };
-    signature: number[];
-    archive_block_header: ReturnType<
-      typeof import("./noir-helpers/block-header.js").blockHeaderToNoir
-    >;
-    archive_leaf_index: Fr;
-    archive_sibling_path: Fr[];
-  };
-
-  /** FullMigrationNote struct — per-note inclusion proof. */
-  fullMigrationNote: {
-    migration_data: Fr;
-    randomness: Fr;
-    nonce: Fr;
-    leaf_index: Fr;
-    sibling_path: Fr[];
-  };
-}
-
-export interface PrepareMigrateModeAResult {
-  /** Scheme arguments to pass into the app's migrate function. */
-  migrateArgs: MigrateArgs;
-
-  /** The migration_data field from the lock note (apps may need this for verification). */
-  migrationData: Fr;
+  /** Leaf index of the L1→L2 message in the Inbox tree. */
+  l1ToL2LeafIndex: bigint;
+  /** Hash of the L1→L2 message (for polling sync status). */
+  l1ToL2MessageHash: Fr;
 }

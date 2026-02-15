@@ -1,5 +1,5 @@
 [package]
-name = "migrator_mode_b"
+name = "migration_archive_registry"
 type = "contract"
 authors = [ "" ]
 compiler_version = ">=0.18.0"

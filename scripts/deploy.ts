@@ -1,25 +1,28 @@
 import { TestWallet } from "@aztec/test-wallet/server";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
+import type { AztecNode } from "@aztec/aztec.js/node";
+import { L1FeeJuicePortalManager } from "@aztec/aztec.js/ethereum";
 import {
   createPublicClient,
   createWalletClient,
   http,
+  fallback,
+  publicActions,
   parseAbi,
   Hex,
   encodeAbiParameters,
 } from "viem";
 import { foundry } from "viem/chains";
 import { privateKeyToAccount } from "viem/accounts";
-import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
-import { MigratorModeAContract } from "../noir/target/artifacts/MigratorModeA.js";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { EthAddress } from "@aztec/foundation/eth-address";
+import { createLogger } from "@aztec/foundation/log";
 import { getPXEConfig } from "@aztec/pxe/server";
-import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
+import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { DeploymentResult } from "./deploy-types.js";
+import { TestMigrationWallet } from "../ts/migration-lib/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -72,10 +75,10 @@ function loadPoseidon2Bytecode(): Hex {
 }
 
 // ============================================================
-// Deploy all contracts (phases 1-5)
+// Deploy shared infrastructure (L1 contracts, wallets, accounts)
 // ============================================================
 export async function deploy(): Promise<DeploymentResult> {
-  console.log("=== Deploying Migration Contracts ===\n");
+  console.log("=== Deploying Migration Infrastructure ===\n");
 
   // ---- Step 1: Setup clients ----
   console.log("1. Setting up clients...");
@@ -94,45 +97,27 @@ export async function deploy(): Promise<DeploymentResult> {
   console.log(`   Registry: ${registryAddress}`);
 
   // Setup wallets
-  const oldRollupWallet = await TestWallet.create(aztecOldNode);
-  const newRollupWallet = await TestWallet.create(aztecNewNode);
+  const oldDeployerWallet = await TestWallet.create(aztecOldNode);
+  const newDeployerWallet = await TestWallet.create(aztecNewNode);
 
   // Register test accounts
   console.log("   Registering test accounts...");
   const testAccountsData = await getInitialTestAccountsData();
 
-  const oldDeployerManager = await oldRollupWallet.createSchnorrAccount(
+  const oldDeployerManager = await oldDeployerWallet.createSchnorrAccount(
     testAccountsData[0].secret,
     testAccountsData[0].salt,
     testAccountsData[0].signingKey,
   );
-  const oldUserManager = await oldRollupWallet.createSchnorrAccount(
-    testAccountsData[1].secret,
-    testAccountsData[1].salt,
-    testAccountsData[1].signingKey,
-  );
-  const oldDeployer = oldDeployerManager.address;
-  const oldRollupUser = oldUserManager.address;
-  const oldDeployerWallet = oldRollupWallet;
 
-  const newDeployerManager = await newRollupWallet.createSchnorrAccount(
+  const newDeployerManager = await newDeployerWallet.createSchnorrAccount(
     testAccountsData[0].secret,
     testAccountsData[0].salt,
     testAccountsData[0].signingKey,
   );
-  const _newUserManager = await newRollupWallet.createSchnorrAccount(
-    testAccountsData[1].secret,
-    testAccountsData[1].salt,
-    testAccountsData[1].signingKey,
-  );
-  const newDeployer = newDeployerManager.address;
-  const newRollupUser = _newUserManager.address;
-  const newDeployerWallet = newRollupWallet;
 
-  console.log(`   Old Deployer: ${oldDeployer}`);
-  console.log(`   Old User: ${oldRollupUser}`);
-  console.log(`   New Deployer: ${newDeployer}`);
-  console.log(`   New User: ${newRollupUser}`);
+  console.log(`   Old Deployer: ${oldDeployerManager.address}`);
+  console.log(`   New Deployer: ${newDeployerManager.address}`);
 
   // Setup Ethereum client
   const ethAccount = privateKeyToAccount(ANVIL_PRIVATE_KEY);
@@ -145,6 +130,12 @@ export async function deploy(): Promise<DeploymentResult> {
     chain: foundry,
     transport: http(ETHEREUM_RPC_URL),
   });
+  // Extended client for L1FeeJuicePortalManager (cast needed due to duplicate viem types)
+  const l1ExtendedClient = createWalletClient({
+    account: ethAccount,
+    chain: foundry,
+    transport: fallback([http(ETHEREUM_RPC_URL)]),
+  }).extend(publicActions) as any;
   console.log(`   Ethereum account: ${ethAccount.address}\n`);
 
   // ---- Step 2: Deploy Poseidon2 on L1 ----
@@ -187,57 +178,35 @@ export async function deploy(): Promise<DeploymentResult> {
   const l1MigratorAddress = l1MigratorReceipt.contractAddress;
   console.log(`   L1 Migrator: ${l1MigratorAddress}\n`);
 
-  // ---- Step 4: Deploy OLD rollup L2 contracts ----
-  console.log("4. Deploying OLD rollup L2 contracts...");
+  console.log("=== Infrastructure Deployment Complete ===\n");
 
-  const oldApp = await ExampleMigrationAppContract.deploy(oldDeployerWallet, {
-    _is_some: false,
-    _value: AztecAddress.ZERO,
-  })
-    .send({ from: oldDeployer })
-    .deployed();
-  console.log(`   old_example_app: ${oldApp.address}\n`);
-
-  // ---- Step 5: Deploy NEW rollup L2 contracts ----
-  console.log("5. Deploying NEW rollup L2 contracts...");
-  const newMigrator = await MigratorModeAContract.deploy(
-    newDeployerWallet,
-    EthAddress.fromString(l1MigratorAddress),
-    oldRollupVersion,
-  )
-    .send({ from: newDeployer })
-    .deployed();
-  console.log(`   new_migrator: ${newMigrator.address}`);
-
-  const newApp = await ExampleMigrationAppContract.deploy(newDeployerWallet, {
-    _is_some: true,
-    _value: oldApp.address,
-  })
-    .send({ from: newDeployer })
-    .deployed();
-  console.log(`   new_example_app: ${newApp.address}\n`);
-
-  console.log("=== Deployment Complete ===\n");
+  let oldMigrationWallet = await TestMigrationWallet.create(aztecOldNode);
+  let newMigrationWallet = await TestMigrationWallet.create(aztecNewNode);
 
   return {
+    [oldRollupVersion]: {
+      aztecNode: aztecOldNode,
+      deployerWallet: oldDeployerWallet,
+      deployerManager: oldDeployerManager,
+      migrationWallet: oldMigrationWallet,
+      inboxAddress: (
+        await aztecOldNode.getL1ContractAddresses()
+      ).inboxAddress.toString(),
+    },
+    [newRollupVersion]: {
+      aztecNode: aztecNewNode,
+      deployerWallet: newDeployerWallet,
+      deployerManager: newDeployerManager,
+      migrationWallet: newMigrationWallet,
+      inboxAddress: newInboxAddress.toString(),
+    },
     poseidon2Address,
     l1MigratorAddress,
-    oldApp,
-    newMigrator,
-    newApp,
     oldRollupVersion,
     newRollupVersion,
-    aztecOldNode,
-    aztecNewNode,
-    oldRollupWallet,
-    newRollupWallet,
-    oldDeployer,
-    oldRollupUser,
-    newDeployer,
-    newRollupUser,
     publicClient,
     l1WalletClient,
-    newInboxAddress: newInboxAddress.toString(),
+    l1ExtendedClient,
   };
 }
 
@@ -248,9 +217,6 @@ if (isMain) {
     .then((result) => {
       console.log("Deployment result:");
       console.log(`  L1 Migrator: ${result.l1MigratorAddress}`);
-      console.log(`  Old App: ${result.oldApp.address}`);
-      console.log(`  New Migrator: ${result.newMigrator.address}`);
-      console.log(`  New App: ${result.newApp.address}`);
     })
     .catch((e) => {
       console.error("Deploy failed:", e);

@@ -26,6 +26,7 @@ import { AztecNodeApiSchema } from '@aztec/stdlib/interfaces/client';
 import { P2PApiSchema } from '@aztec/stdlib/interfaces/server';
 import { getConfigEnvVars as getTelemetryClientConfig, initTelemetryClient } from '@aztec/telemetry-client';
 import { getGenesisValues } from '@aztec/world-state/testing';
+import { RollupCheatCodes } from '@aztec/ethereum/test';
 
 const logger = createLogger('node-with-time-sync');
 const userLog = createConsoleLogger();
@@ -149,6 +150,35 @@ async function main() {
         await wallet.stop();
     }
 
+    // === Auto-prove blocks: mark pending checkpoints as proven ===
+    // Without a prover component, blocks are proposed but never proven.
+    // This loop periodically marks the latest pending checkpoint as proven
+    // by writing directly to the rollup contract's storage on Anvil.
+    const rollupCheatCodes = RollupCheatCodes.create(
+        nodeConfig.l1RpcUrls,
+        { rollupAddress: addresses.rollupAddress },
+        dateProvider,
+    );
+
+    const autoProveLoop = new RunningPromise(async () => {
+        try {
+            await rollupCheatCodes.markAsProven();
+            // Mine an L1 block so the archiver detects the proven change.
+            // markAsProven() writes to L1 storage directly (anvil_setStorageAt)
+            // without creating a block, so the archiver won't notice until it
+            // processes new L1 blocks.
+            await fetch(l1RpcUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ jsonrpc: '2.0', method: 'anvil_mine', params: ['0x1'], id: 1 }),
+            });
+        } catch {
+            // Ignore errors (e.g. no pending blocks yet)
+        }
+    }, logger, 500);
+    autoProveLoop.start();
+    logger.info('Auto-prove loop started (marks pending checkpoints as proven)');
+
     // Set up HTTP RPC server (same as aztec_start_action.js)
     const services = {
         node: [node, AztecNodeApiSchema],
@@ -169,6 +199,7 @@ async function main() {
         logger.info('Shutting down...');
         await node.stop();
         await timeSyncLoop.stop();
+        await autoProveLoop.stop();
         process.exit(0);
     };
 

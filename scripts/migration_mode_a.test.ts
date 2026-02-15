@@ -1,189 +1,190 @@
 import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { MigrationClient } from "../ts/migration-lib/index.js";
+import { signMigrationModeA } from "../ts/migration-lib/index.js";
 import { deploy } from "./deploy.js";
+import {
+  deployAppPair,
+  deployArchiveRegistry,
+  bridgeArchiveRoot,
+  deployAndFundAccount,
+} from "./test-utils.js";
+import { createLogger } from "@aztec/foundation/log";
 
 async function main() {
-  console.log("=== Cross-Rollup Migration E2E Test ===\n");
+  const logger = createLogger("migration_mode_a_test");
+  console.log("=== Cross-Rollup Migration E2E Test (Mode A) ===\n");
 
   // ============================================================
-  // Deploy all contracts (phases 1-5)
+  // Deploy shared infrastructure
   // ============================================================
   const env = await deploy();
 
   const {
-    l1MigratorAddress,
-    oldApp,
-    newMigrator,
-    newApp,
-    oldRollupVersion,
-    newRollupVersion,
-    aztecOldNode,
-    aztecNewNode,
-    oldRollupWallet: oldUserWallet,
-    newRollupWallet: newUserWallet,
-    oldDeployer,
-    oldRollupUser,
-    newDeployer,
-    newRollupUser,
-    publicClient,
-    l1WalletClient,
-    newInboxAddress,
-  } = env;
+    aztecNode: oldAztecNode,
+    migrationWallet: oldMigrationWallet,
+  } = env[env.oldRollupVersion];
+  const {
+    aztecNode: newAztecNode,
+    migrationWallet: newMigrationWallet,
+  } = env[env.newRollupVersion];
 
   // ============================================================
-  // Create MigrationClient
+  // Create user wallets (TestMigrationWallet)
   // ============================================================
-  const migrationClient = new MigrationClient({
-    oldNode: aztecOldNode,
-    newNode: aztecNewNode,
-    l1PublicClient: publicClient,
-    l1WalletClient,
-    l1MigratorAddress,
-    newMigrator,
-    oldRollupVersion,
-    newRollupVersion,
-    newInboxAddress,
-  });
+  console.log("   Creating user wallets...");
+
+  const oldUserManager = await deployAndFundAccount(env, oldAztecNode);
+  const newUserManager = await deployAndFundAccount(env, newAztecNode);
+
+  console.log(`   Old User: ${oldUserManager.address}`);
+  console.log(`   New User: ${newUserManager.address}\n`);
+
+  // ============================================================
+  // Deploy L2 contracts
+  // ============================================================
+  console.log("4. Deploying L2 contracts...");
+  const { oldApp, newApp } = await deployAppPair(env);
+  console.log(`   old_example_app: ${oldApp.address}`);
+  console.log(`   new_example_app: ${newApp.address}`);
+
+  const newArchiveRegistry = await deployArchiveRegistry(env);
+  console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
 
   // ============================================================
   // Step 6: Mint tokens on OLD rollup
   // ============================================================
   console.log("6. Minting tokens on OLD rollup...");
   const MINT_AMOUNT = 1000n;
-  await oldApp.methods
-    .mint(oldRollupUser, MINT_AMOUNT)
-    .send({ from: oldDeployer })
+  const oldAppAsUser = ExampleMigrationAppContract.at(
+    oldApp.address,
+    oldMigrationWallet,
+  );
+  await oldAppAsUser.methods
+    .mint(oldUserManager.address, MINT_AMOUNT)
+    .send({ from: oldUserManager.address })
     .wait();
-  const oldBalanceAfterMint = await oldApp.methods
-    .get_balance(oldRollupUser)
-    .simulate({ from: oldRollupUser });
+  const oldBalanceAfterMint = await oldAppAsUser.methods
+    .get_balance(oldUserManager.address)
+    .simulate({ from: oldUserManager.address });
   console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}\n`);
 
   // ============================================================
   // Step 7: Lock tokens for migration on OLD rollup
   // ============================================================
   console.log("7. Locking tokens for migration...");
-  const { lockArgs, msk, mpk } = await migrationClient.prepareMigrationNoteLock();
+  const mpk = oldMigrationWallet.getMigrationPublicKey(oldUserManager.address)!;
   console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
   const LOCK_AMOUNT = 500n;
-  const oldAppAsUser = ExampleMigrationAppContract.at(
-    oldApp.address,
-    oldUserWallet,
-  );
   const lockTx = await oldAppAsUser.methods
     .lock_migration_notes_mode_a(
       LOCK_AMOUNT,
-      lockArgs.destinationRollup,
-      lockArgs.mpk,
+      env.newRollupVersion,
+      mpk.toNoirStruct(),
     )
-    .send({ from: oldRollupUser })
+    .send({ from: oldUserManager.address })
     .wait();
   console.log(`   Lock tx: ${lockTx.txHash}`);
 
-  const oldBalanceAfterLock = await oldApp.methods
-    .get_balance(oldRollupUser)
-    .simulate({ from: oldRollupUser });
+  const oldBalanceAfterLock = await oldAppAsUser.methods
+    .get_balance(oldUserManager.address)
+    .simulate({ from: oldUserManager.address });
   console.log(`   Balance after lock: ${oldBalanceAfterLock}\n`);
 
   // ============================================================
-  // Steps 8-12: Bridge (fully orchestrated by MigrationClient)
+  // Steps 8-12: Bridge archive root
   // ============================================================
-  console.log("8-12. Bridging archive root (proof wait → L1 tx → message sync → register)...");
-  const bridgeResult = await migrationClient.bridge(lockTx.blockNumber!, {
-    newRollupSender: newDeployer,
-    onProofPoll: async (currentProvenBlock) => {
-      console.log(
-        `   Block ${lockTx.blockNumber} not yet proven (at ${currentProvenBlock}). Waiting...`,
-      );
-      try {
-        await oldApp.methods
-          .mint(oldDeployer, 1n)
-          .send({ from: oldDeployer })
-          .wait();
-      } catch {
-        // Ignore
-      }
-    },
-    onMessagePoll: async (attempt) => {
-      console.log(`   Waiting for L1→L2 message... attempt ${attempt}`);
-      try {
-        await newApp.methods
-          .mint(newDeployer, 1n)
-          .send({ from: newDeployer })
-          .wait();
-      } catch {
-        // Ignore
-      }
-    },
-  });
-  console.log(`   Bridge complete. Proven block: ${bridgeResult.provenBlockNumber}`);
-  console.log(`   Archive root: ${bridgeResult.provenArchiveRoot}`);
-  console.log(`   Register tx: ${bridgeResult.registerTxHash}\n`);
-
-  const storedArchiveRoot = await newMigrator.methods
-    .get_old_archive_root(bridgeResult.provenBlockNumber)
-    .simulate({ from: newDeployer });
-  console.log(`   Stored archive root: ${new Fr(storedArchiveRoot)}\n`);
+  console.log("8-12. Bridging archive root...");
+  const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
+    env,
+    newArchiveRegistry,
+    lockTx.blockNumber!,
+  );
+  console.log(`   Proven block: ${l1Result.provenBlockNumber}`);
+  console.log(`   Archive root: ${l1Result.provenArchiveRoot}\n`);
 
   // ============================================================
   // Steps 13-14: Prepare migration args and call migrate on NEW rollup
   // ============================================================
   console.log("13. Preparing migration args...");
-  const { migrateArgs } = await migrationClient.prepareMigrateModeA({
-    msk,
-    oldAppAddress: oldApp.address,
-    oldUserWallet,
-    oldOwner: oldRollupUser,
-    provenBlockNumber: bridgeResult.provenBlockNumber,
-    newRecipient: newRollupUser,
-    newAppAddress: newApp.address,
+
+  // Get lock notes via wallet
+  const lockNotes = await oldMigrationWallet.getMigrationNotes({
+    owner: oldUserManager.address,
+    contractAddress: oldApp.address,
   });
+  if (lockNotes.length === 0) {
+    throw new Error("No migration notes found");
+  }
+
+  // Build proofs via wallet
+  const migrationNoteProofs = await oldMigrationWallet.buildMigrationNoteProofs(
+    lockNotes,
+    provenBlockNumber,
+  );
+
+  logger.info("Migration note proofs built", { count: migrationNoteProofs.length });
+  // Sign via standalone function
+  const oldAccount = await oldMigrationWallet.getMigrationAccount(
+    oldUserManager.address,
+  );
+  const signature = await signMigrationModeA(
+    oldAccount.migrationKeySigner,
+    archiveProof.archive_block_header.global_variables.version,
+    new Fr(env.newRollupVersion),
+    lockNotes,
+    newUserManager.address,
+    newApp.address,
+  );
+  logger.info("Migration signature created", { signature });
+
   console.log("   Migration args prepared.\n");
 
   console.log("14. Calling migrate on NEW rollup...");
-  const newBalanceBefore = await newApp.methods
-    .get_balance(newRollupUser)
-    .simulate({ from: newRollupUser });
-  console.log(`   Balance on NEW rollup before: ${newBalanceBefore}`);
+  const newAppAsUser = ExampleMigrationAppContract.at(
+    newApp.address,
+    newMigrationWallet,
+  );
+
+  const newBalanceBefore = await newAppAsUser.methods
+    .get_balance(newUserManager.address)
+    .simulate({ from: newUserManager.address });
+  console.log(`   Balance on NEW rollup before migrate: ${newBalanceBefore}`);
 
   try {
-    const newAppAsUser = await ExampleMigrationAppContract.at(
-      newApp.address,
-      newUserWallet,
-    );
     const migrateTx = await newAppAsUser.methods
       .migrate_mode_a(
         LOCK_AMOUNT,
-        migrateArgs.migratorAddress,
-        migrateArgs.migrationArgs,
-        migrateArgs.fullMigrationNote,
+        newArchiveRegistry.address,
+        mpk.toNoirStruct(),
+        [...signature],
+        migrationNoteProofs,
+        archiveProof,
       )
-      .send({ from: newRollupUser })
+      .send({ from: newUserManager.address })
       .wait();
     console.log(`   Migrate tx: ${migrateTx.txHash}`);
 
-    const newBalanceAfter = await newApp.methods
-      .get_balance(newRollupUser)
-      .simulate({ from: newRollupUser });
+    const newBalanceAfter = await newAppAsUser.methods
+      .get_balance(newUserManager.address)
+      .simulate({ from: newUserManager.address });
     console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
 
     if (BigInt(newBalanceAfter) === LOCK_AMOUNT) {
-      console.log("\n✅ Cross-rollup migration fully successful!");
+      console.log("\n   Cross-rollup migration fully successful!");
     } else {
-      console.log("\n⚠️  Migration completed but balance does not match.");
+      console.log("\n   Migration completed but balance does not match.");
     }
   } catch (e) {
-    console.log(`   ❌ migrate failed: ${(e as Error).message}`);
+    console.log(`   migrate failed: ${(e as Error).message}`);
   }
 
   // ============================================================
   // Summary
   // ============================================================
-  const finalBalance = await newApp.methods
-    .get_balance(newRollupUser)
-    .simulate({ from: newRollupUser });
+  const finalBalance = await newAppAsUser.methods
+    .get_balance(newUserManager.address)
+    .simulate({ from: newUserManager.address });
   console.log("\n=== Summary ===");
   console.log(`  OLD rollup balance: ${oldBalanceAfterLock}`);
   console.log(`  NEW rollup balance: ${finalBalance}`);

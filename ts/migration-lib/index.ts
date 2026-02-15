@@ -1,18 +1,41 @@
+// Wallet
+export type { MigrationAccount } from "./wallet/migration-account.js";
+export { BaseMigrationAccount, SignerlessMigrationAccount } from "./wallet/migration-account.js";
+export { BaseMigrationWallet } from "./wallet/base-migration-wallet.js";
+export { TestMigrationWallet } from "./wallet/test-migration-wallet.js";
+
+// Keys
+export { deriveMasterMigrationSecretKey, signMigrationModeA, signMigrationModeB } from "./keys.js";
+
+// Proofs
+export {
+  buildMigrationNoteProof,
+  buildNoteProof,
+  buildArchiveProof,
+} from "./proofs.js";
+
+// Bridge
+export {
+  waitForBlockProof,
+  migrateArchiveRootOnL1,
+  waitForL1ToL2Message,
+} from "./bridge.js";
+
+// Constants
+export * from "./constants.js";
+
+// Noir helpers
 export * from "./noir-helpers/index.js";
 
-export { MigrationClient } from "./client.js";
-
-export type {
-  MigrationConfig,
-  NoteProvider,
-  LockArgs,
-  PrepareMigrationNoteLockResult,
-  BridgeOptions,
-  BridgeResult,
-  PrepareMigrateModeAInput,
-  PrepareMigrateModeAResult,
-  MigrateArgs,
-} from "./types.js";
-
+// Polling
 export { poll } from "./polling.js";
 export type { PollOptions } from "./polling.js";
+
+// Types
+export type {
+  NoteProvider,
+  MigrationNoteProofData,
+  NoteProofData,
+  ArchiveProof,
+  L1MigrationResult,
+} from "./types.js";

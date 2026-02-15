@@ -1,6 +1,7 @@
 use aztec::macros::aztec as aztec_contract;
 
 mod migration_key_note;
+pub use crate::migration_key_note::MigrationKeyNote;
 
 #[aztec_contract]
 pub contract MigrationKeyRegistry {

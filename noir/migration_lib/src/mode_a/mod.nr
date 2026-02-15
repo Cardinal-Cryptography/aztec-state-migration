@@ -1,36 +1,26 @@
-use crate::{migration_note::{MIGRATION_NOTE_STORAGE_SLOT, MigrationNote}, MigratorModeA};
+mod migration_note;
+use crate::ArchiveArgs;
 use aztec::{
     context::PrivateContext,
     messages::message_delivery::MessageDelivery,
     note::{lifecycle::create_note, note_interface::NoteHash},
     protocol_types::{
-        abis::block_header::BlockHeader,
         address::AztecAddress,
-        constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT},
-        hash::{poseidon2_hash, compute_siloed_note_hash, compute_unique_note_hash},
+        constants::NOTE_HASH_TREE_HEIGHT,
+        hash::{compute_siloed_note_hash, compute_unique_note_hash, poseidon2_hash},
         merkle_tree::root::root_from_sibling_path,
-        traits::{Deserialize, Hash, Packable, Serialize, ToField},
+        traits::{Hash, Packable, Serialize, ToField},
     },
 };
-pub use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
-pub use std::embedded_curve_ops::EmbeddedCurveScalar as Scalar;
+use migration_archive_registry::MigrationArchiveRegistry;
+use migration_note::{MIGRATION_MODE_A_STORAGE_SLOT, MigrationNote};
+use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
-pub global CLAIM_DOMAIN_A: Field = MIGRATION_NOTE_STORAGE_SLOT; // poseidon2 of "migration_mode_a" as ASCII
-
-#[derive(Serialize)]
-pub struct MigrationArgs {
-    mpk: Point,
-    pub(crate) signature: [u8; 64],
-    // Block header
-    pub archive_block_header: BlockHeader,
-    // Archive membership proof
-    pub archive_leaf_index: Field,
-    pub archive_sibling_path: [Field; ARCHIVE_HEIGHT],
-}
+pub global CLAIM_DOMAIN_A: Field = MIGRATION_MODE_A_STORAGE_SLOT; // poseidon2 of "migration_mode_a" as ASCII
 
 /// Per-note inclusion proof data needed to verify a MigrationNote exists in the
 /// old rollup's note hash tree. Supplied by the migrating user alongside `MigrationArgs`.
-#[derive(Deserialize, Serialize, Packable)]
+#[derive(Serialize, Packable)]
 pub struct FullMigrationNote {
     pub migration_data: Field,
     pub randomness: Field,
@@ -52,13 +42,13 @@ pub struct FullMigrationNote {
 ///
 /// # Parameters
 /// - `context`: the calling app contract's private context
-/// - `note_owner`: account that will own the notes in PXE (for note discovery)
+/// - `notes_owner`: account that will own the notes in PXE (for note discovery)
 /// - `destination_rollup`: version identifier of the target rollup (prevents replay)
 /// - `mpk`: migration public key (Grumpkin point); must be on-curve
 /// - `migration_data`: app-specific data to lock (one note per element)
 pub fn lock_migration_notes<let N: u32>(
     context: &mut PrivateContext,
-    note_owner: AztecAddress,
+    notes_owner: AztecAddress,
     destination_rollup: Field,
     mpk: Point,
     migration_data: [Field; N],
@@ -72,8 +62,8 @@ pub fn lock_migration_notes<let N: u32>(
             MigrationNote::new(note_creator, mpk, destination_rollup, migration_data[i]);
         create_note(
             context,
-            note_owner,
-            MIGRATION_NOTE_STORAGE_SLOT,
+            notes_owner,
+            MIGRATION_MODE_A_STORAGE_SLOT,
             migration_note,
         )
             .deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
@@ -88,34 +78,40 @@ pub fn lock_migration_notes<let N: u32>(
 ///   2. For each `FullMigrationNote`, reconstruct the note hash and verify it
 ///      exists in the old rollup's note hash tree (via Merkle proof).
 ///   3. Recompute the archive root from the block header and its sibling path.
-///   4. Enqueue a public call to the MigratorRegistry to verify the computed
+///   4. Enqueue a public call to the MigrationArchiveRegistry to verify the computed
 ///      archive root matches the one registered on-chain (bridged from L1).
 ///
 /// Each verified note emits a nullifier (keyed to note randomness) to prevent double-claiming.
 ///
 /// # Parameters
 /// - `context`: the calling app contract's private context on the new rollup
-/// - `migrator_registry`: address of the MigratorRegistry contract (holds registered archive roots)
-/// - `old_app_address`: address of the app contract on the old rollup (used for note siloing)
+/// - `migration_archive_registry`: address of the MigrationArchiveRegistry contract (holds registered archive roots)
+/// - `old_app`: address of the app contract on the old rollup (used for note siloing)
 /// - `full_notes`: per-note inclusion proofs and migration data
 /// - `migration_args`: archive-level proof (block header, sibling path) and migration secret key
-pub fn migrate_notes<let N: u32>(
+pub fn migrate_notes_mode_a<let N: u32>(
     context: &mut PrivateContext,
-    migrator_registry: AztecAddress,
-    old_app_address: AztecAddress,
+    migration_archive_registry: AztecAddress,
+    // Authentication
+    mpk: Point,
+    signature: [u8; 64],
+    //
+    old_app: AztecAddress,
+    //
     full_notes: [FullMigrationNote; N],
-    migration_args: MigrationArgs,
+    //
+    archive_args: ArchiveArgs,
 ) {
     // 1. Verify each note's inclusion in the old rollup's note hash tree
     let mut notes_hashes: [Field; N] = [0; N];
     let current_rollup = context.version();
-    let note_hash_tree_root = migration_args.archive_block_header.state.partial.note_hash_tree.root;
+    let note_hash_tree_root = archive_args.archive_block_header.state.partial.note_hash_tree.root;
 
     for i in 0..N {
         let note_hash = migrate_note(
             context,
-            old_app_address,
-            migration_args.mpk,
+            old_app,
+            mpk,
             current_rollup,
             full_notes[i],
             note_hash_tree_root,
@@ -125,25 +121,39 @@ pub fn migrate_notes<let N: u32>(
 
     // 2. Verify the migration signature over the set of notes and migration context
     let notes_hash = poseidon2_hash(notes_hashes);
-    let old_rollup = migration_args.archive_block_header.global_variables.version;
+    let old_rollup = archive_args.archive_block_header.global_variables.version;
     let recipient = context.msg_sender().unwrap().to_field();
     let new_app_address = context.this_address().to_field();
-    let msg = poseidon2_hash([CLAIM_DOMAIN_A, old_rollup, current_rollup, notes_hash, recipient, new_app_address]);
-    assert(schnorr::verify_signature(migration_args.mpk, migration_args.signature, msg.to_be_bytes::<32>()), "Invalid migration signature");
+    let msg = poseidon2_hash([
+        CLAIM_DOMAIN_A,
+        old_rollup,
+        current_rollup,
+        notes_hash,
+        recipient,
+        new_app_address,
+    ]);
+    assert(
+        schnorr::verify_signature(
+            mpk,
+            signature,
+            msg.to_be_bytes::<32>(),
+        ),
+        "Invalid migration signature",
+    );
 
     // 3. Recompute archive root from block header + sibling path
-    let archive_block_header_hash = migration_args.archive_block_header.hash();
+    let archive_block_header_hash = archive_args.archive_block_header.hash();
     let computed_archive_root = root_from_sibling_path(
         archive_block_header_hash,
-        migration_args.archive_leaf_index,
-        migration_args.archive_sibling_path,
+        archive_args.archive_leaf_index,
+        archive_args.archive_sibling_path,
     );
 
     // 4. Enqueue public check: computed archive root must match the one
-    //    registered in MigratorModeA (bridged from L1)
-    MigratorModeA::at(migrator_registry)
-        .verify_archive_root(
-            migration_args.archive_block_header.global_variables.block_number,
+    //    registered in MigrationArchiveRegistry (bridged from L1)
+    MigrationArchiveRegistry::at(migration_archive_registry)
+        .verify_migration_mode_a(
+            archive_args.archive_block_header.global_variables.block_number,
             computed_archive_root,
         )
         .enqueue(context);
@@ -172,7 +182,7 @@ fn migrate_note(
     );
     let migration_note_hash = migration_note.compute_note_hash(
         AztecAddress::zero(), // (owner is ignored by #[custom_note] - mpk serves as ownership proof)
-        MIGRATION_NOTE_STORAGE_SLOT,
+        MIGRATION_MODE_A_STORAGE_SLOT,
         full_note.randomness,
     );
 
