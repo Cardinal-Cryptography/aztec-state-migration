@@ -9,7 +9,7 @@ import type {
 import type { AztecNode } from "@aztec/aztec.js/node";
 import type { TestWallet } from "@aztec/test-wallet/server";
 import type { AccountManager } from "@aztec/aztec.js/wallet";
-import { BaseTestMigrationWallet } from "../ts/migration-lib/wallet/base-test-migration-wallet.js";
+import { MigrationTestBaseWallet } from "../ts/migration-lib/wallet/migration-test-base-wallet.js";
 
 export interface DeploymentResult {
   [rollupVersion: number]: {
@@ -23,7 +23,7 @@ export interface DeploymentResult {
     deployerManager: AccountManager;
 
     // Migration wallet (for signing migration proofs)
-    migrationWallet: BaseTestMigrationWallet;
+    migrationWallet: MigrationTestBaseWallet;
 
     inboxAddress: string;
   };

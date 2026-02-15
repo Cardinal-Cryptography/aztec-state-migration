@@ -1,8 +1,8 @@
 // Wallet
 export type { MigrationAccount } from "./wallet/migration-account.js";
 export { BaseMigrationAccount, SignerlessMigrationAccount } from "./wallet/migration-account.js";
-export { BaseMigrationWallet } from "./wallet/base-migration-wallet.js";
-export { TestMigrationWallet } from "./wallet/test-migration-wallet.js";
+export { BaseMigrationWallet } from "./wallet/migration-base-wallet.js";
+export { MigrationTestWallet } from "./wallet/migration-test-wallet.js";
 
 // Keys
 export { deriveMasterMigrationSecretKey, signMigrationModeA, signMigrationModeB } from "./keys.js";

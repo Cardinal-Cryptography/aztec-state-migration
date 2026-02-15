@@ -19,15 +19,15 @@ import {
   getPXEConfig,
 } from "@aztec/pxe/server";
 import { deriveSigningKey, PublicKeys } from "@aztec/stdlib/keys";
-import { BaseTestMigrationWallet } from "./base-test-migration-wallet.js";
+import { MigrationTestBaseWallet } from "./migration-test-base-wallet.js";
 
 /**
  * Concrete migration wallet for testing. Creates its own PXE instance and
  * supports Schnorr, ECDSA-R, and ECDSA-K account types.
  */
-export class TestMigrationWallet extends BaseTestMigrationWallet {
+export class MigrationTestWallet extends MigrationTestBaseWallet {
   /**
-   * Create a new {@link TestMigrationWallet} backed by a fresh PXE.
+   * Create a new {@link MigrationTestWallet} backed by a fresh PXE.
    *
    * @param node - The Aztec node to connect the PXE to.
    * @param overridePXEConfig - Optional overrides for the default PXE configuration.
@@ -38,13 +38,13 @@ export class TestMigrationWallet extends BaseTestMigrationWallet {
     node: AztecNode,
     overridePXEConfig?: Partial<PXEConfig>,
     options: PXECreationOptions = { loggers: {} },
-  ): Promise<TestMigrationWallet> {
+  ): Promise<MigrationTestWallet> {
     const pxeConfig = Object.assign(getPXEConfig(), {
       proverEnabled: overridePXEConfig?.proverEnabled ?? false,
       ...overridePXEConfig,
     });
     const pxe = await createPXE(node, pxeConfig, options);
-    return new TestMigrationWallet(pxe, node);
+    return new MigrationTestWallet(pxe, node);
   }
 
   /** @inheritdoc */

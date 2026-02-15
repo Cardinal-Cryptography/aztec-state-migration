@@ -11,7 +11,7 @@ import { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import { ContractArtifact } from "@aztec/stdlib/abi";
 import { ExecutionPayload, mergeExecutionPayloads, TxSimulationResult } from "@aztec/stdlib/tx";
 import { DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
-import { BaseMigrationWallet } from "./base-migration-wallet.js";
+import { BaseMigrationWallet } from "./migration-base-wallet.js";
 import { BaseMigrationAccount, MigrationAccount, SignerlessMigrationAccount } from "./migration-account.js";
 
 /**
@@ -21,7 +21,7 @@ import { BaseMigrationAccount, MigrationAccount, SignerlessMigrationAccount } fr
  * - Implements `MigrationAccount` instead of `Account`
  * - Implements `SignerlessMigrationAccount` instead of `SignerlessAccount`
  */
-export abstract class BaseTestMigrationWallet extends BaseMigrationWallet {
+export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
     protected accounts: Map<string, MigrationAccount> = new Map();
 
   /**

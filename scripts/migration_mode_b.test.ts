@@ -36,7 +36,7 @@ async function main() {
   } = env[env.newRollupVersion];
 
   // ============================================================
-  // Create user wallets (TestMigrationWallet)
+  // Create user wallets (MigrationTestWallet)
   // ============================================================
   console.log("   Creating user wallets...");
 

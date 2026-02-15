@@ -18,7 +18,7 @@ import { fileURLToPath } from "url";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import type { DeploymentResult } from "./deploy-types.js";
-import { TestMigrationWallet } from "../ts/migration-lib/index.js";
+import { MigrationTestWallet } from "../ts/migration-lib/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -176,8 +176,8 @@ export async function deploy(): Promise<DeploymentResult> {
 
   console.log("=== Infrastructure Deployment Complete ===\n");
 
-  let oldMigrationWallet = await TestMigrationWallet.create(aztecOldNode);
-  let newMigrationWallet = await TestMigrationWallet.create(aztecNewNode);
+  let oldMigrationWallet = await MigrationTestWallet.create(aztecOldNode);
+  let newMigrationWallet = await MigrationTestWallet.create(aztecNewNode);
 
   return {
     [oldRollupVersion]: {
