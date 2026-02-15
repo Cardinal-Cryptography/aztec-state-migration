@@ -18,7 +18,7 @@ import {
   createPXE,
   getPXEConfig,
 } from "@aztec/pxe/server";
-import { deriveSigningKey } from "@aztec/stdlib/keys";
+import { deriveSigningKey, PublicKeys } from "@aztec/stdlib/keys";
 import { BaseTestMigrationWallet } from "./base-test-migration-wallet.js";
 import type { TestWallet } from "@aztec/test-wallet/server";
 
@@ -41,6 +41,10 @@ export class TestMigrationWallet extends BaseTestMigrationWallet {
 
   getMigrationPublicKey(account: AztecAddress): Point | undefined {
     return this.accounts.get(account.toString())?.getMigrationPublicKey();
+  }
+
+  getPublicKeys(account: AztecAddress): PublicKeys | undefined {
+    return this.accounts.get(account.toString())?.getPublicKeys();
   }
 
   createSchnorrAccount(

@@ -1,4 +1,4 @@
-import { Fr } from "@aztec/foundation/curves/bn254";
+import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
 import {
@@ -26,6 +26,7 @@ import {
   signMigrationModeA as signModeA,
   signMigrationModeB as signModeB,
 } from "../keys.js";
+import { PublicKeys } from "@aztec/stdlib/keys";
 
 export abstract class BaseMigrationWallet extends BaseWallet {
   constructor(
@@ -36,6 +37,8 @@ export abstract class BaseMigrationWallet extends BaseWallet {
   }
 
   abstract getMigrationPublicKey(account: AztecAddress): Point | undefined;
+
+  abstract getPublicKeys(account: AztecAddress): PublicKeys | undefined;
 
   async getMigrationAccount(address: AztecAddress): Promise<MigrationAccount> {
     return this.getAccountFromAddress(address) as Promise<MigrationAccount>;
@@ -77,13 +80,12 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     );
   }
 
-  async getEncryptedNsk(
-    newOwner: AztecAddress,
-  ): Promise<Buffer<ArrayBufferLike>> {
-    const account = await this.getAccountFromAddress(newOwner);
-    throw new Error(
-      "Not implemented: encryption of NSK to the migration public key is not implemented yet",
-    );
+  async getMaskedNsk(
+    newOwner: MigrationAccount,
+    contractAddress: AztecAddress,
+  ): Promise<Fq> {
+    const account = await this.getMigrationAccount(contractAddress);
+    return account.getMaskedNsk(newOwner, contractAddress);
   }
 
   async buildArchiveProof(blockNumber: BlockNumber): Promise<ArchiveProof> {

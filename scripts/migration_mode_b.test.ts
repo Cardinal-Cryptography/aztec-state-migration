@@ -154,12 +154,12 @@ async function main() {
   // ============================================================
   console.log("11. Deriving account keys...");
 
-  const oldUserSecret = oldUserManager.getSecretKey();
-  const derivedKeys = await deriveKeys(oldUserSecret);
-  const nsk = derivedKeys.masterNullifierSecretKey;
-  const publicKeys = derivedKeys.publicKeys.toNoirStruct();
+  const publicKeys = oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
   const partialAddress = completeAddress.partialAddress;
+  const oldMigrationAccount = await oldUserWallet.getMigrationAccount(oldUserManager.address);
+  const newMigrationAccount = await newUserWallet.getMigrationAccount(newUserManager.address);
+  const nsk = await oldMigrationAccount.getMaskedNsk(newMigrationAccount, oldApp.address);
 
   console.log(`   nsk derived`);
   console.log(`   Partial address: ${partialAddress}\n`);
@@ -226,12 +226,17 @@ async function main() {
   // ============================================================
   console.log("13. Calling migrate_mode_b on NEW rollup...");
 
+  const newAppAsUser = ExampleMigrationAppContract.at(
+    newApp.address,
+    newUserWallet,
+  );
+
   // TODO: For now we just migrating first note
   const noteProof = noteProofs[0];
   const migrateAmount = noteProof.noteItems[0].toBigInt();
   console.log(`   Migrating amount: ${migrateAmount}`);
 
-  const newBalanceBefore = await newApp.methods
+  const newBalanceBefore = await newAppAsUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
@@ -266,7 +271,7 @@ async function main() {
   });
 
   try {
-    const migrateTx = await newApp.methods
+    const migrateTx = await newAppAsUser.methods
       .migrate_mode_b(
         migrateAmount,
         newArchiveRegistry.address,
@@ -275,7 +280,7 @@ async function main() {
         [noteProof].map(mapBalanceNote),
         archiveProof,
         oldUserManager.address,
-        publicKeys,
+        publicKeys.toNoirStruct(),
         partialAddress,
         mapKeyNote(keyNoteProof),
         { hi: nsk.hi, lo: nsk.lo },
@@ -285,7 +290,7 @@ async function main() {
 
     console.log(`   Migrate tx: ${migrateTx.txHash}`);
 
-    const newBalanceAfter = await newApp.methods
+    const newBalanceAfter = await newAppAsUser.methods
       .get_balance(newUserManager.address)
       .simulate({ from: newUserManager.address });
     console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
@@ -312,7 +317,7 @@ async function main() {
   // ============================================================
   // Summary
   // ============================================================
-  const newBalanceAfter = await newApp.methods
+  const newBalanceAfter = await newAppAsUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
 

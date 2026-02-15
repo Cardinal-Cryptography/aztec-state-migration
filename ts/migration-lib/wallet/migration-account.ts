@@ -1,6 +1,10 @@
 import { Account, ChainInfo, SignerlessAccount } from "@aztec/aztec.js/account";
 import { AccountInterface, BaseAccount } from "@aztec/aztec.js/account";
-import { deriveKeys, generatePublicKey } from "@aztec/aztec.js/keys";
+import {
+  deriveKeys,
+  generatePublicKey,
+  PublicKeys,
+} from "@aztec/aztec.js/keys";
 import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import { Fq, Fr, Point } from "@aztec/aztec.js/fields";
 import { deriveMasterMigrationSecretKey } from "../keys.js";
@@ -15,6 +19,7 @@ export interface MigrationAccount extends Account {
     newRollupAccount: MigrationAccount,
     contractAddress: AztecAddress,
   ) => Promise<Fq>;
+  getPublicKeys: () => PublicKeys;
 }
 
 export class BaseMigrationAccount
@@ -25,9 +30,10 @@ export class BaseMigrationAccount
   // which is fine for testing but should be handled securely in production.
   constructor(
     account: AccountInterface,
-    private readonly masterNullifierSecretKey: Fq,
-    private readonly masterMigrationSecretKey: Fq,
-    private readonly migrationPublicKey: Point,
+    protected readonly masterNullifierSecretKey: Fq,
+    protected readonly masterMigrationSecretKey: Fq,
+    protected readonly migrationPublicKey: Point,
+    protected readonly publicKeys: PublicKeys,
   ) {
     super(account);
   }
@@ -37,14 +43,19 @@ export class BaseMigrationAccount
     secret: Fr,
   ): Promise<BaseMigrationAccount> {
     const msk = deriveMasterMigrationSecretKey(secret);
-    const { masterNullifierSecretKey } = await deriveKeys(secret);
+    const { masterNullifierSecretKey, publicKeys } = await deriveKeys(secret);
     const mpk = await generatePublicKey(msk);
     return new BaseMigrationAccount(
       account,
       masterNullifierSecretKey,
       msk,
       mpk,
+      publicKeys,
     );
+  }
+
+  getPublicKeys(): PublicKeys {
+    return this.publicKeys;
   }
 
   getMigrationPublicKey(): Point {
@@ -71,16 +82,16 @@ export class BaseMigrationAccount
     );
   }
 
-  protected async getMask(
+  protected getMask = async (
     _newRollupAccount: MigrationAccount,
     _contractAddress: AztecAddress,
-  ): Promise<Fr> {
+  ): Promise<Fr> => {
     // const nskApp = await computeAppNullifierSecretKey(this.masterNullifierSecretKey, contractAddress);
     // return poseidon2Hash([NSK_MASK_DOMAIN,nskApp]);
 
     // For now just return zero (no mask applied)
     return Fr.ZERO;
-  }
+  };
 }
 
 export class SignerlessMigrationAccount
@@ -117,6 +128,12 @@ export class SignerlessMigrationAccount
   ): Promise<Fq> {
     throw new Error(
       "SignerlessMigrationAccount: Method getMaskedNsk not implemented.",
+    );
+  }
+
+  getPublicKeys(): PublicKeys {
+    throw new Error(
+      "SignerlessMigrationAccount: Method getPublicKeys not implemented.",
     );
   }
 }
