@@ -18,6 +18,7 @@ import {
 import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
 import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
 import { KeyNote, UintNote } from "../ts/migration-lib/types.js";
+import { NoteStatus } from "@aztec/stdlib/note";
 
 async function main() {
   console.log("=== Mode B (Emergency Snapshot) Migration E2E Test ===\n");
@@ -74,6 +75,7 @@ async function main() {
 
   const MINT_AMOUNT_1 = 500n;
   const MINT_AMOUNT_2 = 300n;
+  const BURN_AMOUNT_1 = 150n;
 
   await oldApp.methods
     .mint(oldUserManager.address, MINT_AMOUNT_1)
@@ -86,6 +88,16 @@ async function main() {
     .send({ from: oldDeployerManager.address })
     .wait();
   console.log(`   Minted ${MINT_AMOUNT_2} tokens (mint 2)`);
+
+  const oldAppForBurn = ExampleMigrationAppContract.at(
+    oldApp.address,
+    oldUserWallet,
+  );
+  await oldAppForBurn.methods
+    .burn(oldUserManager.address, BURN_AMOUNT_1)
+    .send({ from: oldUserManager.address })
+    .wait();
+  console.log(`   Burned ${BURN_AMOUNT_1} tokens (burn 1)`);
 
   // Use user's wallet to query balance (deployer's PXE can't decrypt user's notes)
   const oldAppForUser = ExampleMigrationAppContract.at(
@@ -177,15 +189,9 @@ async function main() {
   // ============================================================
   console.log("12. Building proofs and signing...");
 
-  const balancesSlot = oldApp.artifact.storageLayout["balances"].slot;
   const keyRegistrySlot =
     oldKeyRegistry.artifact.storageLayout["registered_keys"].slot;
-
-  const balanceNotesAll = await oldUserWallet.getNotes({
-    owner: oldUserManager.address,
-    contractAddress: oldApp.address,
-    storageSlot: balancesSlot,
-  });
+  const balancesSlot = oldApp.artifact.storageLayout["balances"].slot;
 
   const keyNotes = await oldUserWallet.getNotes({
     owner: oldUserManager.address,
@@ -193,23 +199,41 @@ async function main() {
     storageSlot: keyRegistrySlot,
   });
 
-  if (balanceNotesAll.length === 0) {
-    throw new Error("No balance notes found");
+  const balanceNotesAll = await oldUserWallet.getNotes({
+    owner: oldUserManager.address,
+    contractAddress: oldApp.address,
+    storageSlot: balancesSlot,
+    status: NoteStatus.ACTIVE_OR_NULLIFIED,
+  });
+
+  const balanceNotesActive = await oldUserWallet.getNotes({
+    owner: oldUserManager.address,
+    contractAddress: oldApp.address,
+    storageSlot: balancesSlot,
+    status: NoteStatus.ACTIVE,
+  });
+
+  const balanceNotesNullified = balanceNotesAll.filter(
+    (n) => !balanceNotesActive.some((a) => a.equals(n)),
+  );
+
+  if (balanceNotesActive.length === 0) {
+    throw new Error("No active balance notes found");
   }
   if (keyNotes.length === 0) {
     throw new Error("No key notes found");
   }
 
   // The ExampleMigrationApp currently only creates one note per call.
-  const balanceNotes = balanceNotesAll.slice(0, 1);
+  const balanceNotes = balanceNotesActive.slice(0, 1);
 
   // Build proofs via wallet
   const [noteProofs, keyNoteProof] = await Promise.all([
-    oldUserWallet.buildNoteProofs(provenBlockNumber, balanceNotes, (note) =>
+    oldUserWallet.buildNoteAndNullifierProofs(provenBlockNumber, balanceNotes, (note) =>
       UintNote.fromNote(note),
     ),
     oldUserWallet
-      .buildNoteProofs(provenBlockNumber, [keyNotes[0]], (note) =>
+      .buildNoteAndNullifierProofs(provenBlockNumber, [keyNotes[0]], (note) =>
         KeyNote.fromNote(note),
       )
       .then((p) => p[0]),
@@ -241,7 +265,7 @@ async function main() {
     newUserWallet,
   );
 
-  // TODO: For now we just migrating first note
+  // The ExampleMigrationApp currently only supports migrating one note at a time.
   const noteProof = noteProofs[0];
   const migrateAmount = noteProof.note.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
@@ -294,6 +318,64 @@ async function main() {
       );
     }
   }
+
+  // ============================================================
+  // Step 13: Call migrate_mode_b on NEW rollup with nullified note (should fail)
+  // ============================================================
+  console.log(
+    "14. Calling migrate_mode_b on NEW rollup with nullified note (should fail)...",
+  );
+
+  if (balanceNotesNullified.length === 0) {
+    throw new Error("No nullified balance notes found to test failure case");
+  }
+
+  // Take one nullified note
+  const nullifiedNote = balanceNotesNullified[0];
+
+  const [nullifiedNoteProof] = await oldUserWallet.buildNoteAndNullifierProofs(
+    provenBlockNumber,
+    [nullifiedNote],
+    (note) => UintNote.fromNote(note),
+  );
+
+  const nullifedNoteSig = await signMigrationModeB(
+    oldAccount.migrationKeySigner,
+    archiveProof.archive_block_header.global_variables.version,
+    new Fr(env.newRollupVersion),
+    [nullifiedNote],
+    newUserManager.address,
+    newApp.address,
+  );
+
+  const amount = nullifiedNoteProof.note.value;
+
+  try {
+    const migrateTx = await newAppAsUser.methods
+      .migrate_mode_b(
+        amount,
+        newArchiveRegistry.address,
+        mpk.toNoirStruct(),
+        [...nullifedNoteSig],
+        [nullifiedNoteProof],
+        archiveProof,
+        oldUserManager.address,
+        publicKeys.toNoirStruct(),
+        partialAddress,
+        keyNoteProof,
+        { hi: nsk.hi, lo: nsk.lo },
+      )
+      .send({ from: newUserManager.address })
+      .wait();
+  } catch (e) {
+    const err = e as Error;
+    if (err.message.includes("Note nullifier non-inclusion")) {
+      console.log("   Expected failure: Note is not active");
+    } else {
+      console.log(`   Unexpected error: ${err.message}`);
+    }
+  }
+  // ============================================================
 
   // ============================================================
   // Summary

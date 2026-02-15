@@ -1,14 +1,14 @@
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { Note, NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
-import {
-  MIGRATION_NOTE_SLOT,
-} from "../constants.js";
+import { MIGRATION_NOTE_SLOT } from "../constants.js";
 import { AztecNode } from "@aztec/aztec.js/node";
 import {
   ArchiveProof,
+  FullProofData,
   MigrationNoteProofData,
   NoteProofData,
+  NullifierProofData,
 } from "../types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { PXE } from "@aztec/pxe/server";
@@ -16,6 +16,7 @@ import {
   buildArchiveProof,
   buildMigrationNoteProof,
   buildNoteProof,
+  buildNullifierProof,
 } from "../proofs.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
@@ -97,24 +98,41 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     });
   }
 
-  async buildMigrationNoteProofs(
-    blockNumber: BlockNumber,
-    migrationNotes: NoteDao[],
-  ): Promise<MigrationNoteProofData[]> {
-    return Promise.all(
-      migrationNotes.map((n) =>
-        buildMigrationNoteProof(this.aztecNode, blockNumber, n),
-      ),
-    );
-  }
-
   async buildNoteProofs<NoteLike>(
     blockNumber: BlockNumber,
     notes: NoteDao[],
     noteMapper: (note: Note) => NoteLike,
   ): Promise<NoteProofData<NoteLike>[]> {
     return Promise.all(
-      notes.map((n) => buildNoteProof(this.aztecNode, blockNumber, n, noteMapper)),
+      notes.map((n) =>
+        buildNoteProof(this.aztecNode, blockNumber, n, noteMapper),
+      ),
     );
+  }
+
+  async buildNullifierProofs(
+    blockNumber: BlockNumber,
+    notes: NoteDao[],
+  ): Promise<NullifierProofData[]> {
+    return Promise.all(
+      notes.map((n) => buildNullifierProof(this.aztecNode, blockNumber, n)),
+    );
+  }
+
+  async buildNoteAndNullifierProofs<NoteLike>(
+    blockNumber: BlockNumber,
+    notes: NoteDao[],
+    noteMapper: (note: Note) => NoteLike,
+  ): Promise<FullProofData<NoteLike>[]> {
+    const noteProofs = await this.buildNoteProofs(
+      blockNumber,
+      notes,
+      noteMapper,
+    );
+    const nullifierProofs = await this.buildNullifierProofs(blockNumber, notes);
+    return noteProofs.map((noteProof, i) => ({
+      ...noteProof,
+      ...nullifierProofs[i],
+    }));
   }
 }

@@ -9,6 +9,10 @@ import {
   deployAndFundAccount,
 } from "./test-utils.js";
 import { createLogger } from "@aztec/foundation/log";
+import {
+  MigrationNote,
+  MigrationNoteProofData,
+} from "../ts/migration-lib/types.js";
 
 async function main() {
   const logger = createLogger("migration_mode_a_test");
@@ -19,14 +23,10 @@ async function main() {
   // ============================================================
   const env = await deploy();
 
-  const {
-    aztecNode: oldAztecNode,
-    migrationWallet: oldMigrationWallet,
-  } = env[env.oldRollupVersion];
-  const {
-    aztecNode: newAztecNode,
-    migrationWallet: newMigrationWallet,
-  } = env[env.newRollupVersion];
+  const { aztecNode: oldAztecNode, migrationWallet: oldMigrationWallet } =
+    env[env.oldRollupVersion];
+  const { aztecNode: newAztecNode, migrationWallet: newMigrationWallet } =
+    env[env.newRollupVersion];
 
   // ============================================================
   // Create user wallets (TestMigrationWallet)
@@ -118,10 +118,13 @@ async function main() {
   }
 
   // Build proofs via wallet
-  const migrationNoteProofs = await oldMigrationWallet.buildMigrationNoteProofs(
-    provenBlockNumber,
-    lockNotes,
-  );
+  const migrationNoteProofs = (
+    await oldMigrationWallet.buildNoteProofs(
+      provenBlockNumber,
+      lockNotes,
+      MigrationNote.fromNote,
+    )
+  ).map((p) => MigrationNoteProofData.fromNoteProofData(p));
 
   // Sign via standalone function
   const oldAccount = await oldMigrationWallet.getMigrationAccount(

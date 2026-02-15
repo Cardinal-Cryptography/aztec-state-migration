@@ -7,10 +7,29 @@ export interface NoteProvider {
   getNotes(filter: NotesFilter): Promise<NoteDao[]>;
 }
 
-// ============================================================
-// MigrationNote proof (Mode A)
-// ============================================================
+/** Generic note inclusion proof data. */
+export interface NoteProofData<Note> {
+  note: Note;
+  storage_slot: Fr;
+  randomness: Fr;
+  nonce: Fr;
+  leaf_index: Fr;
+  sibling_path: Fr[];
+}
 
+/** Nullifier non-inclusion proof data. */
+export interface NullifierProofData {
+  low_nullifier_value: Fr;
+  low_nullifier_next_value: Fr;
+  low_nullifier_next_index: Fr;
+  low_nullifier_leaf_index: Fr;
+  low_nullifier_sibling_path: Fr[];
+}
+
+/** Note inclusion and nullifier non-inclusion proof data. */
+export type FullProofData<Note> = NoteProofData<Note> & NullifierProofData;
+
+/** Migration note proof data (for migration verification). */
 export interface MigrationNoteProofData {
   migration_data: Fr;
   randomness: Fr;
@@ -19,25 +38,17 @@ export interface MigrationNoteProofData {
   sibling_path: Fr[];
 }
 
-// ============================================================
-// Note proof (Mode B)
-// ============================================================
-
-/** Generic note proof data: inclusion + non-nullification. */
-export interface NoteProofData<Note> {
-  /** Raw note field values from NoteDao.note.items. Caller maps to typed note struct. */
-  note: Note;
-  storage_slot: Fr;
-  randomness: Fr;
-  nonce: Fr;
-  leaf_index: Fr;
-  sibling_path: Fr[];
-  low_nullifier_value: Fr;
-  low_nullifier_next_value: Fr;
-  low_nullifier_next_index: Fr;
-  low_nullifier_leaf_index: Fr;
-  low_nullifier_sibling_path: Fr[];
-}
+export const MigrationNoteProofData = {
+  fromNoteProofData: (
+    p: NoteProofData<MigrationNote>,
+  ): MigrationNoteProofData => ({
+    migration_data: p.note.migration_data,
+    randomness: p.randomness,
+    nonce: p.nonce,
+    leaf_index: p.leaf_index,
+    sibling_path: p.sibling_path,
+  }),
+};
 
 // ============================================================
 // Archive proof
@@ -78,10 +89,46 @@ export const UintNote = {
   fromNote: (note: Note): UintNote => ({ value: note.items[0].toBigInt() }),
 };
 
+export type FieldNote = {
+  value: Fr;
+};
+
+export const FieldNote = {
+  fromNote: (note: Note): FieldNote => ({ value: note.items[0] }),
+};
+
 export type KeyNote = {
   mpk_hash: Fr;
 };
 
 export const KeyNote = {
   fromNote: (note: Note): KeyNote => ({ mpk_hash: note.items[0] }),
+};
+
+export type MigrationNote = {
+  note_creator: {
+    address: Fr;
+  };
+  mpk: {
+    x: Fr;
+    y: Fr;
+    is_inifinite: boolean;
+  };
+  destination_rollup: Fr;
+  migration_data: Fr;
+};
+
+export const MigrationNote = {
+  fromNote: (note: Note): MigrationNote => ({
+    note_creator: {
+      address: note.items[0],
+    },
+    mpk: {
+      x: note.items[1],
+      y: note.items[2],
+      is_inifinite: note.items[3].toBool(),
+    },
+    destination_rollup: note.items[4],
+    migration_data: note.items[5],
+  }),
 };

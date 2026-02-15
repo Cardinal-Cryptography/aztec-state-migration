@@ -3,7 +3,12 @@ import { BlockNumber } from "@aztec/foundation/branded-types";
 import { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import type { AztecNode } from "@aztec/aztec.js/node";
 import type { Note, NoteDao } from "@aztec/stdlib/note";
-import type { NoteProofData, ArchiveProof, MigrationNoteProofData } from "./types.js";
+import type {
+  NoteProofData,
+  ArchiveProof,
+  MigrationNoteProofData,
+  NullifierProofData,
+} from "./types.js";
 import { MIGRATION_DATA_FIELD_INDEX } from "./constants.js";
 
 export async function buildMigrationNoteProof(
@@ -16,7 +21,6 @@ export async function buildMigrationNoteProof(
     BlockNumber(blockNumber),
     leafIndex,
   );
-
   return {
     migration_data: migrationNote.note.items[MIGRATION_DATA_FIELD_INDEX],
     randomness: migrationNote.randomness,
@@ -36,19 +40,7 @@ export async function buildNoteProof<NoteLike>(
   noteMapper: (note: Note) => NoteLike,
 ): Promise<NoteProofData<NoteLike>> {
   const leafIndex = noteDao.index;
-
-  const [siblingPath, lowNullifierWitness] = await Promise.all([
-    node.getNoteHashSiblingPath(blockNumber, leafIndex),
-    node.getLowNullifierMembershipWitness(
-      blockNumber,
-      noteDao.siloedNullifier,
-    ),
-  ]);
-
-  if (!lowNullifierWitness) {
-    throw new Error("Could not get low nullifier witness for note");
-  }
-
+  const siblingPath = await node.getNoteHashSiblingPath(blockNumber, leafIndex);
   return {
     note: noteMapper(noteDao.note),
     storage_slot: noteDao.storageSlot,
@@ -56,6 +48,25 @@ export async function buildNoteProof<NoteLike>(
     nonce: noteDao.noteNonce,
     leaf_index: new Fr(leafIndex),
     sibling_path: siblingPath.toFields(),
+  };
+}
+
+/**
+ * Build a NoteProofData for a single note: inclusion proof + non-nullification proof.
+ */
+export async function buildNullifierProof(
+  node: AztecNode,
+  blockNumber: BlockNumber,
+  noteDao: NoteDao,
+): Promise<NullifierProofData> {
+  const lowNullifierWitness = await node.getLowNullifierMembershipWitness(
+    blockNumber,
+    noteDao.siloedNullifier,
+  );
+  if (!lowNullifierWitness) {
+    throw new Error("Could not get low nullifier witness for note");
+  }
+  return {
     low_nullifier_value: new Fr(lowNullifierWitness.leafPreimage.getKey()),
     low_nullifier_next_value: new Fr(
       lowNullifierWitness.leafPreimage.getNextKey(),

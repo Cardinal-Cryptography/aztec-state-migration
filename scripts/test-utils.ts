@@ -76,6 +76,7 @@ export async function deployAppPair(
   )
   .send({ from: new_r.deployerManager.address })
   .deployed();
+  
   const newAppInstance = (
     await new_r.deployerWallet.getContractMetadata(newApp.address)
   ).contractInstance;
