@@ -1,8 +1,6 @@
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
-import {
-  signMigrationModeB,
-} from "../ts/migration-lib/index.js";
+import { signMigrationModeB } from "../ts/migration-lib/index.js";
 import { deploy } from "./deploy.js";
 import {
   deployAppPair,
@@ -51,10 +49,6 @@ async function main() {
   // ============================================================
   console.log("4. Deploying L2 contracts...");
 
-  const { oldApp, newApp } = await deployAppPair(env);
-  console.log(`   old_example_app: ${oldApp.address}`);
-  console.log(`   new_example_app: ${newApp.address}`);
-
   const oldKeyRegistry = await deployKeyRegistry(env);
   console.log(`   old_key_registry: ${oldKeyRegistry.address}`);
 
@@ -62,6 +56,23 @@ async function main() {
     env,
     oldKeyRegistry.address,
   );
+
+  const { oldApp, newApp } = await deployAppPair(
+    env,
+    newArchiveRegistry.address,
+  );
+  const oldAppUser = ExampleMigrationAppContract.at(
+    oldApp.address,
+    oldUserWallet,
+  );
+  const newAppUser = ExampleMigrationAppContract.at(
+    newApp.address,
+    newUserWallet,
+  );
+
+  console.log(`   old_example_app: ${oldApp.address}`);
+  console.log(`   new_example_app: ${newApp.address}`);
+
   console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
 
   // ============================================================
@@ -85,22 +96,13 @@ async function main() {
     .wait();
   console.log(`   Minted ${MINT_AMOUNT_2} tokens (mint 2)`);
 
-  const oldAppForBurn = ExampleMigrationAppContract.at(
-    oldApp.address,
-    oldUserWallet,
-  );
-  await oldAppForBurn.methods
+  await oldAppUser.methods
     .burn(oldUserManager.address, BURN_AMOUNT_1)
     .send({ from: oldUserManager.address })
     .wait();
   console.log(`   Burned ${BURN_AMOUNT_1} tokens (burn 1)`);
 
-  // Use user's wallet to query balance (deployer's PXE can't decrypt user's notes)
-  const oldAppForUser = ExampleMigrationAppContract.at(
-    oldApp.address,
-    oldUserWallet,
-  );
-  const oldBalance = await oldAppForUser.methods
+  const oldBalance = await oldAppUser.methods
     .get_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Total balance on OLD rollup: ${oldBalance}\n`);
@@ -225,8 +227,10 @@ async function main() {
 
   // Build proofs via wallet
   const [noteProofs, keyNoteProof] = await Promise.all([
-    oldUserWallet.buildNoteAndNullifierProofs(provenBlockNumber, balanceNotes, (note) =>
-      UintNote.fromNote(note),
+    oldUserWallet.buildNoteAndNullifierProofs(
+      provenBlockNumber,
+      balanceNotes,
+      (note) => UintNote.fromNote(note),
     ),
     oldUserWallet
       .buildNoteAndNullifierProofs(provenBlockNumber, [keyNotes[0]], (note) =>
@@ -256,26 +260,21 @@ async function main() {
   // ============================================================
   console.log("13. Calling migrate_mode_b on NEW rollup...");
 
-  const newAppAsUser = ExampleMigrationAppContract.at(
-    newApp.address,
-    newUserWallet,
-  );
 
   // The ExampleMigrationApp currently only supports migrating one note at a time.
   const noteProof = noteProofs[0];
   const migrateAmount = noteProof.note.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
-  const newBalanceBefore = await newAppAsUser.methods
+  const newBalanceBefore = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
 
   try {
-    const migrateTx = await newAppAsUser.methods
+    const migrateTx = await newAppUser.methods
       .migrate_mode_b(
         migrateAmount,
-        newArchiveRegistry.address,
         mpk.toNoirStruct(),
         [...signature],
         [noteProof],
@@ -291,7 +290,7 @@ async function main() {
 
     console.log(`   Migrate tx: ${migrateTx.txHash}`);
 
-    const newBalanceAfter = await newAppAsUser.methods
+    const newBalanceAfter = await newAppUser.methods
       .get_balance(newUserManager.address)
       .simulate({ from: newUserManager.address });
     console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
@@ -347,10 +346,9 @@ async function main() {
   const amount = nullifiedNoteProof.note.value;
 
   try {
-    const migrateTx = await newAppAsUser.methods
+    await newAppUser.methods
       .migrate_mode_b(
         amount,
-        newArchiveRegistry.address,
         mpk.toNoirStruct(),
         [...nullifedNoteSig],
         [nullifiedNoteProof],
@@ -376,7 +374,7 @@ async function main() {
   // ============================================================
   // Summary
   // ============================================================
-  const newBalanceAfter = await newAppAsUser.methods
+  const newBalanceAfter = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
 

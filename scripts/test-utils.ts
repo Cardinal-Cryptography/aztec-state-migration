@@ -1,6 +1,4 @@
-import {
-  ExampleMigrationAppContract,
-} from "../noir/target/artifacts/ExampleMigrationApp.js";
+import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
 import { MigrationArchiveRegistryContract } from "../noir/target/artifacts/MigrationArchiveRegistry.js";
 import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
@@ -32,6 +30,25 @@ import { GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 
 // ============================================================
+// Types and interfaces
+// ============================================================
+
+export const NoirOption = {
+  Some: <T>(value: T) => ({
+    _is_some: true,
+    _value: value,
+  }),
+  None: <T>(zeroedValue: T) => ({
+    _is_some: false,
+    _value: zeroedValue,
+  }),
+  NoneAddress: {
+    _is_some: false,
+    _value: AztecAddress.ZERO,
+  },
+};
+
+// ============================================================
 // Contract deployment helpers
 // ============================================================
 
@@ -41,16 +58,15 @@ import { getInitialTestAccountsData } from "@aztec/accounts/testing";
  */
 export async function deployAppPair(
   env: DeploymentResult,
+  newArchiveRegistryAddress: AztecAddress,
   oldAppAddress?: AztecAddress,
 ) {
   const old_r = env[env.oldRollupVersion];
   const new_r = env[env.newRollupVersion];
   const oldApp = await ExampleMigrationAppContract.deploy(
     old_r.deployerWallet,
-    {
-      _is_some: false,
-      _value: AztecAddress.ZERO,
-    },
+    NoirOption.NoneAddress,
+    NoirOption.NoneAddress,
   )
     .send({ from: old_r.deployerManager.address })
     .deployed();
@@ -58,25 +74,23 @@ export async function deployAppPair(
     await old_r.deployerWallet.getContractMetadata(oldApp.address)
   ).contractInstance;
   old_r.migrationWallet.registerContract(oldAppInstance!, oldApp.artifact);
-  old_r.migrationWallet.registerSender(old_r.deployerManager.address)
-  
+  old_r.migrationWallet.registerSender(old_r.deployerManager.address);
+
   const effectiveOldAppAddress = oldAppAddress ?? oldApp.address;
-  
+
   const newApp = await ExampleMigrationAppContract.deploy(
     new_r.deployerWallet,
-    {
-      _is_some: true,
-      _value: effectiveOldAppAddress,
-    },
+    NoirOption.Some(newArchiveRegistryAddress),
+    NoirOption.Some(effectiveOldAppAddress),
   )
-  .send({ from: new_r.deployerManager.address })
-  .deployed();
-  
+    .send({ from: new_r.deployerManager.address })
+    .deployed();
+
   const newAppInstance = (
     await new_r.deployerWallet.getContractMetadata(newApp.address)
   ).contractInstance;
   new_r.migrationWallet.registerContract(newAppInstance!, newApp.artifact);
-  new_r.migrationWallet.registerSender(new_r.deployerManager.address)
+  new_r.migrationWallet.registerSender(new_r.deployerManager.address);
 
   return { oldApp, newApp };
 }

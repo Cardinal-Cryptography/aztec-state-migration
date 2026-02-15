@@ -23,9 +23,9 @@ async function main() {
   // ============================================================
   const env = await deploy();
 
-  const { aztecNode: oldAztecNode, migrationWallet: oldMigrationWallet } =
+  const { aztecNode: oldAztecNode, migrationWallet: oldUserWallet, } =
     env[env.oldRollupVersion];
-  const { aztecNode: newAztecNode, migrationWallet: newMigrationWallet } =
+  const { aztecNode: newAztecNode, migrationWallet: newUserWallet } =
     env[env.newRollupVersion];
 
   // ============================================================
@@ -42,28 +42,35 @@ async function main() {
   // ============================================================
   // Deploy L2 contracts
   // ============================================================
-  console.log("4. Deploying L2 contracts...");
-  const { oldApp, newApp } = await deployAppPair(env);
-  console.log(`   old_example_app: ${oldApp.address}`);
-  console.log(`   new_example_app: ${newApp.address}`);
-
   const newArchiveRegistry = await deployArchiveRegistry(env);
   console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
+
+  console.log("4. Deploying L2 contracts...");
+  const { oldApp, newApp } = await deployAppPair(
+    env,
+    newArchiveRegistry.address,
+  );
+    const oldAppUser = ExampleMigrationAppContract.at(
+    oldApp.address,
+    oldUserWallet,
+  );
+  const newAppUser = ExampleMigrationAppContract.at(
+    newApp.address,
+    newUserWallet,
+  );
+  console.log(`   old_example_app: ${oldApp.address}`);
+  console.log(`   new_example_app: ${newApp.address}`);
 
   // ============================================================
   // Step 6: Mint tokens on OLD rollup
   // ============================================================
   console.log("6. Minting tokens on OLD rollup...");
   const MINT_AMOUNT = 1000n;
-  const oldAppAsUser = ExampleMigrationAppContract.at(
-    oldApp.address,
-    oldMigrationWallet,
-  );
-  await oldAppAsUser.methods
+  await oldAppUser.methods
     .mint(oldUserManager.address, MINT_AMOUNT)
     .send({ from: oldUserManager.address })
     .wait();
-  const oldBalanceAfterMint = await oldAppAsUser.methods
+  const oldBalanceAfterMint = await oldAppUser.methods
     .get_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}\n`);
@@ -72,11 +79,11 @@ async function main() {
   // Step 7: Lock tokens for migration on OLD rollup
   // ============================================================
   console.log("7. Locking tokens for migration...");
-  const mpk = oldMigrationWallet.getMigrationPublicKey(oldUserManager.address)!;
+  const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
   console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
   const LOCK_AMOUNT = 500n;
-  const lockTx = await oldAppAsUser.methods
+  const lockTx = await oldAppUser.methods
     .lock_migration_notes_mode_a(
       LOCK_AMOUNT,
       env.newRollupVersion,
@@ -86,7 +93,7 @@ async function main() {
     .wait();
   console.log(`   Lock tx: ${lockTx.txHash}`);
 
-  const oldBalanceAfterLock = await oldAppAsUser.methods
+  const oldBalanceAfterLock = await oldAppUser.methods
     .get_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Balance after lock: ${oldBalanceAfterLock}\n`);
@@ -109,7 +116,7 @@ async function main() {
   console.log("13. Preparing migration args...");
 
   // Get lock notes via wallet
-  const lockNotes = await oldMigrationWallet.getMigrationNotes({
+  const lockNotes = await oldUserWallet.getMigrationNotes({
     owner: oldUserManager.address,
     contractAddress: oldApp.address,
   });
@@ -119,7 +126,7 @@ async function main() {
 
   // Build proofs via wallet
   const migrationNoteProofs = (
-    await oldMigrationWallet.buildNoteProofs(
+    await oldUserWallet.buildNoteProofs(
       provenBlockNumber,
       lockNotes,
       MigrationNote.fromNote,
@@ -127,7 +134,7 @@ async function main() {
   ).map((p) => MigrationNoteProofData.fromNoteProofData(p));
 
   // Sign via standalone function
-  const oldAccount = await oldMigrationWallet.getMigrationAccount(
+  const oldAccount = await oldUserWallet.getMigrationAccount(
     oldUserManager.address,
   );
   const signature = await signMigrationModeA(
@@ -141,21 +148,16 @@ async function main() {
   console.log("   Migration args prepared.\n");
 
   console.log("14. Calling migrate on NEW rollup...");
-  const newAppAsUser = ExampleMigrationAppContract.at(
-    newApp.address,
-    newMigrationWallet,
-  );
 
-  const newBalanceBefore = await newAppAsUser.methods
+  const newBalanceBefore = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before migrate: ${newBalanceBefore}`);
 
   try {
-    const migrateTx = await newAppAsUser.methods
+    const migrateTx = await newAppUser.methods
       .migrate_mode_a(
         LOCK_AMOUNT,
-        newArchiveRegistry.address,
         mpk.toNoirStruct(),
         [...signature],
         migrationNoteProofs,
@@ -165,7 +167,7 @@ async function main() {
       .wait();
     console.log(`   Migrate tx: ${migrateTx.txHash}`);
 
-    const newBalanceAfter = await newAppAsUser.methods
+    const newBalanceAfter = await newAppUser.methods
       .get_balance(newUserManager.address)
       .simulate({ from: newUserManager.address });
     console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
@@ -182,7 +184,7 @@ async function main() {
   // ============================================================
   // Summary
   // ============================================================
-  const finalBalance = await newAppAsUser.methods
+  const finalBalance = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log("\n=== Summary ===");

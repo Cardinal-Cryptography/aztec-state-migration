@@ -12,25 +12,23 @@ pub contract ExampleMigrationApp {
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
         protocol_types::{
-            public_keys::PublicKeys,
-            address::AztecAddress,
-            hash::poseidon2_hash,
-            traits::Serialize,
+            address::AztecAddress, hash::poseidon2_hash, public_keys::PublicKeys, traits::Serialize,
         },
         state_vars::{owned::Owned, public_immutable::PublicImmutable},
     };
     use balance_set::balance_set::BalanceSet;
     use migration::{
-        Point,
-        Scalar,
         ArchiveArgs,
         mode_a::{FullMigrationNote, lock_migration_notes, migrate_notes_mode_a},
-        mode_b::{FullNote, FullKeyNote, migrate_notes_mode_b},
-    };  
+        mode_b::{FullKeyNote, FullNote, migrate_notes_mode_b},
+        Point,
+        Scalar,
+    };
     use uint_note::uint_note::UintNote;
 
     #[storage]
     struct Storage<Context> {
+        archive_root_address: PublicImmutable<AztecAddress, Context>,
         old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
         // Token balances (using Aztec's BalanceSet for private balances)
         balances: Owned<BalanceSet<Context>, Context>,
@@ -38,9 +36,17 @@ pub contract ExampleMigrationApp {
 
     #[external("public")]
     #[initializer]
-    fn constructor(old_rollup_app_address: Option<AztecAddress>) {
-        if old_rollup_app_address.is_some() {
+    fn constructor(
+        archive_root_address: Option<AztecAddress>,
+        old_rollup_app_address: Option<AztecAddress>,
+    ) {
+        assert(
+            archive_root_address.is_some() == old_rollup_app_address.is_some(),
+            "Must provide both old rollup app address and archive root address, or neither",
+        );
+        if archive_root_address.is_some() {
             self.storage.old_rollup_app_address.initialize(old_rollup_app_address.unwrap());
+            self.storage.archive_root_address.initialize(archive_root_address.unwrap());
         }
     }
 
@@ -113,8 +119,6 @@ pub contract ExampleMigrationApp {
         // but including it in the arguments allows the contract to verify it matches the migration_data hash,
         // preventing mismatches between the old and new rollup states and mint the correct amount on the new rollup.
         amount: u128,
-        //
-        migration_archive_registry: AztecAddress,
         // Authentication
         mpk: Point,
         signature: [u8; 64],
@@ -136,7 +140,7 @@ pub contract ExampleMigrationApp {
 
         migrate_notes_mode_a(
             self.context,
-            migration_archive_registry,
+            self.storage.archive_root_address.read(),
             mpk,
             signature,
             old_app,
@@ -162,7 +166,6 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn migrate_mode_b(
         amount: u128,
-        migration_archive_registry: AztecAddress,
         // Authentication
         mpk: Point,
         signature: [u8; 64],
@@ -172,10 +175,10 @@ pub contract ExampleMigrationApp {
         archive_args: ArchiveArgs,
         //
         notes_owner: AztecAddress,
-        // 
+        //
         public_keys: PublicKeys,
-        partial_address: Field, 
-        // 
+        partial_address: Field,
+        //
         full_key_note: FullKeyNote,
         //
         nsk: Scalar,
@@ -186,7 +189,7 @@ pub contract ExampleMigrationApp {
         // 1. Call MigratorModeB to verify all proofs
         migrate_notes_mode_b(
             self.context,
-            migration_archive_registry,
+            self.storage.archive_root_address.read(),
             mpk,
             signature,
             old_app,
