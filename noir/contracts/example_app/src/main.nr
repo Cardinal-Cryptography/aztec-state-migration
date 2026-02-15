@@ -18,9 +18,9 @@ pub contract ExampleMigrationApp {
     };
     use balance_set::balance_set::BalanceSet;
     use migration::{
-        ArchiveArgs,
-        mode_a::{FullMigrationNote, lock_migration_notes, migrate_notes_mode_a},
-        mode_b::{FullKeyNote, FullNote, migrate_notes_mode_b},
+        ArchiveProofData,
+        mode_a::{MigrationNoteProofData, lock_migration_notes, migrate_notes_mode_a},
+        mode_b::{FullKeyNote, FullProofData, migrate_notes_mode_b},
         Point,
         Scalar,
     };
@@ -123,16 +123,16 @@ pub contract ExampleMigrationApp {
         mpk: Point,
         signature: [u8; 64],
         //
-        full_migration_notes: [FullMigrationNote; 1],
+        note_proof_data: [MigrationNoteProofData; 1],
         //
-        archive_args: ArchiveArgs,
+        archive_proof_data: ArchiveProofData,
     ) {
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
         assert(
-            migration_data == full_migration_notes[0].migration_data,
+            migration_data == note_proof_data[0].migration_data,
             "Migration data hash mismatch",
         );
 
@@ -144,8 +144,8 @@ pub contract ExampleMigrationApp {
             mpk,
             signature,
             old_app,
-            full_migration_notes,
-            archive_args,
+            note_proof_data,
+            archive_proof_data,
         );
 
         // 4. If successful, mint the migrated tokens to the user on the new rollup
@@ -170,9 +170,9 @@ pub contract ExampleMigrationApp {
         mpk: Point,
         signature: [u8; 64],
         //
-        full_notes: [FullNote<UintNote>; 1],
+        full_proof_data: [FullProofData<UintNote>; 1],
         //
-        archive_args: ArchiveArgs,
+        archive_proof_data: ArchiveProofData,
         //
         notes_owner: AztecAddress,
         //
@@ -184,7 +184,7 @@ pub contract ExampleMigrationApp {
         nsk: Scalar,
     ) {
         let old_app = self.storage.old_rollup_app_address.read();
-        let sum = full_notes.fold(0, |acc, full_note| acc + full_note.note.value);
+        let sum = full_proof_data.fold(0, |acc, full_note| acc + full_note.note.value);
         assert(sum == amount, "Sum of migrated notes does not match the specified amount");
         // 1. Call MigratorModeB to verify all proofs
         migrate_notes_mode_b(
@@ -193,8 +193,8 @@ pub contract ExampleMigrationApp {
             mpk,
             signature,
             old_app,
-            full_notes,
-            archive_args,
+            full_proof_data,
+            archive_proof_data,
             notes_owner,
             public_keys,
             partial_address,

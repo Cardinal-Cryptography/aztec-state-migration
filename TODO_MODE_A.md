@@ -18,9 +18,9 @@ schnorr_verify(sig, mpk, msg)
 
 ## 2. Single Note per Migration Transaction (ExampleApp only)
 
-The Noir circuit (`migrate_notes_mode_a`) already accepts `[FullMigrationNote; N]` and loops over all N notes. However the ExampleApp contract hardcodes `N = 1`, and the TS client builds a proof for exactly one note. For the ExampleApp this is sufficient — `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data` hash (the total amount), producing one MigrationNote per lock call.
+The Noir circuit (`migrate_notes_mode_a`) already accepts `[MigrationNoteProofData; N]` and loops over all N notes. However the ExampleApp contract hardcodes `N = 1`, and the TS client builds a proof for exactly one note. For the ExampleApp this is sufficient — `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data` hash (the total amount), producing one MigrationNote per lock call.
 
-Apps that create multiple MigrationNotes per lock (e.g. locking distinct asset types) would need the TS client to retrieve all migration notes and build an array of `FullMigrationNote` proofs. The library circuit is ready; only the app contract's array size and TS client need updating.
+Apps that create multiple MigrationNotes per lock (e.g. locking distinct asset types) would need the TS client to retrieve all migration notes and build an array of `MigrationNoteProofData` proofs. The library circuit is ready; only the app contract's array size and TS client need updating.
 
 ## 3. migration_data is a Single Field
 

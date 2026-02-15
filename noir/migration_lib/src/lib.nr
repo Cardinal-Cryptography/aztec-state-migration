@@ -9,7 +9,7 @@ use aztec::protocol_types::{abis::block_header::BlockHeader, constants::ARCHIVE_
 /// Archive membership proof: a block header together with its Merkle sibling path
 /// in the archive tree. Used to prove a given block belongs to the old rollup.
 #[derive(Serialize)]
-pub struct ArchiveArgs {
+pub struct ArchiveProofData {
     // Block header at snapshot height
     pub archive_block_header: BlockHeader,
     // Archive membership proof

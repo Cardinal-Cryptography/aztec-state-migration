@@ -226,7 +226,7 @@ async function main() {
   const balanceNotes = balanceNotesActive.slice(0, 1);
 
   // Build proofs via wallet
-  const [noteProofs, keyNoteProof] = await Promise.all([
+  const [fullProofs, keyNoteProof] = await Promise.all([
     oldUserWallet.buildNoteAndNullifierProofs(
       provenBlockNumber,
       balanceNotes,
@@ -252,7 +252,7 @@ async function main() {
     newApp.address,
   );
 
-  console.log(`   Balance note proofs: ${noteProofs.length}`);
+  console.log(`   Balance note proofs: ${fullProofs.length}`);
   console.log(`   Migration args prepared.\n`);
 
   // ============================================================
@@ -262,7 +262,7 @@ async function main() {
 
 
   // The ExampleMigrationApp currently only supports migrating one note at a time.
-  const noteProof = noteProofs[0];
+  const noteProof = fullProofs[0];
   const migrateAmount = noteProof.note.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 

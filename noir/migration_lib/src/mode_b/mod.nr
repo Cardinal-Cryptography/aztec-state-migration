@@ -1,4 +1,4 @@
-use crate::ArchiveArgs;
+use crate::ArchiveProofData;
 use aztec::{
     context::private_context::PrivateContext,
     note::note_interface::NoteHash,
@@ -30,7 +30,7 @@ pub global CLAIM_DOMAIN_B: Field = 0x18ca708ad6dca829b497a77f901adeefeb108751cea
 /// Carries everything needed to verify that a note exists in the note hash tree
 /// and has not been nullified in the nullifier tree at a given snapshot height.
 #[derive(Serialize, Packable)]
-pub struct FullNote<Note> {
+pub struct FullProofData<Note> {
     pub note: Note,
     // Note indexing
     pub storage_slot: Field,
@@ -49,7 +49,7 @@ pub struct FullNote<Note> {
     pub low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
 }
 
-pub type FullKeyNote = FullNote<MigrationKeyNote>;
+pub type FullKeyNote = FullProofData<MigrationKeyNote>;
 
 // ============================================================
 // Mode B: Emergency Snapshot Migration (on NEW rollup)
@@ -77,8 +77,8 @@ pub type FullKeyNote = FullNote<MigrationKeyNote>;
 /// - `mpk`:                           Migration public key used to verify the claim signature.
 /// - `signature`:                     Schnorr signature over the migration message.
 /// - `old_app`:                       Address of the contract that owned the notes on the old rollup.
-/// - `full_notes`:                    Array of notes with inclusion and non-nullification proofs.
-/// - `archive_args`:                  Block header and archive Merkle proof for the snapshot block.
+/// - `full_proof_data`:                    Array of notes with inclusion and non-nullification proofs.
+/// - `archive_proof_data`:                  Block header and archive Merkle proof for the snapshot block.
 /// - `notes_owner`:                   Address that owned the notes on the old rollup.
 /// - `public_keys`:                   Owner's public key set (npk_m is re-derived from `nsk`).
 /// - `partial_address`:               Owner's partial address for address re-computation.
@@ -90,8 +90,8 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     mpk: Point,
     signature: [u8; 64],
     old_app: AztecAddress,
-    full_notes: [FullNote<Note>; N],
-    archive_args: ArchiveArgs,
+    full_proof_data: [FullProofData<Note>; N],
+    archive_proof_data: ArchiveProofData,
     notes_owner: AztecAddress,
     public_keys: PublicKeys,
     partial_address: Field,
@@ -119,14 +119,14 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // ============================================================
     // 2. Extract snapshot height from block header (verified against stored value in public call)
     // ============================================================
-    let snapshot_height = archive_args.archive_block_header.global_variables.block_number;
+    let snapshot_height = archive_proof_data.archive_block_header.global_variables.block_number;
 
     // ============================================================
     // 3. For each note, verify inclusion and non-nullification in the snapshot state
     // ============================================================
 
-    let nullifier_tree_root = archive_args.archive_block_header.state.partial.nullifier_tree.root;
-    let note_hash_tree_root = archive_args.archive_block_header.state.partial.note_hash_tree.root;
+    let nullifier_tree_root = archive_proof_data.archive_block_header.state.partial.nullifier_tree.root;
+    let note_hash_tree_root = archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
 
     // Derive nsk_app for the old app contract:
     let nsk_app = poseidon2_hash_with_separator(
@@ -140,7 +140,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
         notes_hashes[i] = migrate_note(
             context,
             notes_owner,
-            full_notes[i],
+            full_proof_data[i],
             old_app,
             note_hash_tree_root,
             nullifier_tree_root,
@@ -155,7 +155,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // notes_hash = poseidon2_hash([note1_hash, note2_hash, ...])
     // msg = poseidon2(CLAIM_DOMAIN, "B", old_rollup_id, dest_rollup_id, notes_hash, recipient_address, new_app_address)
     let notes_hash = poseidon2_hash(notes_hashes);
-    let old_rollup = archive_args.archive_block_header.global_variables.version;
+    let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
     let current_rollup = context.version();
     let recipient = context.msg_sender().unwrap().to_field();
     let new_app = context.this_address().to_field();
@@ -243,11 +243,11 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // ============================================================
     // 8. Compute archive root from block header
     // ============================================================
-    let archive_block_header_hash = archive_args.archive_block_header.hash();
+    let archive_block_header_hash = archive_proof_data.archive_block_header.hash();
     let computed_archive_root = root_from_sibling_path(
         archive_block_header_hash,
-        archive_args.archive_leaf_index,
-        archive_args.archive_sibling_path,
+        archive_proof_data.archive_leaf_index,
+        archive_proof_data.archive_sibling_path,
     );
 
     // ============================================================
@@ -264,7 +264,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
 fn migrate_note<Note: NoteHash>(
     context: &mut PrivateContext,
     notes_owner: AztecAddress,
-    full_note: FullNote<Note>,
+    full_note: FullProofData<Note>,
     old_app: AztecAddress,
     note_hash_tree_root: Field,
     nullifier_tree_root: Field,

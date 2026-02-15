@@ -16,7 +16,7 @@ The message binds the claim to a specific recipient and app contract, preventing
 
 ## ~~3. Single Note Migration~~ (Done)
 
-`migrate_notes_mode_b` now accepts `[FullNote<Note>; N]` and loops over all N notes in a single proof. The ExampleApp contract still hardcodes `N = 1`, but the library circuit supports arbitrary batch sizes.
+`migrate_notes_mode_b` now accepts `[FullProofData<Note>; N]` and loops over all N notes in a single proof. The ExampleApp contract still hardcodes `N = 1`, but the library circuit supports arbitrary batch sizes.
 
 ## 4. Snapshot Height Governance
 
