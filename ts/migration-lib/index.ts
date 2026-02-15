@@ -9,7 +9,6 @@ export { deriveMasterMigrationSecretKey, signMigrationModeA, signMigrationModeB 
 
 // Proofs
 export {
-  buildMigrationNoteProof,
   buildNoteProof,
   buildArchiveProof,
 } from "./proofs.js";
@@ -36,6 +35,6 @@ export type {
   NoteProvider,
   MigrationNoteProofData,
   NoteProofData,
-  ArchiveProof,
+  ArchiveProofData,
   L1MigrationResult,
 } from "./types.js";

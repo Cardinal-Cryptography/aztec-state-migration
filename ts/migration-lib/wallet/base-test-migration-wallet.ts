@@ -5,7 +5,7 @@ import { NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import { AccountData, ProvenTx } from "@aztec/test-wallet/server";
 import { AccountManager, SendOptions, SimulateOptions } from "@aztec/aztec.js/wallet";
 import { SchnorrAccountContract } from "@aztec/accounts/schnorr";
-import { GrumpkinScalar, Point } from "@aztec/aztec.js/fields";
+import { GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { AuthWitness, CallIntent, ContractFunctionInteractionCallIntent, getMessageHashFromIntent, IntentInnerHash, lookupValidity, SetPublicAuthwitContractInteraction } from "@aztec/aztec.js/authorization";
 import { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import { ContractArtifact } from "@aztec/stdlib/abi";

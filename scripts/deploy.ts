@@ -1,7 +1,5 @@
 import { TestWallet } from "@aztec/test-wallet/server";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
-import type { AztecNode } from "@aztec/aztec.js/node";
-import { L1FeeJuicePortalManager } from "@aztec/aztec.js/ethereum";
 import {
   createPublicClient,
   createWalletClient,
@@ -17,10 +15,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { createLogger } from "@aztec/foundation/log";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import type { DeploymentResult } from "./deploy-types.js";
 import { TestMigrationWallet } from "../ts/migration-lib/index.js";
 

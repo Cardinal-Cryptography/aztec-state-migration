@@ -9,8 +9,6 @@ import type {
 import type { AztecNode } from "@aztec/aztec.js/node";
 import type { TestWallet } from "@aztec/test-wallet/server";
 import type { AccountManager } from "@aztec/aztec.js/wallet";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { BaseMigrationWallet } from "../ts/migration-lib/index.js";
 import { BaseTestMigrationWallet } from "../ts/migration-lib/wallet/base-test-migration-wallet.js";
 
 export interface DeploymentResult {

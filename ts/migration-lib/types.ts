@@ -38,7 +38,15 @@ export interface MigrationNoteProofData {
   sibling_path: Fr[];
 }
 
+/** Helpers for {@link MigrationNoteProofData}. */
 export const MigrationNoteProofData = {
+  /**
+   * Convert a generic {@link NoteProofData} (keyed by a {@link MigrationNote}) into the
+   * flattened proof shape expected by the Noir migration verifier.
+   *
+   * @param p - A note proof whose `note` field is a decoded {@link MigrationNote}.
+   * @returns A {@link MigrationNoteProofData} ready to pass into a contract call.
+   */
   fromNoteProofData: (
     p: NoteProofData<MigrationNote>,
   ): MigrationNoteProofData => ({
@@ -55,7 +63,7 @@ export const MigrationNoteProofData = {
 // ============================================================
 
 /** Archive membership proof: block header + archive sibling path. */
-export interface ArchiveProof {
+export interface ArchiveProofData {
   archive_block_header: ReturnType<typeof blockHeaderToNoir>;
   archive_leaf_index: Fr;
   archive_sibling_path: Fr[];
@@ -81,30 +89,44 @@ export interface L1MigrationResult {
 // Types of common notes
 // ============================================================
 
+/** A note containing a single unsigned integer value (e.g. a balance). */
 export type UintNote = {
   value: bigint;
 };
 
+/** Helpers for {@link UintNote}. */
 export const UintNote = {
+  /** Decode a raw {@link Note} into a {@link UintNote} by reading `items[0]` as a bigint. */
   fromNote: (note: Note): UintNote => ({ value: note.items[0].toBigInt() }),
 };
 
+/** A note containing a single field element. */
 export type FieldNote = {
   value: Fr;
 };
 
+/** Helpers for {@link FieldNote}. */
 export const FieldNote = {
+  /** Decode a raw {@link Note} into a {@link FieldNote} by reading `items[0]`. */
   fromNote: (note: Note): FieldNote => ({ value: note.items[0] }),
 };
 
+/** A note storing a migration public key hash (from MigrationKeyRegistry). */
 export type KeyNote = {
   mpk_hash: Fr;
 };
 
+/** Helpers for {@link KeyNote}. */
 export const KeyNote = {
+  /** Decode a raw {@link Note} into a {@link KeyNote} by reading `items[0]` as the `mpk_hash`. */
   fromNote: (note: Note): KeyNote => ({ mpk_hash: note.items[0] }),
 };
 
+/**
+ * A Mode A migration note created by `lock_migration_notes_mode_a`.
+ * Contains the creator address, migration public key, destination rollup version,
+ * and an opaque `migration_data` field carrying the locked value.
+ */
 export type MigrationNote = {
   note_creator: {
     address: Fr;
@@ -118,7 +140,9 @@ export type MigrationNote = {
   migration_data: Fr;
 };
 
+/** Helpers for {@link MigrationNote}. */
 export const MigrationNote = {
+  /** Decode a raw {@link Note} into a {@link MigrationNote} by mapping `items[0..5]`. */
   fromNote: (note: Note): MigrationNote => ({
     note_creator: {
       address: note.items[0],

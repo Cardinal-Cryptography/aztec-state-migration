@@ -5,33 +5,18 @@ import type { AztecNode } from "@aztec/aztec.js/node";
 import type { Note, NoteDao } from "@aztec/stdlib/note";
 import type {
   NoteProofData,
-  ArchiveProof,
-  MigrationNoteProofData,
+  ArchiveProofData,
   NullifierProofData,
 } from "./types.js";
-import { MIGRATION_DATA_FIELD_INDEX } from "./constants.js";
-
-export async function buildMigrationNoteProof(
-  node: AztecNode,
-  blockNumber: number,
-  migrationNote: NoteDao,
-): Promise<MigrationNoteProofData> {
-  const leafIndex = migrationNote.index;
-  const siblingPath = await node.getNoteHashSiblingPath(
-    BlockNumber(blockNumber),
-    leafIndex,
-  );
-  return {
-    migration_data: migrationNote.note.items[MIGRATION_DATA_FIELD_INDEX],
-    randomness: migrationNote.randomness,
-    nonce: migrationNote.noteNonce,
-    leaf_index: new Fr(migrationNote.index),
-    sibling_path: siblingPath.toFields(),
-  };
-}
 
 /**
- * Build a NoteProofData for a single note: inclusion proof + non-nullification proof.
+ * Build a {@link NoteProofData} for a single note (note-hash inclusion proof).
+ *
+ * @param node - Aztec node client to query the note hash tree.
+ * @param blockNumber - Block number at which to prove inclusion.
+ * @param noteDao - The note DAO to prove.
+ * @param noteMapper - Callback that decodes the raw {@link Note} into the desired shape.
+ * @returns Proof data containing the decoded note, storage slot, randomness, nonce, and sibling path.
  */
 export async function buildNoteProof<NoteLike>(
   node: AztecNode,
@@ -52,7 +37,13 @@ export async function buildNoteProof<NoteLike>(
 }
 
 /**
- * Build a NoteProofData for a single note: inclusion proof + non-nullification proof.
+ * Build a {@link NullifierProofData} proving that a note has **not** been nullified.
+ * Queries the low-nullifier membership witness from the nullifier tree.
+ *
+ * @param node - Aztec node client to query the nullifier tree.
+ * @param blockNumber - Block number at which to prove non-inclusion.
+ * @param noteDao - The note DAO whose siloed nullifier is checked.
+ * @returns Low-nullifier witness data for the Noir non-inclusion check.
  */
 export async function buildNullifierProof(
   node: AztecNode,
@@ -80,12 +71,17 @@ export async function buildNullifierProof(
 }
 
 /**
- * Build an archive membership proof (block header + archive sibling path).
+ * Build an {@link ArchiveProofData} — a block header together with its archive sibling path.
+ * Used to prove that a particular block is part of the old rollup's archive tree.
+ *
+ * @param node - Aztec node client to query the archive tree and block header.
+ * @param blockNumber - The proven block number to build the proof for.
+ * @returns Archive proof containing the Noir-encoded block header and Merkle path.
  */
 export async function buildArchiveProof(
   node: AztecNode,
   blockNumber: BlockNumber,
-): Promise<ArchiveProof> {
+): Promise<ArchiveProofData> {
   const [archiveSiblingPath, blockHeader] = await Promise.all([
     node.getArchiveSiblingPath(blockNumber, BigInt(blockNumber)),
     node.getBlockHeader(blockNumber),

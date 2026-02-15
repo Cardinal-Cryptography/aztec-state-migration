@@ -1,6 +1,5 @@
 import {
   ExampleMigrationAppContract,
-  ExampleMigrationAppContractArtifact,
 } from "../noir/target/artifacts/ExampleMigrationApp.js";
 import { MigrationArchiveRegistryContract } from "../noir/target/artifacts/MigrationArchiveRegistry.js";
 import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
@@ -14,24 +13,20 @@ import {
   waitForL1ToL2Message,
   buildArchiveProof,
 } from "../ts/migration-lib/index.js";
-import { FeeJuiceContract } from "@aztec/noir-contracts.js/FeeJuice";
-import { ProtocolContractAddress } from "@aztec/protocol-contracts";
 import type {
-  ArchiveProof,
+  ArchiveProofData,
   L1MigrationResult,
-  TestMigrationWallet,
 } from "../ts/migration-lib/index.js";
 import type { DeploymentResult } from "./deploy-types.js";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { WaitOpts } from "@aztec/aztec.js/contracts";
-import { AccountManager, Wallet } from "@aztec/aztec.js/wallet";
+import { AccountManager } from "@aztec/aztec.js/wallet";
 import { AztecNode } from "@aztec/aztec.js/node";
 import { FeeJuicePaymentMethodWithClaim } from "@aztec/aztec.js/fee";
 import { createLogger } from "@aztec/foundation/log";
 import {
   L1FeeJuicePortalManager,
   L2AmountClaim,
-  L2Claim,
 } from "@aztec/aztec.js/ethereum";
 import { GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
@@ -141,7 +136,7 @@ export async function deployKeyRegistry(env: DeploymentResult) {
 export interface BridgeResult {
   l1Result: L1MigrationResult;
   provenBlockNumber: BlockNumber;
-  archiveProof: ArchiveProof;
+  archiveProof: ArchiveProofData;
 }
 
 /**

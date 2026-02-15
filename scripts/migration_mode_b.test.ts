@@ -1,12 +1,8 @@
-import { deriveKeys } from "@aztec/aztec.js/keys";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
-import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import {
   signMigrationModeB,
-  TestMigrationWallet,
 } from "../ts/migration-lib/index.js";
-import type { NoteProofData } from "../ts/migration-lib/index.js";
 import { deploy } from "./deploy.js";
 import {
   deployAppPair,

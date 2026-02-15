@@ -12,7 +12,6 @@ import type {
   Account,
 } from "viem";
 import type { L1MigrationResult } from "./types.js";
-import { createLogger } from "@aztec/foundation/log";
 
 const L1MigratorAbi = parseAbi([
   "function migrateArchiveRoot(uint256 oldVersion, (bytes32 actor, uint256 version) l2Migrator) external returns (bytes32 leaf, uint256 leafIndex)",

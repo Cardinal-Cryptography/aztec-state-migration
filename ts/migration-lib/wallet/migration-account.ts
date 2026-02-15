@@ -10,18 +10,44 @@ import { Fq, Fr, Point } from "@aztec/aztec.js/fields";
 import { deriveMasterMigrationSecretKey } from "../keys.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 
+/**
+ * Extension of the standard Aztec {@link Account} with migration-specific
+ * key management and signing capabilities.
+ */
 export interface MigrationAccount extends Account {
+  /** Return the Grumpkin public key used for migration signing. */
   getMigrationPublicKey: () => Point;
+
+  /**
+   * Sign an arbitrary message with the master migration secret key (Schnorr).
+   * @param msg - The message bytes to sign.
+   * @returns The raw signature buffer.
+   */
   migrationKeySigner: (
     msg: Uint8Array<ArrayBufferLike>,
   ) => Promise<Buffer<ArrayBufferLike>>;
+
+  /**
+   * Compute the masked nullifier secret key for cross-rollup note ownership transfer.
+   * @param newRollupAccount - The recipient account on the new rollup.
+   * @param contractAddress - The app contract address (used for domain separation).
+   * @returns The masked `Fq` key.
+   */
   getMaskedNsk: (
     newRollupAccount: MigrationAccount,
     contractAddress: AztecAddress,
   ) => Promise<Fq>;
+
+  /** Return the full set of public keys derived from the account secret. */
   getPublicKeys: () => PublicKeys;
 }
 
+/**
+ * Default implementation of {@link MigrationAccount} that derives and stores all
+ * migration keys in memory.
+ *
+ * **Note:** Suitable for testing; production wallets should protect key material.
+ */
 export class BaseMigrationAccount
   extends BaseAccount
   implements MigrationAccount
@@ -38,6 +64,13 @@ export class BaseMigrationAccount
     super(account);
   }
 
+  /**
+   * Factory that derives all migration keys from an account interface and secret.
+   *
+   * @param account - The underlying account interface (e.g. Schnorr).
+   * @param secret - The master secret key from which migration keys are derived.
+   * @returns A fully initialised {@link BaseMigrationAccount}.
+   */
   static async create(
     account: AccountInterface,
     secret: Fr,
@@ -54,14 +87,21 @@ export class BaseMigrationAccount
     );
   }
 
+  /** @returns The full set of public keys for this account. */
   getPublicKeys(): PublicKeys {
     return this.publicKeys;
   }
 
+  /** @returns The Grumpkin point used as the migration public key. */
   getMigrationPublicKey(): Point {
     return this.migrationPublicKey;
   }
 
+  /**
+   * Schnorr-sign a message with the master migration secret key.
+   * @param msg - The message bytes to sign.
+   * @returns The raw signature buffer.
+   */
   migrationKeySigner = async (
     msg: Uint8Array<ArrayBufferLike>,
   ): Promise<Buffer<ArrayBufferLike>> => {
@@ -71,6 +111,14 @@ export class BaseMigrationAccount
     ).toBuffer();
   };
 
+  /**
+   * Compute a masked nullifier secret key so the new-rollup account can
+   * nullify notes originally owned by this account.
+   *
+   * @param newRollupAccount - The recipient account on the new rollup.
+   * @param contractAddress - The app contract address (domain separation).
+   * @returns The masked `Fq` value (`nsk.hi + mask`, `nsk.lo + mask`).
+   */
   async getMaskedNsk(
     newRollupAccount: MigrationAccount,
     contractAddress: AztecAddress,
@@ -82,6 +130,11 @@ export class BaseMigrationAccount
     );
   }
 
+  /**
+   * Compute the mask applied to the nullifier secret key.
+   * Currently returns zero (no mask); will be replaced with a Poseidon2-based
+   * derivation.
+   */
   protected getMask = async (
     _newRollupAccount: MigrationAccount,
     _contractAddress: AztecAddress,
@@ -94,6 +147,10 @@ export class BaseMigrationAccount
   };
 }
 
+/**
+ * A {@link MigrationAccount} that cannot sign or produce keys.
+ * Used as a placeholder for the `AztecAddress.ZERO` sender in fee-less transactions.
+ */
 export class SignerlessMigrationAccount
   extends SignerlessAccount
   implements MigrationAccount
