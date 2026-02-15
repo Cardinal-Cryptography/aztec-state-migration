@@ -26,6 +26,9 @@ use std::embedded_curve_ops::{
 
 pub global CLAIM_DOMAIN_B: Field = 0x18ca708ad6dca829b497a77f901adeefeb108751ceae07b68c22499a1da0e40e; // poseidon2 of "migration_mode_b" as ASCII
 
+/// A note together with its inclusion proof and nullifier non-inclusion proof data.
+/// Carries everything needed to verify that a note exists in the note hash tree
+/// and has not been nullified in the nullifier tree at a given snapshot height.
 #[derive(Serialize, Packable)]
 pub struct FullNote<Note> {
     pub note: Note,
@@ -61,27 +64,38 @@ pub type FullKeyNote = FullNote<MigrationKeyNote>;
 //   6. Authentication: verify signature over migration context and notes hashes against mpk
 //   7. Archive root verification via block header + merkle proof
 
+/// Verify and claim a Mode B (emergency snapshot) migration for a batch of notes.
+///
+/// Proves that each note existed and was not nullified in the old rollup at
+/// snapshot height H, authenticates the claim via a Schnorr signature over the
+/// migration context, and enqueues a public call to the archive registry for
+/// final archive-root and snapshot-height verification.
+///
+/// # Parameters
+/// - `context`:                       Private execution context on the new rollup.
+/// - `migration_archive_registry`:    Address of the `MigrationArchiveRegistry` on the new rollup.
+/// - `mpk`:                           Migration public key used to verify the claim signature.
+/// - `signature`:                     Schnorr signature over the migration message.
+/// - `old_app`:                       Address of the contract that owned the notes on the old rollup.
+/// - `full_notes`:                    Array of notes with inclusion and non-nullification proofs.
+/// - `archive_args`:                  Block header and archive Merkle proof for the snapshot block.
+/// - `notes_owner`:                   Address that owned the notes on the old rollup.
+/// - `public_keys`:                   Owner's public key set (npk_m is re-derived from `nsk`).
+/// - `partial_address`:               Owner's partial address for address re-computation.
+/// - `full_key_note`:                 `MigrationKeyNote` with inclusion and non-nullification proofs.
+/// - `nsk`:                           Master nullifier secret key (used to derive npk_m and nsk_app).
 pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
-    // Authentication
     mpk: Point,
     signature: [u8; 64],
-    //
     old_app: AztecAddress,
-    //
     full_notes: [FullNote<Note>; N],
-    //
     archive_args: ArchiveArgs,
-    //
     notes_owner: AztecAddress,
-    // Address preimage: master nullifier secret key (hi/lo) + other public keys + partial address
-    // nsk is used to derive npk_m (via EC scalar mul) and nsk_app (for nullifier computation)
     public_keys: PublicKeys,
-    partial_address: Field, 
-    // MigrationKeyNote
+    partial_address: Field,
     full_key_note: FullKeyNote,
-    //
     nsk: Scalar,
 ) {
     // ============================================================
@@ -244,6 +258,9 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
         .enqueue(context);
 }
 
+/// Verify a single note's inclusion in the note hash tree and non-nullification
+/// in the nullifier tree, then push a migration nullifier to prevent double-claiming.
+/// Returns the inner note hash (used to build the aggregate `notes_hash` for signature verification).
 fn migrate_note<Note: NoteHash>(
     context: &mut PrivateContext,
     notes_owner: AztecAddress,

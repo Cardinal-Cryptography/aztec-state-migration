@@ -4,6 +4,11 @@ pub use aztec::protocol_types::constants::{
     ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT, NULLIFIER_TREE_HEIGHT,
 };
 
+/// On-chain registry that stores archive roots bridged from the old rollup via L1.
+///
+/// Provides two verification modes used during migration:
+/// - **Mode A** (`verify_migration_mode_a`): checks an archive root against any registered block.
+/// - **Mode B** (`verify_migration_mode_b`): checks an archive root against a fixed snapshot height.
 #[aztec_contract]
 pub contract MigrationArchiveRegistry {
     use aztec::{
@@ -45,6 +50,10 @@ pub contract MigrationArchiveRegistry {
     // Archive root registration (permissionless)
     // ============================================================
 
+    /// Register an archive root bridged from the old rollup via an L1-to-L2 message.
+    ///
+    /// Consumes the L1-to-L2 message (preventing replay), stores the archive root
+    /// keyed by its proven block number, and updates the latest proven block tracker.
     #[external("public")]
     fn register_archive_root(
         archive_root: Field,
@@ -82,6 +91,8 @@ pub contract MigrationArchiveRegistry {
     // MODE B: Snapshot height configuration
     // ============================================================
 
+    /// Set the snapshot height for Mode B migration. Can only be called once.
+    /// Requires that an archive root has already been registered for the given height.
     #[external("public")]
     fn set_snapshot_height(height: u32) {
         // Archive root must be registered for this height
@@ -95,6 +106,8 @@ pub contract MigrationArchiveRegistry {
     // MODE A: Migration verification
     // ============================================================
 
+    /// Verify a Mode A migration by checking that the computed archive root matches
+    /// the registered root for the given block number.
     #[external("public")]
     fn verify_migration_mode_a(archive_block_number: u32, computed_archive_root: Field) {
         // Verify archive root matches the registered one for this block
@@ -110,6 +123,8 @@ pub contract MigrationArchiveRegistry {
     // MODE B: Snapshot-based verification
     // ============================================================
 
+    /// Verify a Mode B migration by checking that the computed archive root matches
+    /// the registered root at the configured snapshot height.
     #[external("public")]
     fn verify_migration_mode_b(snapshot_height: u32, computed_archive_root: Field) {
         // Verify snapshot height matches configured value
@@ -130,21 +145,25 @@ pub contract MigrationArchiveRegistry {
     // View functions
     // ============================================================
 
+    /// Return the old rollup's MigrationKeyRegistry address (private call for siloing).
     #[external("private")]
     fn get_old_key_registry() -> AztecAddress {
         self.storage.old_key_registry.read()
     }
 
+    /// Return the stored archive root for a given proven block number.
     #[external("utility")]
     unconstrained fn get_old_archive_root(proven_block_number: u32) -> Field {
         self.storage.old_archive_roots.at(proven_block_number).read()
     }
 
+    /// Return the highest proven block number that has been registered.
     #[external("utility")]
     unconstrained fn get_latest_proven_block() -> u32 {
         self.storage.latest_proven_block.read()
     }
 
+    /// Return the configured Mode B snapshot height.
     #[external("utility")]
     unconstrained fn get_snapshot_height() -> u32 {
         self.storage.snapshot_height.read()

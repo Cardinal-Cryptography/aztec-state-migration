@@ -102,6 +102,11 @@ pub contract ExampleMigrationApp {
     // Mode A: Migrate via Proof (on NEW rollup)
     // ============================================================
 
+    /// Claim a Mode A migration on the new rollup.
+    ///
+    /// Verifies the MigrationNote inclusion proof via `migrate_notes_mode_a`,
+    /// checks that `amount` matches the locked `migration_data` hash, and mints
+    /// the equivalent tokens to the caller.
     #[external("private")]
     fn migrate_mode_a(
         // Amount is not strictly needed for the migration (the proof of the MigrationNote is sufficient),
@@ -149,6 +154,11 @@ pub contract ExampleMigrationApp {
     // Mode B: Emergency Snapshot Migration (on NEW rollup)
     // ============================================================
 
+    /// Claim a Mode B (emergency snapshot) migration on the new rollup.
+    ///
+    /// Verifies note inclusion and non-nullification at the snapshot height via
+    /// `migrate_notes_mode_b`, checks the sum of note values matches `amount`,
+    /// and mints the equivalent tokens to the caller.
     #[external("private")]
     fn migrate_mode_b(
         amount: u128,
