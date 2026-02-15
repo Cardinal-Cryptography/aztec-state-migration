@@ -8,14 +8,12 @@ import {
   bridgeArchiveRoot,
   deployAndFundAccount,
 } from "./test-utils.js";
-import { createLogger } from "@aztec/foundation/log";
 import {
   MigrationNote,
   MigrationNoteProofData,
 } from "../ts/migration-lib/types.js";
 
 async function main() {
-  const logger = createLogger("migration_mode_a_test");
   console.log("=== Cross-Rollup Migration E2E Test (Mode A) ===\n");
 
   // ============================================================
@@ -23,7 +21,7 @@ async function main() {
   // ============================================================
   const env = await deploy();
 
-  const { aztecNode: oldAztecNode, migrationWallet: oldUserWallet, } =
+  const { aztecNode: oldAztecNode, migrationWallet: oldUserWallet } =
     env[env.oldRollupVersion];
   const { aztecNode: newAztecNode, migrationWallet: newUserWallet } =
     env[env.newRollupVersion];
@@ -50,7 +48,7 @@ async function main() {
     env,
     newArchiveRegistry.address,
   );
-    const oldAppUser = ExampleMigrationAppContract.at(
+  const oldAppUser = ExampleMigrationAppContract.at(
     oldApp.address,
     oldUserWallet,
   );
