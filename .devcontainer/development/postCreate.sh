@@ -61,7 +61,11 @@ echo "✓ Aztec installed"
 echo "Verifying Aztec installation..."
 if command -v aztec &> /dev/null; then
   echo "✓ aztec command found at: $(which aztec)"
-  aztec --version || echo "Warning: Could not get aztec version"
+  if docker image inspect "aztecprotocol/aztec:${AZTEC_VERSION}" &> /dev/null; then
+    echo "✓ aztec Docker image verified: aztecprotocol/aztec:${AZTEC_VERSION}"
+  else
+    echo "✗ WARNING: aztec Docker image not found locally"
+  fi
 else
   echo "✗ ERROR: aztec command not found in PATH"
   echo "PATH: $PATH"
