@@ -1,33 +1,22 @@
 # Mode B PoC - Known Limitations & Future Work
 
-## 1. Schnorr Signature Authentication
+## ~~1. Schnorr Signature Authentication~~ (Done)
 
-**Current:** Uses simplified `poseidon2(msk) == mpk_hash` check. Anyone who knows `msk` can claim.
-
-**Production:** Should use Schnorr signature over a domain-separated message binding the claim to a specific recipient, token contract, and rollup:
-
+`mode_b/mod.nr` now uses `schnorr::verify_signature(mpk, signature, msg)` with a domain-separated message:
 ```
-msg = poseidon2(CLAIM_DOMAIN, "B", old_rollup_id, dest_rollup_id, leaf_hash, recipient, TokenV2_address)
-sig = schnorr_sign(msk, msg)
+msg = poseidon2(CLAIM_DOMAIN_B, old_rollup, current_rollup, notes_hash, recipient, new_app)
+sig = schnorr_sign(msk, msg)   // off-chain
+schnorr_verify(sig, mpk, msg)  // in-circuit
 ```
+The message binds the claim to a specific recipient and app contract, preventing front-running. `msk` stays entirely off-chain.
 
-The circuit would verify `sig` under `mpk` (the full Grumpkin point, not just its hash).
+## ~~2. Unchecked Siloed Nullifier Witness~~ (Done)
 
-## 2. Unchecked Siloed Nullifier Witness
+`migrate_note()` in `mode_b/mod.nr` now computes both `inner_nullifier` and `siloed_nullifier` in-circuit from `nsk_app` (derived from the user's master nullifier secret key `nsk`). Address verification also proves `nsk` matches the note owner by deriving `npk_m` via EC scalar mul and recomputing the owner address.
 
-**Current:** The `siloed_nullifier` for both the balance note and the key registration note is accepted as an unchecked witness from PXE (`NoteDao.siloedNullifier`). The circuit does NOT verify that this nullifier was correctly derived from the note's `nsk_app`.
+## ~~3. Single Note Migration~~ (Done)
 
-**Attack vector:** An attacker who knows `msk` but NOT the nullifier secret key (`nsk`) could provide a fake nullifier value. Since the fake nullifier truly is not in the nullifier tree, the non-inclusion proof would pass, allowing claims on already-spent notes.
-
-**Production fix options:**
-- Require the user to provide `nsk_app` as witness; verify `inner_nullifier = poseidon2([note_hash, nsk_app], GEN_NULLIFIER)` and `siloed_nullifier = poseidon2([contract_address, inner_nullifier], GEN_OUTER_NULLIFIER)` in-circuit
-- This requires proving that `nsk_app` corresponds to the note owner's nullifier public key, which may need protocol-level key registry support
-
-## 3. Single Note Migration
-
-**Current:** Migrates one balance note per transaction. Users with multiple notes must call `migrate_mode_b` once per note.
-
-**Production:** Should support batching multiple notes in a single proof to reduce gas costs and user friction.
+`migrate_notes_mode_b` now accepts `[FullNote<Note>; N]` and loops over all N notes in a single proof. The ExampleApp contract still hardcodes `N = 1`, but the library circuit supports arbitrary batch sizes.
 
 ## 4. Snapshot Height Governance
 

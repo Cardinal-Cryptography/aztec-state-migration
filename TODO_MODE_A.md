@@ -16,11 +16,11 @@ schnorr_verify(sig, mpk, msg)
 ```
 `msk` stays entirely off-chain — only used for deriving `mpk` and signing.
 
-## 2. Single Note per Migration Transaction
+## 2. Single Note per Migration Transaction (ExampleApp only)
 
-**Current:** The TS client (`prepareMigrateModeA`) retrieves `lockNotes[0]` and builds a proof for exactly one `FullMigrationNote`. For the ExampleApp this is sufficient — `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data` hash (the total amount), producing one MigrationNote per lock call.
+The Noir circuit (`migrate_notes_mode_a`) already accepts `[FullMigrationNote; N]` and loops over all N notes. However the ExampleApp contract hardcodes `N = 1`, and the TS client builds a proof for exactly one note. For the ExampleApp this is sufficient — `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data` hash (the total amount), producing one MigrationNote per lock call.
 
-**Production:** Apps that create multiple MigrationNotes per lock (e.g. locking distinct asset types) would need the TS client to retrieve all migration notes and build an array of `FullMigrationNote` proofs sharing the same `MigrationArgs`. The Noir circuit already supports `[FullMigrationNote; N]`.
+Apps that create multiple MigrationNotes per lock (e.g. locking distinct asset types) would need the TS client to retrieve all migration notes and build an array of `FullMigrationNote` proofs. The library circuit is ready; only the app contract's array size and TS client need updating.
 
 ## 3. migration_data is a Single Field
 
@@ -48,8 +48,6 @@ Each `MigrationNote` carries one `migration_data: Field`. This is intentionally 
 
 **Consideration:** An attacker could spam `migrateArchiveRoot` calls to fill L1-to-L2 message trees or increase costs. Consider rate limiting or requiring a small bond.
 
-## 9. MSK Persistence is Caller's Responsibility
+## ~~9. MSK Persistence is Caller's Responsibility~~ (Done)
 
-**Current:** `prepareMigrationNoteLock()` generates a random `msk` and returns it. The caller must persist it across the lock-bridge-migrate flow (potentially days or weeks). If lost, locked funds are unrecoverable.
-
-**Production:** Consider built-in key derivation from the user's existing Aztec account keys (e.g. `msk = derive(account_secret, "migration", nonce)`), so the migration key can be re-derived without explicit storage. Since `msk` is now purely off-chain (item 1), wallet-managed key derivation is straightforward.
+`deriveMasterMigrationSecretKey()` in `ts/migration-lib/keys.ts` now derives the MSK deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])`. No random generation and no explicit persistence needed — the key can be re-derived from the account secret at any time.
