@@ -17,6 +17,7 @@ import {
 } from "./test-utils.js";
 import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
 import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
+import { KeyNote, UintNote } from "../ts/migration-lib/types.js";
 
 async function main() {
   console.log("=== Mode B (Emergency Snapshot) Migration E2E Test ===\n");
@@ -157,9 +158,16 @@ async function main() {
   const publicKeys = oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
   const partialAddress = completeAddress.partialAddress;
-  const oldMigrationAccount = await oldUserWallet.getMigrationAccount(oldUserManager.address);
-  const newMigrationAccount = await newUserWallet.getMigrationAccount(newUserManager.address);
-  const nsk = await oldMigrationAccount.getMaskedNsk(newMigrationAccount, oldApp.address);
+  const oldMigrationAccount = await oldUserWallet.getMigrationAccount(
+    oldUserManager.address,
+  );
+  const newMigrationAccount = await newUserWallet.getMigrationAccount(
+    newUserManager.address,
+  );
+  const nsk = await oldMigrationAccount.getMaskedNsk(
+    newMigrationAccount,
+    oldApp.address,
+  );
 
   console.log(`   nsk derived`);
   console.log(`   Partial address: ${partialAddress}\n`);
@@ -192,16 +200,18 @@ async function main() {
     throw new Error("No key notes found");
   }
 
-  // TODO: The ExampleMigrationApp currently only creates one note per call,
-  // but if there were multiple we would need to handle them all here.
-  // I.e. select which ones and how many.
+  // The ExampleMigrationApp currently only creates one note per call.
   const balanceNotes = balanceNotesAll.slice(0, 1);
 
   // Build proofs via wallet
   const [noteProofs, keyNoteProof] = await Promise.all([
-    oldUserWallet.buildNoteProofs(balanceNotes, provenBlockNumber),
+    oldUserWallet.buildNoteProofs(provenBlockNumber, balanceNotes, (note) =>
+      UintNote.fromNote(note),
+    ),
     oldUserWallet
-      .buildNoteProofs([keyNotes[0]], provenBlockNumber)
+      .buildNoteProofs(provenBlockNumber, [keyNotes[0]], (note) =>
+        KeyNote.fromNote(note),
+      )
       .then((p) => p[0]),
   ]);
 
@@ -233,42 +243,13 @@ async function main() {
 
   // TODO: For now we just migrating first note
   const noteProof = noteProofs[0];
-  const migrateAmount = noteProof.noteItems[0].toBigInt();
+  const migrateAmount = noteProof.note.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
   const newBalanceBefore = await newAppAsUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
-
-  // Map generic NoteProofData to typed note structs for the contract call
-  const mapBalanceNote = (p: NoteProofData) => ({
-    note: { value: p.noteItems[0].toBigInt() },
-    storage_slot: p.storage_slot,
-    randomness: p.randomness,
-    nonce: p.nonce,
-    leaf_index: p.leaf_index,
-    sibling_path: p.sibling_path,
-    low_nullifier_value: p.low_nullifier_value,
-    low_nullifier_next_value: p.low_nullifier_next_value,
-    low_nullifier_next_index: p.low_nullifier_next_index,
-    low_nullifier_leaf_index: p.low_nullifier_leaf_index,
-    low_nullifier_sibling_path: p.low_nullifier_sibling_path,
-  });
-
-  const mapKeyNote = (p: NoteProofData) => ({
-    note: { mpk_hash: p.noteItems[0] },
-    storage_slot: p.storage_slot,
-    randomness: p.randomness,
-    nonce: p.nonce,
-    leaf_index: p.leaf_index,
-    sibling_path: p.sibling_path,
-    low_nullifier_value: p.low_nullifier_value,
-    low_nullifier_next_value: p.low_nullifier_next_value,
-    low_nullifier_next_index: p.low_nullifier_next_index,
-    low_nullifier_leaf_index: p.low_nullifier_leaf_index,
-    low_nullifier_sibling_path: p.low_nullifier_sibling_path,
-  });
 
   try {
     const migrateTx = await newAppAsUser.methods
@@ -277,12 +258,12 @@ async function main() {
         newArchiveRegistry.address,
         mpk.toNoirStruct(),
         [...signature],
-        [noteProof].map(mapBalanceNote),
+        [noteProof],
         archiveProof,
         oldUserManager.address,
         publicKeys.toNoirStruct(),
         partialAddress,
-        mapKeyNote(keyNoteProof),
+        keyNoteProof,
         { hi: nsk.hi, lo: nsk.lo },
       )
       .send({ from: newUserManager.address })

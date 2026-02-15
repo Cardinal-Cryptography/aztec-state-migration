@@ -2,28 +2,23 @@ import { Fr } from "@aztec/foundation/curves/bn254";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import type { AztecNode } from "@aztec/aztec.js/node";
-import type { NoteDao } from "@aztec/stdlib/note";
+import type { Note, NoteDao } from "@aztec/stdlib/note";
 import type { NoteProofData, ArchiveProof, MigrationNoteProofData } from "./types.js";
 import { MIGRATION_DATA_FIELD_INDEX } from "./constants.js";
 
-export function extractMigrationData(migrationNote: NoteDao): Fr {
-  return migrationNote.note.items[MIGRATION_DATA_FIELD_INDEX];
-}
-
 export async function buildMigrationNoteProof(
   node: AztecNode,
-  migrationNote: NoteDao,
   blockNumber: number,
+  migrationNote: NoteDao,
 ): Promise<MigrationNoteProofData> {
   const leafIndex = migrationNote.index;
   const siblingPath = await node.getNoteHashSiblingPath(
     BlockNumber(blockNumber),
     leafIndex,
   );
-  const migrationData = extractMigrationData(migrationNote);
 
   return {
-    migration_data: migrationData,
+    migration_data: migrationNote.note.items[MIGRATION_DATA_FIELD_INDEX],
     randomness: migrationNote.randomness,
     nonce: migrationNote.noteNonce,
     leaf_index: new Fr(migrationNote.index),
@@ -34,11 +29,12 @@ export async function buildMigrationNoteProof(
 /**
  * Build a NoteProofData for a single note: inclusion proof + non-nullification proof.
  */
-export async function buildNoteProof(
+export async function buildNoteProof<NoteLike>(
   node: AztecNode,
-  noteDao: NoteDao,
   blockNumber: BlockNumber,
-): Promise<NoteProofData> {
+  noteDao: NoteDao,
+  noteMapper: (note: Note) => NoteLike,
+): Promise<NoteProofData<NoteLike>> {
   const leafIndex = noteDao.index;
 
   const [siblingPath, lowNullifierWitness] = await Promise.all([
@@ -54,7 +50,7 @@ export async function buildNoteProof(
   }
 
   return {
-    noteItems: [...noteDao.note.items],
+    note: noteMapper(noteDao.note),
     storage_slot: noteDao.storageSlot,
     randomness: noteDao.randomness,
     nonce: noteDao.noteNonce,

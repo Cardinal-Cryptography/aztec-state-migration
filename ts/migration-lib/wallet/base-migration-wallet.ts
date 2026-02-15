@@ -1,9 +1,7 @@
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
-import { NoteDao, NotesFilter } from "@aztec/stdlib/note";
+import { Note, NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
 import {
-  CLAIM_DOMAIN_A,
-  CLAIM_DOMAIN_B,
   MIGRATION_NOTE_SLOT,
 } from "../constants.js";
 import { AztecNode } from "@aztec/aztec.js/node";
@@ -100,22 +98,23 @@ export abstract class BaseMigrationWallet extends BaseWallet {
   }
 
   async buildMigrationNoteProofs(
-    migrationNotes: NoteDao[],
     blockNumber: BlockNumber,
+    migrationNotes: NoteDao[],
   ): Promise<MigrationNoteProofData[]> {
     return Promise.all(
       migrationNotes.map((n) =>
-        buildMigrationNoteProof(this.aztecNode, n, blockNumber),
+        buildMigrationNoteProof(this.aztecNode, blockNumber, n),
       ),
     );
   }
 
-  async buildNoteProofs(
-    migrationNotes: NoteDao[],
+  async buildNoteProofs<NoteLike>(
     blockNumber: BlockNumber,
-  ): Promise<NoteProofData[]> {
+    notes: NoteDao[],
+    noteMapper: (note: Note) => NoteLike,
+  ): Promise<NoteProofData<NoteLike>[]> {
     return Promise.all(
-      migrationNotes.map((n) => buildNoteProof(this.aztecNode, n, blockNumber)),
+      notes.map((n) => buildNoteProof(this.aztecNode, blockNumber, n, noteMapper)),
     );
   }
 }

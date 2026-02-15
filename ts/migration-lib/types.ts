@@ -1,5 +1,5 @@
 import type { Fr } from "@aztec/foundation/curves/bn254";
-import type { NoteDao, NotesFilter } from "@aztec/stdlib/note";
+import type { Note, NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 
 /** Minimal interface for a wallet/PXE that can retrieve notes. */
@@ -19,15 +19,14 @@ export interface MigrationNoteProofData {
   sibling_path: Fr[];
 }
 
-
 // ============================================================
 // Note proof (Mode B)
 // ============================================================
 
 /** Generic note proof data: inclusion + non-nullification. */
-export interface NoteProofData {
+export interface NoteProofData<Note> {
   /** Raw note field values from NoteDao.note.items. Caller maps to typed note struct. */
-  noteItems: Fr[];
+  note: Note;
   storage_slot: Fr;
   randomness: Fr;
   nonce: Fr;
@@ -66,3 +65,23 @@ export interface L1MigrationResult {
   /** Hash of the L1→L2 message (for polling sync status). */
   l1ToL2MessageHash: Fr;
 }
+
+// ============================================================
+// Types of common notes
+// ============================================================
+
+export type UintNote = {
+  value: bigint;
+};
+
+export const UintNote = {
+  fromNote: (note: Note): UintNote => ({ value: note.items[0].toBigInt() }),
+};
+
+export type KeyNote = {
+  mpk_hash: Fr;
+};
+
+export const KeyNote = {
+  fromNote: (note: Note): KeyNote => ({ mpk_hash: note.items[0] }),
+};

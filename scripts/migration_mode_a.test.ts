@@ -119,11 +119,10 @@ async function main() {
 
   // Build proofs via wallet
   const migrationNoteProofs = await oldMigrationWallet.buildMigrationNoteProofs(
-    lockNotes,
     provenBlockNumber,
+    lockNotes,
   );
 
-  logger.info("Migration note proofs built", { count: migrationNoteProofs.length });
   // Sign via standalone function
   const oldAccount = await oldMigrationWallet.getMigrationAccount(
     oldUserManager.address,
@@ -136,8 +135,6 @@ async function main() {
     newUserManager.address,
     newApp.address,
   );
-  logger.info("Migration signature created", { signature });
-
   console.log("   Migration args prepared.\n");
 
   console.log("14. Calling migrate on NEW rollup...");
