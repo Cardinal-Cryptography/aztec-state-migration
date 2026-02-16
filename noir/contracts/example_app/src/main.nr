@@ -19,7 +19,7 @@ pub contract ExampleMigrationApp {
     use balance_set::balance_set::BalanceSet;
     use migration::{
         ArchiveProofData,
-        mode_a::{MigrationNoteProofData, lock_migration_notes, migrate_notes_mode_a},
+        mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{FullKeyNote, FullProofData, migrate_notes_mode_b},
         Point,
         Scalar,
@@ -86,10 +86,7 @@ pub contract ExampleMigrationApp {
     fn lock_migration_notes_mode_a(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
-        // 1. Subtract from balance (this nullifies notes internally)
-        //    The BalanceSet handles note selection and nullification
-        //    We don't need to deliver since we're locking, not transferring
-        let _ = self.storage.balances.at(note_owner).sub(amount);
+        self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
 
         // 2. Compute migration data
         let serialized = amount.serialize();
@@ -117,7 +114,7 @@ pub contract ExampleMigrationApp {
     fn migrate_mode_a(
         // Amount is not strictly needed for the migration (the proof of the MigrationNote is sufficient),
         // but including it in the arguments allows the contract to verify it matches the migration_data hash,
-        // preventing mismatches between the old and new rollup states and mint the correct amount on the new rollup.
+        // and mint the correct amount of tokens to the user.
         amount: u128,
         // Authentication
         mpk: Point,
@@ -131,10 +128,7 @@ pub contract ExampleMigrationApp {
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        assert(
-            migration_data == note_proof_data[0].migration_data,
-            "Migration data hash mismatch",
-        );
+        assert(migration_data == note_proof_data[0].migration_data, "Migration data hash mismatch");
 
         let old_app = self.storage.old_rollup_app_address.read();
 
