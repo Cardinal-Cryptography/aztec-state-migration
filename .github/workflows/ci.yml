@@ -3,8 +3,6 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [jk-ci]
 
 permissions:
   contents: read
@@ -97,11 +95,12 @@ jobs:
           path: solidity/
       - name: Start dual-rollup infrastructure
         run: yarn test:setup
-      - name: Run tests
-        run: |
-          yarn test:registry
-          yarn test:mode-a
-          yarn test:mode-b
+      - name: Test - Migration Key Registry
+        run: yarn test:registry
+      - name: Test - Migration Mode A
+        run: yarn test:mode-a
+      - name: Test - Migration Mode B
+        run: yarn test:mode-b
       - name: Tear down infrastructure
         if: always()
         run: yarn test:stop
