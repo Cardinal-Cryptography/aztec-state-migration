@@ -21,8 +21,8 @@ target
 codegenCache.json
 cache
 
-# Claude Code per-user overrides (do not commit)
-.claude/settings.local.json
+# Claude Code per-user settings (do not commit)
+.claude/settings*.json
 
 # temp workspace
 .tmp/

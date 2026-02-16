@@ -73,24 +73,4 @@ fi
 echo "Installing Solidity dependencies..."
 cd solidity && soldeer install && cd ..
 echo "✓ Solidity dependencies installed"
-
-# Sync Aztec MCP repos (idempotent - only if not already present)
-echo "Checking Aztec MCP repositories..."
-if [ ! -d "$HOME/.aztec-mcp/repos/aztec-packages" ]; then
-  echo "Downloading Aztec repos for MCP (Pre-warming - this takes a minute)..."
-  
-  # Create the target directory
-  mkdir -p "$HOME/.aztec-mcp/repos"
-  
-  # Fast shallow clone of the exact Aztec version to pre-warm the MCP cache
-  echo "Cloning aztec-packages..."
-  git clone --depth 1 --branch "aztec-packages-v${AZTEC_VERSION}" https://github.com/AztecProtocol/aztec-packages.git "$HOME/.aztec-mcp/repos/aztec-packages" || \
-  git clone --depth 1 --branch "v${AZTEC_VERSION}" https://github.com/AztecProtocol/aztec-packages.git "$HOME/.aztec-mcp/repos/aztec-packages" || \
-  git clone --depth 1 --branch "${AZTEC_VERSION}" https://github.com/AztecProtocol/aztec-packages.git "$HOME/.aztec-mcp/repos/aztec-packages"
-  
-  echo "✓ Aztec MCP repos downloaded successfully"
-else
-  echo "✓ Aztec MCP repos already synced"
-fi
-
 echo "=== Devcontainer setup complete ==="
