@@ -51,3 +51,9 @@ Each `MigrationNote` carries one `migration_data: Field`. This is intentionally 
 ## ~~9. MSK Persistence is Caller's Responsibility~~ (Done)
 
 `deriveMasterMigrationSecretKey()` in `ts/migration-lib/keys.ts` now derives the MSK deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])`. No random generation and no explicit persistence needed — the key can be re-derived from the account secret at any time.
+
+## 10. Decompose migration_lib into Separate Validation Functions
+
+**Current:** `migrate_notes_mode_a` is a monolithic function that performs archive proof validation and note migration in a single call.
+
+**Production:** Expose separate functions for archive proof validation. This allows app contracts to compose only the pieces they need and makes the library more reusable across different migration strategies.

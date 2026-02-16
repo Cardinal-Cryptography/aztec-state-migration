@@ -18,7 +18,7 @@ The message binds the claim to a specific recipient and app contract, preventing
 
 `migrate_notes_mode_b` now accepts `[FullProofData<Note>; N]` and loops over all N notes in a single proof. The ExampleApp contract still hardcodes `N = 1`, but the library circuit supports arbitrary batch sizes.
 
-## 4. Snapshot Height Governance
+## 4. Snapshot Height Governance (MigrationArchiveRegistry)
 
 **Current:** `set_snapshot_height` can be called by anyone (once). No access control.
 
@@ -29,3 +29,15 @@ The message binds the claim to a specific recipient and app contract, preventing
 **Current:** No supply cap enforced. The new rollup's ExampleMigrationApp mints freely.
 
 **Production:** Should enforce `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
+
+## 6. Make registered_keys Immutable in MigrationKeyRegistry
+
+**Current:** `registered_keys` storage can be updated. A user who re-registers with different keys after snapshot height H could invalidate their own migration or cause inconsistencies.
+
+**Production:** Make `registered_keys` entries immutable once set — a key registration should be a one-time operation that cannot be overwritten. No need for keynote nullifier non-inclusion proof.
+
+## 7. Decompose migration_lib into Separate Validation Functions
+
+**Current:** `migrate_notes_mode_b` is a monolithic function that performs archive proof validation, key note validation, and note migration in a single call.
+
+**Production:** Expose separate functions for archive proof validation and key note validation. This allows app contracts to compose only the pieces they need and makes the library more reusable across different migration strategies.
