@@ -77,5 +77,4 @@ fi
 echo "Installing Solidity dependencies..."
 cd solidity && soldeer install && cd ..
 echo "✓ Solidity dependencies installed"
-
 echo "=== Devcontainer setup complete ==="
