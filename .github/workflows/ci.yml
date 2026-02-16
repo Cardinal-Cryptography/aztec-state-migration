@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  packages: write
+
+jobs:
+  format-and-lint:
+    name: Format & Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/testing/devcontainer.json
+          imageName: ghcr.io/${{ github.repository }}/devcontainer-testing
+          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer-testing
+          push: always
+          runCmd: |
+            echo "=== Solidity format check ==="
+            forge fmt --check --root solidity
+
+            echo "=== Compile Noir contracts (needed for tsc) ==="
+            yarn noir:compile
+            yarn noir:codegen
+
+            echo "=== TypeScript type check ==="
+            npx tsc --noEmit
+
+  test-hash-compatibility:
+    name: Test - Hash Compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/testing/devcontainer.json
+          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer-testing
+          push: never
+          runCmd: yarn test:hash
+
+  test-e2e:
+    name: Test - E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/testing/devcontainer.json
+          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer-testing
+          push: never
+          runCmd: |
+            echo "=== Compile contracts ==="
+            yarn noir:compile
+            yarn noir:codegen
+            yarn sol:compile
+
+            echo "=== Start dual-rollup infrastructure ==="
+            yarn test:setup
+
+            echo "=== Test: Migration Key Registry ==="
+            yarn test:registry
+
+            echo "=== Test: Migration Mode A ==="
+            yarn test:mode-a
+
+            echo "=== Test: Migration Mode B ==="
+            yarn test:mode-b
+
+            echo "=== Tear down infrastructure ==="
+            yarn test:stop
