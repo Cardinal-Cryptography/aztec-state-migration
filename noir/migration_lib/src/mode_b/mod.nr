@@ -19,7 +19,9 @@ use aztec::{
     },
 };
 use migration_archive_registry::MigrationArchiveRegistry;
-use migration_key_registry::MigrationKeyNote;
+use migration_key_registry::{
+    MigrationKeyNote, MigrationKeyRegistry::STORAGE_LAYOUT_MigrationKeyRegistry,
+};
 use std::embedded_curve_ops::{EmbeddedCurveScalar as Scalar, fixed_base_scalar_mul};
 
 pub global CLAIM_DOMAIN_B: Field =
@@ -31,8 +33,6 @@ pub global CLAIM_DOMAIN_B: Field =
 #[derive(Serialize, Packable)]
 pub struct FullProofData<Note> {
     pub note: Note,
-    // Note indexing
-    pub storage_slot: Field,
     // Note randomness
     pub randomness: Field,
     // Note uniqueness
@@ -75,8 +75,9 @@ pub type FullKeyNote = FullProofData<MigrationKeyNote>;
 /// - `migration_archive_registry`:    Address of the `MigrationArchiveRegistry` on the new rollup.
 /// - `signature`:                     Schnorr signature over the migration message.
 /// - `old_app`:                       Address of the contract that owned the notes on the old rollup.
-/// - `full_proof_data`:                    Array of notes with inclusion and non-nullification proofs.
-/// - `archive_proof_data`:                  Block header and archive Merkle proof for the snapshot block.
+/// - `full_proof_data`:               Array of notes with inclusion and non-nullification proofs.
+/// - `expected_storage_slot`:         Expected storage slot for the notes.
+/// - `archive_proof_data`:            Block header and archive Merkle proof for the snapshot block.
 /// - `notes_owner`:                   Address that owned the notes on the old rollup.
 /// - `public_keys`:                   Owner's public key set (npk_m is re-derived from `nsk`).
 /// - `partial_address`:               Owner's partial address for address re-computation.
@@ -88,6 +89,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     signature: [u8; 64],
     old_app: AztecAddress,
     full_proof_data: [FullProofData<Note>; N],
+    expected_storage_slot: Field,
     archive_proof_data: ArchiveProofData,
     notes_owner: AztecAddress,
     public_keys: PublicKeys,
@@ -133,6 +135,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
             context,
             notes_owner,
             full_proof_data[i],
+            expected_storage_slot,
             old_app,
             note_hash_tree_root,
             nullifier_tree_root,
@@ -170,7 +173,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // ============================================================
     let key_note_hash = full_key_note.note.compute_note_hash(
         notes_owner,
-        full_key_note.storage_slot,
+        STORAGE_LAYOUT_MigrationKeyRegistry.fields.registered_keys.slot,
         full_key_note.randomness,
     );
     // Silo by old key registry contract address
@@ -258,6 +261,7 @@ fn migrate_note<Note: NoteHash>(
     context: &mut PrivateContext,
     notes_owner: AztecAddress,
     full_note: FullProofData<Note>,
+    expected_storage_slot: Field,
     old_app: AztecAddress,
     note_hash_tree_root: Field,
     nullifier_tree_root: Field,
@@ -268,7 +272,7 @@ fn migrate_note<Note: NoteHash>(
     // ============================================================
 
     let note_hash =
-        full_note.note.compute_note_hash(notes_owner, full_note.storage_slot, full_note.randomness);
+        full_note.note.compute_note_hash(notes_owner, expected_storage_slot, full_note.randomness);
     let note_siloed = compute_siloed_note_hash(old_app, note_hash);
     let note_unique = compute_unique_note_hash(full_note.nonce, note_siloed);
     let computed_note_root =

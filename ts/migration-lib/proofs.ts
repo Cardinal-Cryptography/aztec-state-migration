@@ -28,7 +28,6 @@ export async function buildNoteProof<NoteLike>(
   const siblingPath = await node.getNoteHashSiblingPath(blockNumber, leafIndex);
   return {
     note: noteMapper(noteDao.note),
-    storage_slot: noteDao.storageSlot,
     randomness: noteDao.randomness,
     nonce: noteDao.noteNonce,
     leaf_index: new Fr(leafIndex),

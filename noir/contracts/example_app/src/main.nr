@@ -177,6 +177,11 @@ pub contract ExampleMigrationApp {
         nsk: Scalar,
     ) {
         let old_app = self.storage.old_rollup_app_address.read();
+        // The `expected_storage_slot` should reflect the `balances` field in the storage layout
+        // of the contract on the old rollup. Here we just use the same storage layout as this contract
+        // is used in test on "old rollup" and "new rollup".
+        let balances_expected_storage_slot =
+            STORAGE_LAYOUT_ExampleMigrationApp.fields.balances.slot;
         let sum = full_proof_data.fold(0, |acc, full_note| acc + full_note.note.value);
         assert(sum == amount, "Sum of migrated notes does not match the specified amount");
         // 1. Call MigratorModeB to verify all proofs
@@ -186,6 +191,7 @@ pub contract ExampleMigrationApp {
             signature,
             old_app,
             full_proof_data,
+            balances_expected_storage_slot,
             archive_proof_data,
             notes_owner,
             public_keys,

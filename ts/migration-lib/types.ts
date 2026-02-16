@@ -11,7 +11,6 @@ export interface NoteProvider {
 /** Generic note inclusion proof data. */
 export interface NoteProofData<Note> {
   note: Note;
-  storage_slot: Fr;
   randomness: Fr;
   nonce: Fr;
   leaf_index: Fr;
