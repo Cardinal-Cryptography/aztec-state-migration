@@ -124,10 +124,7 @@ export class BaseMigrationAccount
     contractAddress: AztecAddress,
   ): Promise<Fq> {
     let mask = await this.getMask(newRollupAccount, contractAddress);
-    return Fq.fromHighLow(
-      this.masterNullifierSecretKey.hi.add(mask),
-      this.masterNullifierSecretKey.lo.add(mask),
-    );
+    return this.masterNullifierSecretKey.add(mask);
   }
 
   /**
@@ -138,12 +135,11 @@ export class BaseMigrationAccount
   protected getMask = async (
     _newRollupAccount: MigrationAccount,
     _contractAddress: AztecAddress,
-  ): Promise<Fr> => {
+  ): Promise<Fq> => {
     // const nskApp = await computeAppNullifierSecretKey(this.masterNullifierSecretKey, contractAddress);
-    // return poseidon2Hash([NSK_MASK_DOMAIN,nskApp]);
-
+    // return new Fq(poseidon2Hash([NSK_MASK_DOMAIN,nskApp]).toBigInt());
     // For now just return zero (no mask applied)
-    return Fr.ZERO;
+    return Fq.ZERO;
   };
 }
 
