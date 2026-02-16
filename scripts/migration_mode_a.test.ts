@@ -811,7 +811,7 @@ async function main() {
 
   const oldPublicBalanceAfterMint = await oldApp.methods
     .get_public_balance(oldRollupUser)
-    .simulate();
+    .simulate({ from: oldRollupUser });
   console.log(
     `   Minted ${PUBLIC_MINT_AMOUNT} public tokens to old rollup user`,
   );
@@ -844,7 +844,7 @@ async function main() {
 
   const oldPublicBalanceAfterLock = await oldApp.methods
     .get_public_balance(oldRollupUser)
-    .simulate();
+    .simulate({ from: oldRollupUser });
   console.log(
     `   Public balance on OLD rollup after lock: ${oldPublicBalanceAfterLock}`,
   );
@@ -1157,7 +1157,7 @@ async function main() {
 
   const newPublicBalanceBefore = await newApp.methods
     .get_public_balance(newRollupUser)
-    .simulate();
+    .simulate({ from: newRollupUser });
   console.log(
     `   Public balance on NEW rollup before: ${newPublicBalanceBefore}`,
   );
@@ -1190,7 +1190,7 @@ async function main() {
 
     const newPublicBalanceAfterMigrate = await newApp.methods
       .get_public_balance(newRollupUser)
-      .simulate();
+      .simulate({ from: newRollupUser });
     console.log(
       `   Public balance on NEW rollup after: ${newPublicBalanceAfterMigrate}`,
     );
@@ -1212,7 +1212,7 @@ async function main() {
 
   const newPublicBalanceAfter = await newApp.methods
     .get_public_balance(newRollupUser)
-    .simulate();
+    .simulate({ from: newRollupUser });
 
   // ============================================================
   // Summary
