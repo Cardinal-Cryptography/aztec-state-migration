@@ -10,6 +10,11 @@ permissions:
   contents: read
   packages: write
 
+# Docker requires lowercase tags
+# The github.repository is Cardinal-Cryptography
+env:
+  IMAGE: ghcr.io/cardinal-cryptography/devcontainer-testing
+
 jobs:
   format-and-lint:
     name: Format & Lint
@@ -25,8 +30,8 @@ jobs:
       - uses: devcontainers/ci@v0.3
         with:
           configFile: .devcontainer/testing/devcontainer.json
-          imageName: ghcr.io/${{ github.repository }}/devcontainer-testing
-          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer-testing
+          imageName: ${{ env.IMAGE }}
+          cacheFrom: ${{ env.IMAGE }}
           push: always
           runCmd: |
             echo "=== Solidity format check ==="
@@ -53,7 +58,7 @@ jobs:
       - uses: devcontainers/ci@v0.3
         with:
           configFile: .devcontainer/testing/devcontainer.json
-          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer-testing
+          cacheFrom: ${{ env.IMAGE }}
           push: never
           runCmd: yarn test:hash
 
@@ -71,7 +76,7 @@ jobs:
       - uses: devcontainers/ci@v0.3
         with:
           configFile: .devcontainer/testing/devcontainer.json
-          cacheFrom: ghcr.io/${{ github.repository }}/devcontainer-testing
+          cacheFrom: ${{ env.IMAGE }}
           push: never
           runCmd: |
             echo "=== Compile contracts ==="
