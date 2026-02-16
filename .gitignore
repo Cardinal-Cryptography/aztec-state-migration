@@ -8,6 +8,7 @@
 *.njsproj
 *.sln
 *.sw?
+repo-to-text*.txt
 
 # logs
 *.log
@@ -19,3 +20,9 @@ dependencies
 target
 codegenCache.json
 cache
+
+# Claude Code per-user settings (do not commit)
+.claude/settings*.json
+
+# temp workspace
+.tmp/

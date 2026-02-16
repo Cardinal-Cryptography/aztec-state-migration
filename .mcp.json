@@ -2,7 +2,14 @@
   "mcpServers": {
     "aztec-docs": {
       "command": "npx",
-      "args": ["-y", "aztec-mcp-server@latest"]
-    }
+      "args": ["-y", "aztec-mcp-server@latest"],
+      "env": {
+        "AZTEC_DEFAULT_VERSION": "v3.0.0-devnet.6-patch.1"
+      }
+    },
+    "aztec-local": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "node_modules/@aztec"]
+}
   }
 }
