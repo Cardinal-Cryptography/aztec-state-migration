@@ -161,7 +161,6 @@ pub contract ExampleMigrationApp {
     fn migrate_mode_b(
         amount: u128,
         // Authentication
-        mpk: Point,
         signature: [u8; 64],
         //
         full_proof_data: [FullProofData<UintNote>; 1],
@@ -184,7 +183,6 @@ pub contract ExampleMigrationApp {
         migrate_notes_mode_b(
             self.context,
             self.storage.archive_root_address.read(),
-            mpk,
             signature,
             old_app,
             full_proof_data,

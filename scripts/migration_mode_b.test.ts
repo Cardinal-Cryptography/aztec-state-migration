@@ -1,5 +1,4 @@
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
 import { signMigrationModeB } from "../ts/migration-lib/index.js";
 import { deploy } from "./deploy.js";
 import {
@@ -113,9 +112,6 @@ async function main() {
   console.log("7. Registering migration key for Alice...");
 
   const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
-  const mpkHash = await poseidon2Hash([mpk.x, mpk.y]);
-  console.log(`   mpk: (${mpk.x}, ${mpk.y})`);
-  console.log(`   mpk_hash: ${mpkHash}`);
 
   const oldUserKeyRegistry = MigrationKeyRegistryContract.at(
     oldKeyRegistry.address,
@@ -123,7 +119,7 @@ async function main() {
   );
 
   const registerTx = await oldUserKeyRegistry.methods
-    .register(mpkHash)
+    .register(mpk.toNoirStruct())
     .send({ from: oldUserManager.address })
     .wait();
   console.log(`   Register tx: ${registerTx.txHash}`);
@@ -131,7 +127,7 @@ async function main() {
   const registeredKey = await oldUserKeyRegistry.methods
     .get(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
-  console.log(`   Verified registered mpk_hash: ${registeredKey}\n`);
+  console.log(`   Verified registered mpk: ${registeredKey}\n`);
 
   // ============================================================
   // Steps 8-10: Bridge + set snapshot height
@@ -275,7 +271,6 @@ async function main() {
     const migrateTx = await newAppUser.methods
       .migrate_mode_b(
         migrateAmount,
-        mpk.toNoirStruct(),
         [...signature],
         [noteProof],
         archiveProof,
@@ -349,7 +344,6 @@ async function main() {
     await newAppUser.methods
       .migrate_mode_b(
         amount,
-        mpk.toNoirStruct(),
         [...nullifedNoteSig],
         [nullifiedNoteProof],
         archiveProof,

@@ -1,6 +1,7 @@
 import type { Fr } from "@aztec/foundation/curves/bn254";
 import type { Note, NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
+import { Point } from "@aztec/foundation/schemas";
 
 /** Minimal interface for a wallet/PXE that can retrieve notes. */
 export interface NoteProvider {
@@ -113,13 +114,23 @@ export const FieldNote = {
 
 /** A note storing a migration public key hash (from MigrationKeyRegistry). */
 export type KeyNote = {
-  mpk_hash: Fr;
+  mpk: {
+    x: Fr;
+    y: Fr;
+    is_infinite: boolean;
+  };
 };
 
 /** Helpers for {@link KeyNote}. */
 export const KeyNote = {
-  /** Decode a raw {@link Note} into a {@link KeyNote} by reading `items[0]` as the `mpk_hash`. */
-  fromNote: (note: Note): KeyNote => ({ mpk_hash: note.items[0] }),
+  /** Decode a raw {@link Note} into a {@link KeyNote} by reading `items[0]` as the `mpk`. */
+  fromNote: (note: Note): KeyNote => ({
+    mpk: {
+      x: note.items[0],
+      y: note.items[1],
+      is_infinite: note.items[2].toBool(),
+    },
+  }),
 };
 
 /**

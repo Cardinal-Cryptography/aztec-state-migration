@@ -5,26 +5,25 @@ use aztec::{
     protocol_types::{
         address::{AztecAddress, partial_address::PartialAddress},
         constants::{
-            GENERATOR_INDEX__NOTE_NULLIFIER,
-            GENERATOR_INDEX__NSK_M, NOTE_HASH_TREE_HEIGHT, NULLIFIER_TREE_HEIGHT,
+            GENERATOR_INDEX__NOTE_NULLIFIER, GENERATOR_INDEX__NSK_M, NOTE_HASH_TREE_HEIGHT,
+            NULLIFIER_TREE_HEIGHT,
         },
         hash::{
             compute_siloed_note_hash, compute_siloed_nullifier, compute_unique_note_hash,
             poseidon2_hash, poseidon2_hash_with_separator,
         },
         merkle_tree::root::root_from_sibling_path,
-        public_keys::{ NpkM, PublicKeys},
+        public_keys::{NpkM, PublicKeys},
         traits::{Hash, Packable, Serialize, ToField},
         utils::field::{full_field_greater_than, full_field_less_than},
     },
 };
 use migration_archive_registry::MigrationArchiveRegistry;
 use migration_key_registry::MigrationKeyNote;
-use std::embedded_curve_ops::{
-    EmbeddedCurvePoint as Point, EmbeddedCurveScalar as Scalar, fixed_base_scalar_mul,
-};
+use std::embedded_curve_ops::{EmbeddedCurveScalar as Scalar, fixed_base_scalar_mul};
 
-pub global CLAIM_DOMAIN_B: Field = 0x18ca708ad6dca829b497a77f901adeefeb108751ceae07b68c22499a1da0e40e; // poseidon2 of "migration_mode_b" as ASCII
+pub global CLAIM_DOMAIN_B: Field =
+    0x18ca708ad6dca829b497a77f901adeefeb108751ceae07b68c22499a1da0e40e; // poseidon2 of "migration_mode_b" as ASCII
 
 /// A note together with its inclusion proof and nullifier non-inclusion proof data.
 /// Carries everything needed to verify that a note exists in the note hash tree
@@ -74,7 +73,6 @@ pub type FullKeyNote = FullProofData<MigrationKeyNote>;
 /// # Parameters
 /// - `context`:                       Private execution context on the new rollup.
 /// - `migration_archive_registry`:    Address of the `MigrationArchiveRegistry` on the new rollup.
-/// - `mpk`:                           Migration public key used to verify the claim signature.
 /// - `signature`:                     Schnorr signature over the migration message.
 /// - `old_app`:                       Address of the contract that owned the notes on the old rollup.
 /// - `full_proof_data`:                    Array of notes with inclusion and non-nullification proofs.
@@ -87,7 +85,6 @@ pub type FullKeyNote = FullProofData<MigrationKeyNote>;
 pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
-    mpk: Point,
     signature: [u8; 64],
     old_app: AztecAddress,
     full_proof_data: [FullProofData<Note>; N],
@@ -125,14 +122,14 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // 3. For each note, verify inclusion and non-nullification in the snapshot state
     // ============================================================
 
-    let nullifier_tree_root = archive_proof_data.archive_block_header.state.partial.nullifier_tree.root;
-    let note_hash_tree_root = archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+    let nullifier_tree_root =
+        archive_proof_data.archive_block_header.state.partial.nullifier_tree.root;
+    let note_hash_tree_root =
+        archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
 
     // Derive nsk_app for the old app contract:
-    let nsk_app = poseidon2_hash_with_separator(
-        [nsk.hi, nsk.lo, old_app.to_field()],
-        GENERATOR_INDEX__NSK_M,
-    );
+    let nsk_app =
+        poseidon2_hash_with_separator([nsk.hi, nsk.lo, old_app.to_field()], GENERATOR_INDEX__NSK_M);
 
     let mut notes_hashes: [Field; N] = [0; N];
 
@@ -160,13 +157,16 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let recipient = context.msg_sender().unwrap().to_field();
     let new_app = context.this_address().to_field();
 
-    let msg = poseidon2_hash([CLAIM_DOMAIN_B, old_rollup, current_rollup, notes_hash, recipient, new_app]);
+    let msg = poseidon2_hash([
+        CLAIM_DOMAIN_B,
+        old_rollup,
+        current_rollup,
+        notes_hash,
+        recipient,
+        new_app,
+    ]);
     assert(
-        schnorr::verify_signature(
-            mpk,
-            signature,
-            msg.to_be_bytes::<32>(),
-        ),
+        schnorr::verify_signature(full_key_note.note.mpk, signature, msg.to_be_bytes::<32>()),
         "Invalid migration signature",
     );
 
@@ -207,10 +207,8 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
         [nsk.hi, nsk.lo, old_registry.to_field()],
         GENERATOR_INDEX__NSK_M,
     );
-    let key_inner_nullifier = poseidon2_hash_with_separator(
-        [key_unique, nsk_app_key],
-        GENERATOR_INDEX__NOTE_NULLIFIER,
-    );
+    let key_inner_nullifier =
+        poseidon2_hash_with_separator([key_unique, nsk_app_key], GENERATOR_INDEX__NOTE_NULLIFIER);
     let key_note_siloed_nullifier = compute_siloed_nullifier(old_registry, key_inner_nullifier);
 
     let key_low_leaf_hash = poseidon2_hash([
@@ -274,18 +272,12 @@ fn migrate_note<Note: NoteHash>(
     // 1. Compute Note hash and verify inclusion in note hash tree
     // ============================================================
 
-    let note_hash = full_note.note.compute_note_hash(
-        notes_owner,
-        full_note.storage_slot,
-        full_note.randomness,
-    );
+    let note_hash =
+        full_note.note.compute_note_hash(notes_owner, full_note.storage_slot, full_note.randomness);
     let note_siloed = compute_siloed_note_hash(old_app, note_hash);
     let note_unique = compute_unique_note_hash(full_note.nonce, note_siloed);
-    let computed_note_root = root_from_sibling_path(
-        note_unique,
-        full_note.leaf_index,
-        full_note.sibling_path,
-    );
+    let computed_note_root =
+        root_from_sibling_path(note_unique, full_note.leaf_index, full_note.sibling_path);
     assert(computed_note_root == note_hash_tree_root, "Note not in note hash tree");
 
     // ============================================================

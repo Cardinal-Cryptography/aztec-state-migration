@@ -12,7 +12,8 @@ use aztec::{
 use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
 // poseidon2_hash([0x6d6967726174696f6e5f6d6f64655f61]) where input is "migration_mode_a" as ASCII
-pub global MIGRATION_MODE_A_STORAGE_SLOT: Field = 0x28ca34e829f0cda691d3713e01bb3a812dc678348c01617bbe9bd8549bd76eda;
+pub global MIGRATION_MODE_A_STORAGE_SLOT: Field =
+    0x28ca34e829f0cda691d3713e01bb3a812dc678348c01617bbe9bd8549bd76eda;
 
 /// MigrationNote - a note that locks a user's original note for migration.
 ///
@@ -55,7 +56,6 @@ impl NoteHash for MigrationNote {
             GENERATOR_INDEX__NOTE_HASH,
         )
     }
-
 
     /// Returns the non-siloed migration nullifier,
     /// which will be later siloed by contract address by the kernels before being committed to the state tree.

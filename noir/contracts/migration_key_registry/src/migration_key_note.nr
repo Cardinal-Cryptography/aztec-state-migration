@@ -1,7 +1,5 @@
-use dep::aztec::{
-    macros::notes::note,
-    protocol_types::traits::{Deserialize, Packable, Serialize},
-};
+use dep::aztec::{macros::notes::note, protocol_types::traits::{Deserialize, Packable, Serialize}};
+use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
 /// MigrationKeyNote - stores a user's migration public key hash.
 ///
@@ -12,11 +10,11 @@ use dep::aztec::{
 #[derive(Deserialize, Eq, Serialize, Packable)]
 #[note]
 pub struct MigrationKeyNote {
-    pub mpk_hash: Field,
+    pub mpk: Point,
 }
 
 impl MigrationKeyNote {
-    pub fn new(mpk_hash: Field) -> Self {
-        Self { mpk_hash }
+    pub fn new(mpk: Point) -> Self {
+        Self { mpk }
     }
 }

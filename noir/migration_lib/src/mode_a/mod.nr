@@ -53,8 +53,10 @@ pub fn lock_migration_notes<let N: u32>(
     mpk: Point,
     migration_data: [Field; N],
 ) {
-    assert(mpk.y * mpk.y == mpk.x * mpk.x * mpk.x - 17, "mpk not on Grumpkin curve");
-    assert(!mpk.is_infinite, "mpk cannot be point at infinity");
+    assert(
+        (mpk.y * mpk.y == mpk.x * mpk.x * mpk.x - 17) & (!mpk.is_infinite),
+        "mpk not on Grumpkin curve",
+    );
 
     let note_creator = context.this_address();
     for i in 0..N {
@@ -105,7 +107,8 @@ pub fn migrate_notes_mode_a<let N: u32>(
     // 1. Verify each note's inclusion in the old rollup's note hash tree
     let mut notes_hashes: [Field; N] = [0; N];
     let current_rollup = context.version();
-    let note_hash_tree_root = archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+    let note_hash_tree_root =
+        archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
 
     for i in 0..N {
         let note_hash = migrate_note(
@@ -133,11 +136,7 @@ pub fn migrate_notes_mode_a<let N: u32>(
         new_app_address,
     ]);
     assert(
-        schnorr::verify_signature(
-            mpk,
-            signature,
-            msg.to_be_bytes::<32>(),
-        ),
+        schnorr::verify_signature(mpk, signature, msg.to_be_bytes::<32>()),
         "Invalid migration signature",
     );
 

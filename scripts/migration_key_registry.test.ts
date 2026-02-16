@@ -1,12 +1,23 @@
 import { TestWallet } from "@aztec/test-wallet/server";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
-import { Fr } from "@aztec/foundation/curves/bn254";
-import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
+import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import type { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { generatePublicKey } from "@aztec/aztec.js/keys";
+import { Point } from "@aztec/foundation/curves/grumpkin";
 
 const AZTEC_NODE_URL = process.env.AZTEC_NODE_URL ?? "http://localhost:8080";
+
+/** simulate() returns a plain {x, y, is_infinite} object – convert to a Point instance. */
+function toPoint(obj: any): Point {
+  return new Point(Fr.fromPlainObject(obj.x), Fr.fromPlainObject(obj.y), obj.is_infinite);
+}
+
+/** Point.toString() throws for infinite points – use this for safe logging. */
+function pointStr(p: Point): string {
+  return p.isZero() ? "<infinity>" : p.toString();
+}
 
 async function assertCount(
   registry: MigrationKeyRegistryContract,
@@ -64,12 +75,12 @@ async function main() {
   // Step 3: Verify no key is registered initially
   // ============================================================
   console.log("3. Verifying initial state...");
-  const initialKey = await registry.methods
+  const initialKey = toPoint(await registry.methods
     .get(alice)
-    .simulate({ from: alice });
-  console.log(`   Alice's initial mpk_hash: ${initialKey}`);
-  if (BigInt(initialKey) !== 0n) {
-    throw new Error("Expected initial mpk_hash to be 0");
+    .simulate({ from: alice }));
+  console.log(`   Alice's initial mpk: ${pointStr(initialKey)}`);
+  if (!initialKey.isZero()) {
+    throw new Error("Expected initial mpk to be zero (point at infinity)");
   }
   await assertCount(registry, alice, 0, "Alice initial");
   console.log("   OK: No key registered initially.\n");
@@ -78,13 +89,13 @@ async function main() {
   // Step 4: Register a migration key for Alice
   // ============================================================
   console.log("4. Registering migration key for Alice...");
-  const msk = new Fr(12345n);
-  const mpkHash = await poseidon2Hash([msk]);
+  const msk = Fq.random();
+  const mpk = await generatePublicKey(msk);
   console.log(`   msk: ${msk}`);
-  console.log(`   mpk_hash (computed in TS): ${mpkHash}`);
+  console.log(`   mpk (computed in TS): ${mpk}`);
 
   const registerTx = await registry.methods
-    .register(mpkHash)
+    .register(mpk.toNoirStruct())
     .send({ from: alice })
     .wait();
   console.log(`   Register tx: ${registerTx.txHash}\n`);
@@ -93,17 +104,17 @@ async function main() {
   // Step 5: Query and verify the registered key
   // ============================================================
   console.log("5. Querying registered key...");
-  const registeredKey = await registry.methods
+  const registeredKey = toPoint(await registry.methods
     .get(alice)
-    .simulate({ from: alice });
-  console.log(`   Alice's mpk_hash: ${registeredKey}`);
+    .simulate({ from: alice }));
+  console.log(`   Alice's mpk: ${pointStr(registeredKey)}`);
 
-  if (BigInt(registeredKey) === 0n) {
-    throw new Error("Expected mpk_hash to be non-zero after registration");
+  if (registeredKey.isZero()) {
+    throw new Error("Expected mpk to be non-zero after registration");
   }
-  if (BigInt(registeredKey) !== mpkHash.toBigInt()) {
+  if (!registeredKey.equals(mpk)) {
     throw new Error(
-      `mpk_hash mismatch: expected ${mpkHash.toBigInt()}, got ${BigInt(registeredKey)}`,
+      `mpk mismatch: expected ${pointStr(mpk)}, got ${pointStr(registeredKey)}`,
     );
   }
   await assertCount(registry, alice, 1, "Alice after register");
@@ -113,10 +124,10 @@ async function main() {
   // Step 6: Verify Bob has no key registered
   // ============================================================
   console.log("6. Verifying Bob has no key...");
-  const bobKey = await registry.methods.get(bob).simulate({ from: bob });
-  console.log(`   Bob's mpk_hash: ${bobKey}`);
-  if (BigInt(bobKey) !== 0n) {
-    throw new Error("Expected Bob's mpk_hash to be 0");
+  const bobKey = toPoint(await registry.methods.get(bob).simulate({ from: bob }));
+  console.log(`   Bob's mpk: ${pointStr(bobKey)}`);
+  if (!bobKey.isZero()) {
+    throw new Error("Expected Bob's mpk to be zero");
   }
   await assertCount(registry, bob, 0, "Bob");
   console.log("   OK: Bob has no key registered.\n");
@@ -131,12 +142,12 @@ async function main() {
     .wait();
   console.log(`   Cancel tx: ${cancelTx.txHash}`);
 
-  const keyAfterCancel = await registry.methods
+  const keyAfterCancel = toPoint(await registry.methods
     .get(alice)
-    .simulate({ from: alice });
-  console.log(`   Alice's mpk_hash after cancel: ${keyAfterCancel}`);
-  if (BigInt(keyAfterCancel) !== 0n) {
-    throw new Error("Expected mpk_hash to be 0 after cancellation");
+    .simulate({ from: alice }));
+  console.log(`   Alice's mpk after cancel: ${pointStr(keyAfterCancel)}`);
+  if (!keyAfterCancel.isZero()) {
+    throw new Error("Expected mpk to be zero after cancellation");
   }
   await assertCount(registry, alice, 0, "Alice after cancel");
   console.log("   OK: Registration cancelled, old key revoked.\n");
@@ -145,25 +156,23 @@ async function main() {
   // Step 8: Re-register with a new key
   // ============================================================
   console.log("8. Re-registering Alice with a new key...");
-  const newMsk = new Fr(99999n);
-  const newMpkHash = await poseidon2Hash([newMsk]);
+  const newMsk = Fq.random();
+  const newMpk = await generatePublicKey(newMsk);
   console.log(`   New msk: ${newMsk}`);
-  console.log(`   New mpk_hash: ${newMpkHash}`);
+  console.log(`   New mpk: ${newMpk}`);
 
   const reRegisterTx = await registry.methods
-    .register(newMpkHash)
+    .register(newMpk.toNoirStruct())
     .send({ from: alice })
     .wait();
   console.log(`   Re-register tx: ${reRegisterTx.txHash}`);
 
-  const reRegisteredKey = await registry.methods
+  const reRegisteredKey = toPoint(await registry.methods
     .get(alice)
-    .simulate({ from: alice });
-  console.log(`   Alice's new mpk_hash: ${reRegisteredKey}`);
-  if (BigInt(reRegisteredKey) !== newMpkHash.toBigInt()) {
-    throw new Error(
-      `mpk_hash mismatch after re-register: expected ${newMpkHash.toBigInt()}, got ${BigInt(reRegisteredKey)}`,
-    );
+    .simulate({ from: alice }));
+  console.log(`   Alice's new mpk: ${pointStr(reRegisteredKey)}`);
+  if (reRegisteredKey.isZero()) {
+    throw new Error("Expected mpk to be non-zero after re-registration");
   }
   await assertCount(registry, alice, 1, "Alice after re-register");
   console.log("   OK: Re-registration successful, exactly 1 active key.\n");
@@ -174,7 +183,7 @@ async function main() {
   console.log("=== MigrationKeyRegistry Test Summary ===");
   console.log(`  Contract: ${registry.address}`);
   console.log(
-    `  Alice (${alice}): mpk_hash = ${reRegisteredKey} (re-registered)`,
+    `  Alice (${alice}): mpk = ${pointStr(reRegisteredKey)} (re-registered)`,
   );
   console.log(`  Bob (${bob}): not registered`);
   console.log("  All checks passed!");
