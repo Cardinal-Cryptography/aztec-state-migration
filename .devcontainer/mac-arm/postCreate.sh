@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# Mac ARM runs as host user (not root), so Dockerfile-installed tools
-# in /root/ are inaccessible. Install Foundry + soldeer into $HOME.
+# Mac ARM overrides HOME to the host user's path, so Dockerfile-installed
+# tools in /root/ are not on the default PATH. Install Foundry + soldeer into $HOME.
 
 # Install Foundry (forge, cast, anvil)
 if ! command -v forge &> /dev/null; then
