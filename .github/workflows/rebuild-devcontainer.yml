@@ -1,0 +1,30 @@
+name: Rebuild Devcontainer Image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/cardinal-cryptography/devcontainer-testing
+
+jobs:
+  rebuild:
+    name: Force Rebuild
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: devcontainers/ci@v0.3
+        with:
+          configFile: .devcontainer/testing/devcontainer.json
+          imageName: ${{ env.IMAGE }}
+          push: always
+          runCmd: echo "Image rebuilt and pushed"
