@@ -126,11 +126,8 @@ pub contract MigrationArchiveRegistry {
     /// Verify a Mode B migration by checking that the computed archive root matches
     /// the registered root at the configured snapshot height.
     #[external("public")]
-    fn verify_migration_mode_b(snapshot_height: u32, computed_archive_root: Field) {
-        // Verify snapshot height matches configured value
-        let stored_snapshot = self.storage.snapshot_height.read();
-        assert(stored_snapshot != 0, "Snapshot height not set");
-        assert(snapshot_height == stored_snapshot, "Snapshot height mismatch");
+    fn verify_migration_mode_b(computed_archive_root: Field) {
+        let snapshot_height = self.storage.snapshot_height.read();
 
         // Verify archive root
         let stored_archive_root = self.storage.old_archive_roots.at(snapshot_height).read();

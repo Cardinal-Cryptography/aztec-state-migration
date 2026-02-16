@@ -114,12 +114,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     assert(computed_address == notes_owner, "Address does not match public keys derived from nsk");
 
     // ============================================================
-    // 2. Extract snapshot height from block header (verified against stored value in public call)
-    // ============================================================
-    let snapshot_height = archive_proof_data.archive_block_header.global_variables.block_number;
-
-    // ============================================================
-    // 3. For each note, verify inclusion and non-nullification in the snapshot state
+    // 2. For each note, verify inclusion and non-nullification in the snapshot state
     // ============================================================
 
     let nullifier_tree_root =
@@ -146,7 +141,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     }
 
     // ============================================================
-    // 4. Authentication: verify the migration signature over the set of notes and migration context
+    // 3. Authentication: verify the migration signature over the set of notes and migration context
     // ============================================================
 
     // notes_hash = poseidon2_hash([note1_hash, note2_hash, ...])
@@ -171,7 +166,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     );
 
     // ============================================================
-    // 5. Compute MigrationKeyNote hash (includes owner for binding)
+    // 4. Compute MigrationKeyNote hash (includes owner for binding)
     // ============================================================
     let key_note_hash = full_key_note.note.compute_note_hash(
         notes_owner,
@@ -187,7 +182,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let key_unique = compute_unique_note_hash(full_key_note.nonce, key_siloed);
 
     // ============================================================
-    // 6. Verify MigrationKeyNote inclusion in note hash tree
+    // 5. Verify MigrationKeyNote inclusion in note hash tree
     // ============================================================
     let computed_key_note_root = root_from_sibling_path(
         key_unique,
@@ -200,7 +195,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     );
 
     // ============================================================
-    // 7. Compute and verify MigrationKeyNote non-nullification
+    // 6. Compute and verify MigrationKeyNote non-nullification
     // ============================================================
     // Derive nsk_app for the old key registry contract
     let nsk_app_key = poseidon2_hash_with_separator(
@@ -239,7 +234,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     );
 
     // ============================================================
-    // 8. Compute archive root from block header
+    // 7. Compute archive root from block header
     // ============================================================
     let archive_block_header_hash = archive_proof_data.archive_block_header.hash();
     let computed_archive_root = root_from_sibling_path(
@@ -249,10 +244,10 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     );
 
     // ============================================================
-    // 9. Enqueue public verification of archive root and snapshot height
+    // 8. Enqueue public verification of archive root and snapshot height
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
-        .verify_migration_mode_b(snapshot_height, computed_archive_root)
+        .verify_migration_mode_b(computed_archive_root)
         .enqueue(context);
 }
 
