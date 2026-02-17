@@ -1,6 +1,7 @@
 use aztec::macros::aztec as aztec_contract;
 
 mod migration_key_note;
+pub use crate::migration_key_note::MigrationKeyNote;
 
 #[aztec_contract]
 pub contract MigrationKeyRegistry {
@@ -12,6 +13,7 @@ pub contract MigrationKeyRegistry {
         protocol_types::{address::AztecAddress, traits::Packable},
         state_vars::{owned::Owned, private_set::PrivateSet},
     };
+    use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
     #[storage]
     struct Storage<Context> {
@@ -25,11 +27,14 @@ pub contract MigrationKeyRegistry {
     /// Register a migration public key hash for the caller.
     /// Creates a MigrationKeyNote in the caller's private set.
     #[external("private")]
-    fn register(mpk_hash: Field) {
-        assert(mpk_hash != 0, "Invalid mpk_hash: cannot be zero");
+    fn register(mpk: Point) {
+        assert(
+            (mpk.y * mpk.y == mpk.x * mpk.x * mpk.x - 17) & (!mpk.is_infinite),
+            "mpk not on Grumpkin curve",
+        );
 
         let owner = self.context.msg_sender().unwrap();
-        let note = MigrationKeyNote::new(mpk_hash);
+        let note = MigrationKeyNote::new(mpk);
         self.storage.registered_keys.at(owner).insert(note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
@@ -45,16 +50,17 @@ pub contract MigrationKeyRegistry {
         assert(notes.len() > 0, "No registered key to cancel");
     }
 
-    /// View function: retrieve the registered mpk_hash for an owner.
-    /// Returns 0 if no key is registered.
+    /// View function: retrieve the registered mpk for an owner.
+    /// Returns the point at infinity if no key is registered.
     #[external("utility")]
-    unconstrained fn get(owner: AztecAddress) -> Field {
-        let options = NoteViewerOptions::<MigrationKeyNote, <MigrationKeyNote as Packable>::N>::new();
+    unconstrained fn get(owner: AztecAddress) -> Point {
+        let options =
+            NoteViewerOptions::<MigrationKeyNote, <MigrationKeyNote as Packable>::N>::new();
         let notes = self.storage.registered_keys.at(owner).view_notes(options);
         if notes.len() > 0 {
-            notes.get_unchecked(0).mpk_hash
+            notes.get_unchecked(0).mpk
         } else {
-            0
+            Point::point_at_infinity()
         }
     }
 
@@ -63,7 +69,8 @@ pub contract MigrationKeyRegistry {
     /// (expected: 0 after cancel, 1 after register).
     #[external("utility")]
     unconstrained fn get_count(owner: AztecAddress) -> u32 {
-        let options = NoteViewerOptions::<MigrationKeyNote, <MigrationKeyNote as Packable>::N>::new();
+        let options =
+            NoteViewerOptions::<MigrationKeyNote, <MigrationKeyNote as Packable>::N>::new();
         let notes = self.storage.registered_keys.at(owner).view_notes(options);
         notes.len()
     }

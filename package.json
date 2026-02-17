@@ -22,6 +22,9 @@
     "test:registry": "npx tsx scripts/migration_key_registry.test.ts",
     "test:hash": "./scripts/hash_compatibility.sh"
   },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
     "@aztec/accounts": "v3.0.0-devnet.6-patch.1",
     "@aztec/aztec.js": "v3.0.0-devnet.6-patch.1",

@@ -119,7 +119,7 @@ log_info "  Node 1 port: $NODE1_PORT"
 ANVIL_PORT=$ANVIL_PORT \
 AZTEC_PORT=$NODE1_PORT \
 TEST_ACCOUNTS=true \
-  $AZTEC_BIN start --local-network > "$NODE1_LOG" 2>&1 &
+  $AZTEC_BIN start --local-network </dev/null 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$NODE1_LOG" &
 
 # Wait for Node 1 to be ready
 log_info "Waiting for Node 1 to be ready..."
@@ -242,7 +242,7 @@ export AZTEC_EPOCH_DURATION=16
 export AZTEC_TARGET_COMMITTEE_SIZE=0
 export AZTEC_LAG_IN_EPOCHS_FOR_VALIDATOR_SET=2
 export AZTEC_LAG_IN_EPOCHS_FOR_RANDAO=2
-export AZTEC_INBOX_LAG=2
+export AZTEC_INBOX_LAG=1
 export AZTEC_PROOF_SUBMISSION_EPOCHS=2
 export AZTEC_LOCAL_EJECTION_THRESHOLD=0
 export AZTEC_SLASHING_ROUND_SIZE_IN_EPOCHS=1
@@ -577,11 +577,12 @@ docker run --rm \
   -e TEST_ACCOUNTS=true \
   -e SPONSORED_FPC=true \
   -e SEQ_ENFORCE_TIME_TABLE=false \
+  -e ARCHIVER_POLLING_INTERVAL_MS=200 \
   -e FORCE_COLOR=1 \
   --entrypoint "" \
   "$DOCKER_REPO:$AZTEC_VERSION" \
   node --no-warnings /usr/src/start-node-with-time-sync.mjs \
-  > "$NODE2_LOG" 2>&1 &
+  </dev/null 2>&1 | sed 's/\x1b\[[0-9;]*m//g' > "$NODE2_LOG" &
 
 log_info "Waiting for Node 2 to be ready..."
 for i in $(seq 1 300); do

@@ -4,7 +4,7 @@ use aztec::macros::aztec;
 ///
 /// Supports both Mode A (routine lock-and-claim) and Mode B (emergency snapshot) migration.
 ///
-/// Mode A: Users call `lock_for_migration()` on old rollup, then `migrate()` on new rollup.
+/// Mode A: Users call `lock_migration_notes_mode_a()` on old rollup, then `migrate_mode_a()` on new rollup.
 /// Mode B: Users prove note existence + non-nullification at snapshot height H.
 #[aztec]
 pub contract ExampleMigrationApp {
@@ -12,8 +12,7 @@ pub contract ExampleMigrationApp {
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
         protocol_types::{
-            abis::block_header::BlockHeader, address::AztecAddress, hash::poseidon2_hash,
-            traits::Serialize,
+            address::AztecAddress, hash::poseidon2_hash, public_keys::PublicKeys, traits::Serialize,
         },
         state_vars::{
             map::Map, owned::Owned, public_immutable::PublicImmutable,
@@ -21,11 +20,18 @@ pub contract ExampleMigrationApp {
         },
     };
     use balance_set::balance_set::BalanceSet;
-    use migrator::{ARCHIVE_HEIGHT, Migrator, NOTE_HASH_TREE_HEIGHT};
-    use migrator_mode_b::{MigratorModeB, NULLIFIER_TREE_HEIGHT};
+    use migration::{
+        ArchiveProofData,
+        mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
+        mode_b::{FullKeyNote, FullProofData, migrate_notes_mode_b},
+        Point,
+        Scalar,
+    };
+    use uint_note::uint_note::UintNote;
 
     #[storage]
     struct Storage<Context> {
+        archive_root_address: PublicImmutable<AztecAddress, Context>,
         old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
         // Token balances (using Aztec's BalanceSet for private balances)
         balances: Owned<BalanceSet<Context>, Context>,
@@ -35,9 +41,17 @@ pub contract ExampleMigrationApp {
 
     #[external("public")]
     #[initializer]
-    fn constructor(old_rollup_app_address: Option<AztecAddress>) {
-        if old_rollup_app_address.is_some() {
+    fn constructor(
+        archive_root_address: Option<AztecAddress>,
+        old_rollup_app_address: Option<AztecAddress>,
+    ) {
+        assert(
+            archive_root_address.is_some() == old_rollup_app_address.is_some(),
+            "Must provide both old rollup app address and archive root address, or neither",
+        );
+        if archive_root_address.is_some() {
             self.storage.old_rollup_app_address.initialize(old_rollup_app_address.unwrap());
+            self.storage.archive_root_address.initialize(archive_root_address.unwrap());
         }
     }
 
@@ -49,6 +63,12 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn mint(to: AztecAddress, amount: u128) {
         self.storage.balances.at(to).add(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+    }
+
+    /// Burn tokens from an account (for testing)
+    #[external("private")]
+    fn burn(from: AztecAddress, amount: u128) {
+        self.storage.balances.at(from).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
     }
 
     /// Get balance (view function)
@@ -107,33 +127,22 @@ pub contract ExampleMigrationApp {
     /// 2. Nullifies the original note (preventing double-spend)
     /// 3. Creates a MigrationNote that can be proven on the destination rollup
     #[external("private")]
-    fn lock_for_migration(
-        migrator_address: AztecAddress,
-        amount: u128,
-        destination_rollup: Field,
-        owner_msk: Field,
-    ) {
+    fn lock_migration_notes_mode_a(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
-        // 1. Subtract from balance (this nullifies notes internally)
-        //    The BalanceSet handles note selection and nullification
-        //    We don't need to deliver since we're locking, not transferring
-        let _ = self.storage.balances.at(note_owner).sub(amount);
+        self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
 
         // 2. Compute migration data
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 3. Call Migrator contract to create and store the MigrationNote
-        let _ = self.call(Migrator::at(migrator_address).lock_migration_note(
+        lock_migration_notes(
+            self.context,
             note_owner,
             destination_rollup,
-            owner_msk,
-            migration_data,
-        ));
-
-        // The lock note is now in the note hash tree and can be proven
-        // on the new rollup using migrate_via_proof()
+            mpk,
+            [migration_data],
+        );
     }
 
     /// Lock a public token balance for migration to a new rollup.
@@ -144,12 +153,7 @@ pub contract ExampleMigrationApp {
     ///
     /// The MigrationNote is the same as for private locks, so the claim circuit is unchanged.
     #[external("private")]
-    fn lock_public_for_migration(
-        migrator_address: AztecAddress,
-        amount: u128,
-        destination_rollup: Field,
-        owner_msk: Field,
-    ) {
+    fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
         // 1. Compute migration data (same as private lock)
@@ -157,12 +161,13 @@ pub contract ExampleMigrationApp {
         let migration_data = poseidon2_hash(serialized);
 
         // 2. Call Migrator contract to create and store the MigrationNote
-        let _ = self.call(Migrator::at(migrator_address).lock_migration_note(
+        lock_migration_notes(
+            self.context,
             note_owner,
             destination_rollup,
-            owner_msk,
-            migration_data,
-        ));
+            mpk,
+            [migration_data],
+        );
 
         // 3. Enqueue public balance decrement (executes after private phase)
         //    If this fails (insufficient balance), the entire tx reverts including the MigrationNote
@@ -175,48 +180,44 @@ pub contract ExampleMigrationApp {
     // Mode A: Migrate via Proof (on NEW rollup)
     // ============================================================
 
+    /// Claim a Mode A migration on the new rollup.
+    ///
+    /// Verifies the MigrationNote inclusion proof via `migrate_notes_mode_a`,
+    /// checks that `amount` matches the locked `migration_data` hash, and mints
+    /// the equivalent tokens to the caller.
     #[external("private")]
-    fn migrate(
-        migrator_address: AztecAddress,
-        // migration secret key
-        msk: Field,
-        // MigrationNote fields
+    fn migrate_mode_a(
+        // Amount is not strictly needed for the migration (the proof of the MigrationNote is sufficient),
+        // but including it in the arguments allows the contract to verify it matches the migration_data hash,
+        // and mint the correct amount of tokens to the user.
         amount: u128,
-        // Lock note hashing data
-        migration_note_storage_slot: Field,
-        migration_note_randomness: Field,
-        // Siloing data
-        migration_note_nonce: Field,
-        // Note hash tree membership proof
-        migration_note_hash_leaf_index: Field,
-        migration_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
-        // Full block header (to verify note_hash_tree_root is bound to archive)
-        archive_block_header: BlockHeader,
-        // Archive membership proof (proves block header hash is in archive)
-        archive_leaf_index: Field,
-        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+        // Authentication
+        mpk: Point,
+        signature: [u8; 64],
+        //
+        note_proof_data: [MigrationNoteProofData; 1],
+        //
+        archive_proof_data: ArchiveProofData,
     ) {
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
 
-        // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
-        let migration_note_creator = self.storage.old_rollup_app_address.read();
-        let _ = self.call(Migrator::at(migrator_address).migrate_mode_a(
-            msk,
-            migration_note_creator, // migration_note_creator is the OLD app that called lock_migration_note
-            migration_data,
-            migration_note_storage_slot,
-            migration_note_randomness,
-            migration_note_nonce,
-            migration_note_hash_leaf_index,
-            migration_note_hash_sibling_path,
-            archive_block_header,
-            archive_leaf_index,
-            archive_sibling_path,
-        ));
+        assert(migration_data == note_proof_data[0].migration_data, "Migration data hash mismatch");
 
-        // 3. If successful, mint the migrated tokens to the user on the new rollup
+        let old_app = self.storage.old_rollup_app_address.read();
+
+        migrate_notes_mode_a(
+            self.context,
+            self.storage.archive_root_address.read(),
+            mpk,
+            signature,
+            old_app,
+            note_proof_data,
+            archive_proof_data,
+        );
+
+        // 4. If successful, mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(self.context.msg_sender().unwrap()).add(amount).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
@@ -227,37 +228,28 @@ pub contract ExampleMigrationApp {
     /// Same verification as migrate(), but mints to public balance instead of private.
     #[external("private")]
     fn migrate_to_public(
-        migrator_address: AztecAddress,
-        msk: Field,
         amount: u128,
-        migration_note_storage_slot: Field,
-        migration_note_randomness: Field,
-        migration_note_nonce: Field,
-        migration_note_hash_leaf_index: Field,
-        migration_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
-        archive_block_header: BlockHeader,
-        archive_leaf_index: Field,
-        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+        mpk: Point,
+        signature: [u8; 64],
+        note_proof_data: [MigrationNoteProofData; 1],
+        archive_proof_data: ArchiveProofData,
     ) {
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
+        assert(migration_data == note_proof_data[0].migration_data, "Migration data hash mismatch");
 
         // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
-        let migration_note_creator = self.storage.old_rollup_app_address.read();
-        let _ = self.call(Migrator::at(migrator_address).migrate_mode_a(
-            msk,
-            migration_note_creator,
-            migration_data,
-            migration_note_storage_slot,
-            migration_note_randomness,
-            migration_note_nonce,
-            migration_note_hash_leaf_index,
-            migration_note_hash_sibling_path,
-            archive_block_header,
-            archive_leaf_index,
-            archive_sibling_path,
-        ));
+        let old_app = self.storage.old_rollup_app_address.read();
+        migrate_notes_mode_a(
+            self.context,
+            self.storage.archive_root_address.read(),
+            mpk,
+            signature,
+            old_app,
+            note_proof_data,
+            archive_proof_data,
+        );
 
         // 3. Mint to PUBLIC balance (instead of private)
         let recipient = self.context.msg_sender().unwrap();
@@ -270,84 +262,53 @@ pub contract ExampleMigrationApp {
     // Mode B: Emergency Snapshot Migration (on NEW rollup)
     // ============================================================
 
+    /// Claim a Mode B (emergency snapshot) migration on the new rollup.
+    ///
+    /// Verifies note inclusion and non-nullification at the snapshot height via
+    /// `migrate_notes_mode_b`, checks the sum of note values matches `amount`,
+    /// and mints the equivalent tokens to the caller.
     #[external("private")]
     fn migrate_mode_b(
-        migrator_address: AztecAddress,
-        // Authentication
-        msk: Field,
         amount: u128,
-
-        // UintNote (balance note) fields
-        balance_note_owner: AztecAddress,
-        balance_note_storage_slot: Field,
-        balance_note_randomness: Field,
-        balance_note_nonce: Field,
-
-        // UintNote inclusion proof
-        balance_note_leaf_index: Field,
-        balance_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
-
-        // UintNote non-nullification proof
-        balance_note_siloed_nullifier: Field,
-        balance_low_nullifier_value: Field,
-        balance_low_nullifier_next_value: Field,
-        balance_low_nullifier_next_index: Field,
-        balance_low_nullifier_leaf_index: Field,
-        balance_low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
-
-        // MigrationKeyNote fields
-        key_note_storage_slot: Field,
-        key_note_randomness: Field,
-        key_note_nonce: Field,
-
-        // MigrationKeyNote inclusion proof
-        key_note_leaf_index: Field,
-        key_note_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
-
-        // MigrationKeyNote non-nullification proof
-        key_note_siloed_nullifier: Field,
-        key_low_nullifier_value: Field,
-        key_low_nullifier_next_value: Field,
-        key_low_nullifier_next_index: Field,
-        key_low_nullifier_leaf_index: Field,
-        key_low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
-
-        // Block header at snapshot height + archive proof
-        archive_block_header: BlockHeader,
-        archive_leaf_index: Field,
-        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+        // Authentication
+        signature: [u8; 64],
+        //
+        full_proof_data: [FullProofData<UintNote>; 1],
+        //
+        archive_proof_data: ArchiveProofData,
+        //
+        notes_owner: AztecAddress,
+        //
+        public_keys: PublicKeys,
+        partial_address: Field,
+        //
+        full_key_note: FullKeyNote,
+        //
+        nsk: Scalar,
     ) {
+        let old_app = self.storage.old_rollup_app_address.read();
+        // The `expected_storage_slot` should reflect the `balances` field in the storage layout
+        // of the contract on the old rollup. Here we just use the same storage layout as this contract
+        // is used in test on "old rollup" and "new rollup".
+        let balances_expected_storage_slot =
+            STORAGE_LAYOUT_ExampleMigrationApp.fields.balances.slot;
+        let sum = full_proof_data.fold(0, |acc, full_note| acc + full_note.note.value);
+        assert(sum == amount, "Sum of migrated notes does not match the specified amount");
         // 1. Call MigratorModeB to verify all proofs
-        let _ = self.call(MigratorModeB::at(migrator_address).migrate_mode_b(
-            msk,
-            balance_note_owner,
-            amount,
-            balance_note_storage_slot,
-            balance_note_randomness,
-            balance_note_nonce,
-            balance_note_leaf_index,
-            balance_note_sibling_path,
-            balance_note_siloed_nullifier,
-            balance_low_nullifier_value,
-            balance_low_nullifier_next_value,
-            balance_low_nullifier_next_index,
-            balance_low_nullifier_leaf_index,
-            balance_low_nullifier_sibling_path,
-            key_note_storage_slot,
-            key_note_randomness,
-            key_note_nonce,
-            key_note_leaf_index,
-            key_note_sibling_path,
-            key_note_siloed_nullifier,
-            key_low_nullifier_value,
-            key_low_nullifier_next_value,
-            key_low_nullifier_next_index,
-            key_low_nullifier_leaf_index,
-            key_low_nullifier_sibling_path,
-            archive_block_header,
-            archive_leaf_index,
-            archive_sibling_path,
-        ));
+        migrate_notes_mode_b(
+            self.context,
+            self.storage.archive_root_address.read(),
+            signature,
+            old_app,
+            full_proof_data,
+            balances_expected_storage_slot,
+            archive_proof_data,
+            notes_owner,
+            public_keys,
+            partial_address,
+            full_key_note,
+            nsk,
+        );
 
         // 2. Mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(self.context.msg_sender().unwrap()).add(amount).deliver(

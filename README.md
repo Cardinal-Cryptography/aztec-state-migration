@@ -2,8 +2,6 @@
 
 ## Test
 
-Note: It test migration from and to the same aztec network. TODO: configure setup with 2 aztec networks deployed on the same L1.
-
 1. 
 ```sh
 # install dependencies
