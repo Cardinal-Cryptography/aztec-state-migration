@@ -19,7 +19,6 @@ contract Migrator {
     IRegistry public immutable REGISTRY;
     IPoseidon2 public immutable POSEIDON2;
 
-
     /// @notice Emitted when archive roots are migrated to a new rollup
     event ArchiveRootMigrated(
         uint256 indexed oldVersion,
@@ -41,10 +40,10 @@ contract Migrator {
     /// @param l2Migrator The L2 migrator on new rollup that will store the roots
     /// @return leaf The L1→L2 message leaf hash
     /// @return leafIndex The index in the L1→L2 message tree
-    function migrateArchiveRoot(
-        uint256 oldVersion,
-        DataStructures.L2Actor calldata l2Migrator
-    ) external returns (bytes32 leaf, uint256 leafIndex) {
+    function migrateArchiveRoot(uint256 oldVersion, DataStructures.L2Actor calldata l2Migrator)
+        external
+        returns (bytes32 leaf, uint256 leafIndex)
+    {
         IRollup oldRollup = IRollup(address(REGISTRY.getRollup(oldVersion)));
         IRollup newRollup = IRollup(address(REGISTRY.getRollup(l2Migrator.version)));
 
@@ -54,9 +53,7 @@ contract Migrator {
 
         // Content: poseidon2(oldVersion, archiveRoot, provenCheckpointNumber)
         // This allows the L2 contract to verify the message authenticity
-        bytes32 content = bytes32(
-            POSEIDON2.hash_3(oldVersion, uint256(archiveRoot), provenCheckpointNumber)
-        );
+        bytes32 content = bytes32(POSEIDON2.hash_3(oldVersion, uint256(archiveRoot), provenCheckpointNumber));
 
         // Send to new rollup via L1→L2 message
         // Use SECRET_HASH_FOR_ZERO so L2 can consume with secret=0
@@ -64,13 +61,7 @@ contract Migrator {
         (leaf, leafIndex) = inbox.sendL2Message(l2Migrator, content, SECRET_HASH_FOR_ZERO);
 
         emit ArchiveRootMigrated(
-            oldVersion,
-            l2Migrator.version,
-            l2Migrator.actor,
-            archiveRoot,
-            provenCheckpointNumber,
-            leaf,
-            leafIndex
+            oldVersion, l2Migrator.version, l2Migrator.actor, archiveRoot, provenCheckpointNumber, leaf, leafIndex
         );
     }
 
@@ -94,21 +85,13 @@ contract Migrator {
 
         bytes32 archiveRoot = oldRollup.archiveAt(blockNumber);
 
-        bytes32 content = bytes32(
-            POSEIDON2.hash_3(oldVersion, uint256(archiveRoot), blockNumber)
-        );
+        bytes32 content = bytes32(POSEIDON2.hash_3(oldVersion, uint256(archiveRoot), blockNumber));
 
         IInbox inbox = newRollup.getInbox();
         (leaf, leafIndex) = inbox.sendL2Message(l2Migrator, content, SECRET_HASH_FOR_ZERO);
 
         emit ArchiveRootMigrated(
-            oldVersion,
-            l2Migrator.version,
-            l2Migrator.actor,
-            archiveRoot,
-            blockNumber,
-            leaf,
-            leafIndex
+            oldVersion, l2Migrator.version, l2Migrator.actor, archiveRoot, blockNumber, leaf, leafIndex
         );
     }
 
