@@ -10,10 +10,18 @@
   "scripts": {
     "clean": "rm -rf noir/target noir/codegenCache.json solidity/target solidity/cache",
     "sol:deps": "cd solidity && soldeer install",
-    "noir:compile": "cd noir && aztec compile",
     "sol:compile": "cd solidity && forge build",
+    "sol:fmt": "cd solidity && forge fmt --write",
+    "sol:fmt:check": "cd solidity && forge fmt --check",
+    "noir:compile": "cd noir && aztec compile",
     "noir:codegen": "cd noir && aztec codegen ./target -o ./target/artifacts",
-    "build": "tsc",
+    "noir:fmt": "cd noir && aztec fmt",
+    "noir:fmt:check": "cd noir && aztec fmt --check",
+    "ts:build": "tsc",
+    "ts:fmt": "prettier --write 'ts/**/*.ts' 'scripts/**/*.ts'",
+    "ts:fmt:check": "prettier --check 'ts/**/*.ts' 'scripts/**/*.ts'",
+    "fmt": "yarn sol:fmt && yarn noir:fmt && yarn ts:fmt",
+    "fmt:check": "yarn sol:fmt:check && yarn noir:fmt:check && yarn ts:fmt:check",
     "test:setup": "./scripts/utils/dual-rollup-setup.sh",
     "test:stop": "./scripts/utils/dual-rollup-stop.sh",
     "check:full": "./scripts/check-full.sh",
@@ -38,6 +46,7 @@
     "viem": "^2.21.0"
   },
   "devDependencies": {
+    "prettier": "^3.8.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }

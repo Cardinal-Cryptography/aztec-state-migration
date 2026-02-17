@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   NODE_VERSION: '22'
   AZTEC_VERSION: 3.0.0-devnet.6-patch.1
@@ -61,13 +65,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
       - uses: foundry-rs/foundry-toolchain@v1
+      - uses: ./.github/actions/setup-aztec
+        with:
+          version: ${{ env.AZTEC_VERSION }}
       - run: corepack enable && yarn install
       - uses: actions/download-artifact@v4
         with:
           name: noir-target
           path: noir/target/
-      - run: forge fmt --check --root solidity
-      - run: npx tsc --noEmit
+      - run: yarn fmt:check
 
   test-e2e:
     name: Test - E2E

@@ -77,7 +77,9 @@ export async function migrateArchiveRootOnL1(
       },
     ],
   });
-  const receipt = await l1PublicClient.waitForTransactionReceipt({ hash: txHash });
+  const receipt = await l1PublicClient.waitForTransactionReceipt({
+    hash: txHash,
+  });
 
   // Parse ArchiveRootMigrated event
   const archiveRootLog = receipt.logs.find((log) => {
@@ -93,7 +95,9 @@ export async function migrateArchiveRootOnL1(
     }
   });
   if (!archiveRootLog) {
-    throw new Error("ArchiveRootMigrated event not found in L1 transaction receipt");
+    throw new Error(
+      "ArchiveRootMigrated event not found in L1 transaction receipt",
+    );
   }
 
   const archiveEvent = decodeEventLog({
@@ -111,8 +115,7 @@ export async function migrateArchiveRootOnL1(
 
   // Parse MessageSent event from Inbox
   const inboxLogs = receipt.logs.filter(
-    (log) =>
-      log.address.toLowerCase() === params.newInboxAddress.toLowerCase(),
+    (log) => log.address.toLowerCase() === params.newInboxAddress.toLowerCase(),
   );
   if (inboxLogs.length === 0) {
     throw new Error("No MessageSent event found from Inbox contract");
