@@ -153,12 +153,7 @@ pub contract ExampleMigrationApp {
     ///
     /// The MigrationNote is the same as for private locks, so the claim circuit is unchanged.
     #[external("private")]
-    fn lock_public_for_migration(
-        migrator_address: AztecAddress,
-        amount: u128,
-        destination_rollup: Field,
-        owner_msk: Field,
-    ) {
+    fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
         // 1. Compute migration data (same as private lock)
@@ -166,12 +161,13 @@ pub contract ExampleMigrationApp {
         let migration_data = poseidon2_hash(serialized);
 
         // 2. Call Migrator contract to create and store the MigrationNote
-        let _ = self.call(Migrator::at(migrator_address).lock_migration_note(
+        lock_migration_notes(
+            self.context,
             note_owner,
             destination_rollup,
-            owner_msk,
-            migration_data,
-        ));
+            mpk,
+            [migration_data],
+        );
 
         // 3. Enqueue public balance decrement (executes after private phase)
         //    If this fails (insufficient balance), the entire tx reverts including the MigrationNote
@@ -232,37 +228,28 @@ pub contract ExampleMigrationApp {
     /// Same verification as migrate(), but mints to public balance instead of private.
     #[external("private")]
     fn migrate_to_public(
-        migrator_address: AztecAddress,
-        msk: Field,
         amount: u128,
-        migration_note_storage_slot: Field,
-        migration_note_randomness: Field,
-        migration_note_nonce: Field,
-        migration_note_hash_leaf_index: Field,
-        migration_note_hash_sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
-        archive_block_header: BlockHeader,
-        archive_leaf_index: Field,
-        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+        mpk: Point,
+        signature: [u8; 64],
+        note_proof_data: [MigrationNoteProofData; 1],
+        archive_proof_data: ArchiveProofData,
     ) {
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         let serialized = amount.serialize();
         let migration_data = poseidon2_hash(serialized);
+        assert(migration_data == note_proof_data[0].migration_data, "Migration data hash mismatch");
 
         // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
-        let migration_note_creator = self.storage.old_rollup_app_address.read();
-        let _ = self.call(Migrator::at(migrator_address).migrate_mode_a(
-            msk,
-            migration_note_creator,
-            migration_data,
-            migration_note_storage_slot,
-            migration_note_randomness,
-            migration_note_nonce,
-            migration_note_hash_leaf_index,
-            migration_note_hash_sibling_path,
-            archive_block_header,
-            archive_leaf_index,
-            archive_sibling_path,
-        ));
+        let old_app = self.storage.old_rollup_app_address.read();
+        migrate_notes_mode_a(
+            self.context,
+            self.storage.archive_root_address.read(),
+            mpk,
+            signature,
+            old_app,
+            note_proof_data,
+            archive_proof_data,
+        );
 
         // 3. Mint to PUBLIC balance (instead of private)
         let recipient = self.context.msg_sender().unwrap();
