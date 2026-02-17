@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  AZTEC_VERSION: 3.0.0-devnet.6-patch.1
+
+jobs:
+  setup:
+    name: Setup & Compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: ./.github/actions/setup-aztec
+        with:
+          version: ${{ env.AZTEC_VERSION }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install soldeer
+      - run: corepack enable && yarn install
+      - run: cd solidity && soldeer install
+      - name: Compile Noir contracts
+        run: yarn noir:compile && yarn noir:codegen
+      - name: Compile Solidity contracts
+        run: yarn sol:compile
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noir-target
+          path: noir/target/
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solidity-build
+          path: |
+            solidity/target/
+            solidity/dependencies/
+            solidity/cache/
+          retention-days: 1
+
+  format-and-lint:
+    name: Format & Lint
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - uses: foundry-rs/foundry-toolchain@v1
+      - run: corepack enable && yarn install
+      - uses: actions/download-artifact@v4
+        with:
+          name: noir-target
+          path: noir/target/
+      - run: forge fmt --check --root solidity
+      - run: npx tsc --noEmit
+
+  test-e2e:
+    name: Test - E2E
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: ./.github/actions/setup-aztec
+        with:
+          version: ${{ env.AZTEC_VERSION }}
+      - run: corepack enable && yarn install
+      - uses: actions/download-artifact@v4
+        with:
+          name: noir-target
+          path: noir/target/
+      - uses: actions/download-artifact@v4
+        with:
+          name: solidity-build
+          path: solidity/
+      - name: Start dual-rollup infrastructure
+        run: yarn test:setup
+      - name: Test - Migration Key Registry
+        run: yarn test:registry
+      - name: Test - Migration Mode A
+        run: yarn test:mode-a
+      - name: Test - Migration Mode B
+        run: yarn test:mode-b
+      - name: Tear down infrastructure
+        if: always()
+        run: yarn test:stop
