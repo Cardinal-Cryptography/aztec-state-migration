@@ -61,6 +61,9 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: yarn
       - uses: foundry-rs/foundry-toolchain@v1
+      - uses: ./.github/actions/setup-aztec
+        with:
+          version: ${{ env.AZTEC_VERSION }}
       - run: corepack enable && yarn install
       - uses: actions/download-artifact@v4
         with:
