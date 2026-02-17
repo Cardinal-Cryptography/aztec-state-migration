@@ -66,8 +66,7 @@ jobs:
         with:
           name: noir-target
           path: noir/target/
-      - run: forge fmt --check --root solidity
-      - run: npx tsc --noEmit
+      - run: yarn fmt:check
 
   test-e2e:
     name: Test - E2E
