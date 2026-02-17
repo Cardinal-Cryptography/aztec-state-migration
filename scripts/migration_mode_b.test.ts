@@ -248,7 +248,6 @@ async function main() {
     newApp.address,
   );
 
-  console.log(`   Balance note proofs: ${fullProofs.length}`);
   console.log(`   Migration args prepared.\n`);
 
   // ============================================================
@@ -283,30 +282,22 @@ async function main() {
       .send({ from: newUserManager.address })
       .wait();
 
-    console.log(`   Migrate tx: ${migrateTx.txHash}`);
-
     const newBalanceAfter = await newAppUser.methods
       .get_balance(newUserManager.address)
       .simulate({ from: newUserManager.address });
     console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
 
-    if (BigInt(newBalanceAfter) >= migrateAmount) {
-      console.log(
-        "\n   Mode B migration successful! Balance matches migrated amount.",
-      );
-    } else {
-      console.log(
-        "\n   Migration completed but balance does not match expected amount.",
+    if (BigInt(newBalanceAfter) < migrateAmount) {
+      throw new Error(
+        `Migration completed but balance ${newBalanceAfter} does not match expected ${migrateAmount}`,
       );
     }
+    console.log(
+      "\n   Mode B migration successful! Balance matches migrated amount.",
+    );
   } catch (e) {
     const err = e as Error;
-    console.log(`   migrate_mode_b failed: ${err.message}`);
-    if (err.stack) {
-      console.log(
-        `   Stack: ${err.stack.split("\n").slice(0, 10).join("\n   ")}`,
-      );
-    }
+    throw new Error(`migrate_mode_b failed: ${err.message}`);
   }
 
   // ============================================================
@@ -341,7 +332,7 @@ async function main() {
   const amount = nullifiedNoteProof.note.value;
 
   try {
-    await newAppUser.methods
+    let res = await newAppUser.methods
       .migrate_mode_b(
         amount,
         [...nullifedNoteSig],
@@ -355,12 +346,16 @@ async function main() {
       )
       .send({ from: newUserManager.address })
       .wait();
+    if (!res.status.includes("reverted")) {
+      throw new Error("Expected migration of nullified note to fail, but it succeeded");
+    }
+    console.log("   Expected failure: tx reverted");
   } catch (e) {
     const err = e as Error;
     if (err.message.includes("Note nullifier non-inclusion")) {
       console.log("   Expected failure: Note is not active");
     } else {
-      console.log(`   Unexpected error: ${err.message}`);
+      throw new Error(`Unexpected error during nullified note test: ${err.message}`);
     }
   }
   // ============================================================
