@@ -5,9 +5,10 @@ description: Verifies code implements exactly what documentation specifies for b
 
 # Project focus (Aztec + Noir)
 When working in this repo, prioritize these areas:
-- Noir contracts: noir/contracts/** (especially noir/contracts/migrator/** and noir/contracts/example_app/**)
+- Noir contracts: especially noir/migration_lib/**, noir/contracts/** and noir/contracts/example_app/**)
 - Solidity contracts: solidity/** (especially solidity/contracts/**)
 - TypeScript scripts/tests: scripts/**/*.ts
+- Typescript sdk/lib: ts/migration-lib/**
 - Spec: docs/spec/migration-spec.md
 
 Default behavior:
