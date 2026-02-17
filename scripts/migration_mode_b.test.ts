@@ -255,7 +255,6 @@ async function main() {
   // ============================================================
   console.log("13. Calling migrate_mode_b on NEW rollup...");
 
-
   // The ExampleMigrationApp currently only supports migrating one note at a time.
   const noteProof = fullProofs[0];
   const migrateAmount = noteProof.note.value;
@@ -347,7 +346,9 @@ async function main() {
       .send({ from: newUserManager.address })
       .wait();
     if (!res.status.includes("reverted")) {
-      throw new Error("Expected migration of nullified note to fail, but it succeeded");
+      throw new Error(
+        "Expected migration of nullified note to fail, but it succeeded",
+      );
     }
     console.log("   Expected failure: tx reverted");
   } catch (e) {
@@ -355,7 +356,9 @@ async function main() {
     if (err.message.includes("Note nullifier non-inclusion")) {
       console.log("   Expected failure: Note is not active");
     } else {
-      throw new Error(`Unexpected error during nullified note test: ${err.message}`);
+      throw new Error(
+        `Unexpected error during nullified note test: ${err.message}`,
+      );
     }
   }
   // ============================================================

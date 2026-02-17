@@ -11,7 +11,11 @@ const AZTEC_NODE_URL = process.env.AZTEC_NODE_URL ?? "http://localhost:8080";
 
 /** simulate() returns a plain {x, y, is_infinite} object – convert to a Point instance. */
 function toPoint(obj: any): Point {
-  return new Point(Fr.fromPlainObject(obj.x), Fr.fromPlainObject(obj.y), obj.is_infinite);
+  return new Point(
+    Fr.fromPlainObject(obj.x),
+    Fr.fromPlainObject(obj.y),
+    obj.is_infinite,
+  );
 }
 
 /** Point.toString() throws for infinite points – use this for safe logging. */
@@ -75,9 +79,9 @@ async function main() {
   // Step 3: Verify no key is registered initially
   // ============================================================
   console.log("3. Verifying initial state...");
-  const initialKey = toPoint(await registry.methods
-    .get(alice)
-    .simulate({ from: alice }));
+  const initialKey = toPoint(
+    await registry.methods.get(alice).simulate({ from: alice }),
+  );
   console.log(`   Alice's initial mpk: ${pointStr(initialKey)}`);
   if (!initialKey.isZero()) {
     throw new Error("Expected initial mpk to be zero (point at infinity)");
@@ -104,9 +108,9 @@ async function main() {
   // Step 5: Query and verify the registered key
   // ============================================================
   console.log("5. Querying registered key...");
-  const registeredKey = toPoint(await registry.methods
-    .get(alice)
-    .simulate({ from: alice }));
+  const registeredKey = toPoint(
+    await registry.methods.get(alice).simulate({ from: alice }),
+  );
   console.log(`   Alice's mpk: ${pointStr(registeredKey)}`);
 
   if (registeredKey.isZero()) {
@@ -124,7 +128,9 @@ async function main() {
   // Step 6: Verify Bob has no key registered
   // ============================================================
   console.log("6. Verifying Bob has no key...");
-  const bobKey = toPoint(await registry.methods.get(bob).simulate({ from: bob }));
+  const bobKey = toPoint(
+    await registry.methods.get(bob).simulate({ from: bob }),
+  );
   console.log(`   Bob's mpk: ${pointStr(bobKey)}`);
   if (!bobKey.isZero()) {
     throw new Error("Expected Bob's mpk to be zero");
@@ -136,15 +142,12 @@ async function main() {
   // Step 7: Cancel registration
   // ============================================================
   console.log("7. Cancelling Alice's registration...");
-  const cancelTx = await registry.methods
-    .cancel()
-    .send({ from: alice })
-    .wait();
+  const cancelTx = await registry.methods.cancel().send({ from: alice }).wait();
   console.log(`   Cancel tx: ${cancelTx.txHash}`);
 
-  const keyAfterCancel = toPoint(await registry.methods
-    .get(alice)
-    .simulate({ from: alice }));
+  const keyAfterCancel = toPoint(
+    await registry.methods.get(alice).simulate({ from: alice }),
+  );
   console.log(`   Alice's mpk after cancel: ${pointStr(keyAfterCancel)}`);
   if (!keyAfterCancel.isZero()) {
     throw new Error("Expected mpk to be zero after cancellation");
@@ -167,9 +170,9 @@ async function main() {
     .wait();
   console.log(`   Re-register tx: ${reRegisterTx.txHash}`);
 
-  const reRegisteredKey = toPoint(await registry.methods
-    .get(alice)
-    .simulate({ from: alice }));
+  const reRegisteredKey = toPoint(
+    await registry.methods.get(alice).simulate({ from: alice }),
+  );
   console.log(`   Alice's new mpk: ${pointStr(reRegisteredKey)}`);
   if (reRegisteredKey.isZero()) {
     throw new Error("Expected mpk to be non-zero after re-registration");

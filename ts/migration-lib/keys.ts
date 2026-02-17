@@ -37,7 +37,7 @@ export async function signMigrationModeA(
   recipient: AztecAddress,
   newAppAddress: AztecAddress,
 ): Promise<Buffer<ArrayBufferLike>> {
-  const notesHash = await poseidon2Hash(migrationNotes.map(n => n.noteHash));
+  const notesHash = await poseidon2Hash(migrationNotes.map((n) => n.noteHash));
   const msg = await poseidon2Hash([
     CLAIM_DOMAIN_A,
     oldRollupVersion,
@@ -70,7 +70,7 @@ export async function signMigrationModeB(
   recipient: AztecAddress,
   newAppAddress: AztecAddress,
 ): Promise<Buffer<ArrayBufferLike>> {
-  const notesHash = await poseidon2Hash(notes.map(n => n.noteHash));
+  const notesHash = await poseidon2Hash(notes.map((n) => n.noteHash));
   const msg = await poseidon2Hash([
     CLAIM_DOMAIN_B,
     oldRollupVersion,
