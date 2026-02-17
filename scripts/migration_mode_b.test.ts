@@ -229,7 +229,7 @@ async function main() {
       (note) => UintNote.fromNote(note),
     ),
     oldUserWallet
-      .buildNoteAndNullifierProofs(provenBlockNumber, [keyNotes[0]], (note) =>
+      .buildNoteProofs(provenBlockNumber, [keyNotes[0]], (note) =>
         KeyNote.fromNote(note),
       )
       .then((p) => p[0]),

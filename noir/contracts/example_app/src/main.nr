@@ -23,7 +23,7 @@ pub contract ExampleMigrationApp {
     use migration::{
         ArchiveProofData,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
-        mode_b::{FullKeyNote, FullProofData, migrate_notes_mode_b},
+        mode_b::{KeyNoteProofData, FullProofData, migrate_notes_mode_b},
         Point,
         Scalar,
     };
@@ -282,7 +282,7 @@ pub contract ExampleMigrationApp {
         public_keys: PublicKeys,
         partial_address: Field,
         //
-        full_key_note: FullKeyNote,
+        key_note: KeyNoteProofData,
         //
         nsk: Scalar,
     ) {
@@ -306,7 +306,7 @@ pub contract ExampleMigrationApp {
             notes_owner,
             public_keys,
             partial_address,
-            full_key_note,
+            key_note,
             nsk,
         );
 

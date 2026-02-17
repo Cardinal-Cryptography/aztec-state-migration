@@ -48,7 +48,18 @@ pub struct FullProofData<Note> {
     pub low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
 }
 
-pub type FullKeyNote = FullProofData<MigrationKeyNote>;
+/// Key note with inclusion proof only (no nullifier proof needed since the key is immutable).
+#[derive(Serialize, Packable)]
+pub struct KeyNoteProofData {
+    pub note: MigrationKeyNote,
+    // Note randomness
+    pub randomness: Field,
+    // Note uniqueness
+    pub nonce: Field,
+    // Note inclusion proof
+    pub leaf_index: Field,
+    pub sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+}
 
 // ============================================================
 // Mode B: Emergency Snapshot Migration (on NEW rollup)
@@ -59,9 +70,8 @@ pub type FullKeyNote = FullProofData<MigrationKeyNote>;
 //   2. Notes inclusion in note_hash_tree at snapshot H
 //   3. Notes non-nullification at snapshot H (constrained nullifier derivation)
 //   4. MigrationKeyNote inclusion in note_hash_tree at snapshot H
-//   5. MigrationKeyNote non-nullification at snapshot H (constrained nullifier derivation)
-//   6. Authentication: verify signature over migration context and notes hashes against mpk
-//   7. Archive root verification via block header + merkle proof
+//   5. Authentication: verify signature over migration context and notes hashes against mpk
+//   6. Archive root verification via block header + merkle proof
 
 /// Verify and claim a Mode B (emergency snapshot) migration for a batch of notes.
 ///
@@ -81,7 +91,7 @@ pub type FullKeyNote = FullProofData<MigrationKeyNote>;
 /// - `notes_owner`:                   Address that owned the notes on the old rollup.
 /// - `public_keys`:                   Owner's public key set (npk_m is re-derived from `nsk`).
 /// - `partial_address`:               Owner's partial address for address re-computation.
-/// - `full_key_note`:                 `MigrationKeyNote` with inclusion and non-nullification proofs.
+/// - `key_note`:                      `MigrationKeyNote` with inclusion proof.
 /// - `nsk`:                           Master nullifier secret key (used to derive npk_m and nsk_app).
 pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     context: &mut PrivateContext,
@@ -94,7 +104,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     notes_owner: AztecAddress,
     public_keys: PublicKeys,
     partial_address: Field,
-    full_key_note: FullKeyNote,
+    key_note: KeyNoteProofData,
     nsk: Scalar,
 ) {
     // ============================================================
@@ -164,17 +174,17 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
         new_app,
     ]);
     assert(
-        schnorr::verify_signature(full_key_note.note.mpk, signature, msg.to_be_bytes::<32>()),
+        schnorr::verify_signature(key_note.note.mpk, signature, msg.to_be_bytes::<32>()),
         "Invalid migration signature",
     );
 
     // ============================================================
     // 4. Compute MigrationKeyNote hash (includes owner for binding)
     // ============================================================
-    let key_note_hash = full_key_note.note.compute_note_hash(
+    let key_note_hash = key_note.note.compute_note_hash(
         notes_owner,
         STORAGE_LAYOUT_MigrationKeyRegistry.fields.registered_keys.slot,
-        full_key_note.randomness,
+        key_note.randomness,
     );
     // Silo by old key registry contract address
     let old_registry = MigrationArchiveRegistry::at(migration_archive_registry)
@@ -182,15 +192,15 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
         .call(context);
     let key_siloed = compute_siloed_note_hash(old_registry, key_note_hash);
     // Make unique with nonce
-    let key_unique = compute_unique_note_hash(full_key_note.nonce, key_siloed);
+    let key_unique = compute_unique_note_hash(key_note.nonce, key_siloed);
 
     // ============================================================
     // 5. Verify MigrationKeyNote inclusion in note hash tree
     // ============================================================
     let computed_key_note_root = root_from_sibling_path(
         key_unique,
-        full_key_note.leaf_index,
-        full_key_note.sibling_path,
+        key_note.leaf_index,
+        key_note.sibling_path,
     );
     assert(
         computed_key_note_root == note_hash_tree_root,
@@ -198,46 +208,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     );
 
     // ============================================================
-    // 6. Compute and verify MigrationKeyNote non-nullification
-    // ============================================================
-    // Derive nsk_app for the old key registry contract
-    let nsk_app_key = poseidon2_hash_with_separator(
-        [nsk.hi, nsk.lo, old_registry.to_field()],
-        GENERATOR_INDEX__NSK_M,
-    );
-    let key_inner_nullifier =
-        poseidon2_hash_with_separator([key_unique, nsk_app_key], GENERATOR_INDEX__NOTE_NULLIFIER);
-    let key_note_siloed_nullifier = compute_siloed_nullifier(old_registry, key_inner_nullifier);
-
-    let key_low_leaf_hash = poseidon2_hash([
-        full_key_note.low_nullifier_value,
-        full_key_note.low_nullifier_next_value,
-        full_key_note.low_nullifier_next_index,
-    ]);
-    let computed_key_nullifier_root = root_from_sibling_path(
-        key_low_leaf_hash,
-        full_key_note.low_nullifier_leaf_index,
-        full_key_note.low_nullifier_sibling_path,
-    );
-    assert(
-        computed_key_nullifier_root == nullifier_tree_root,
-        "Key low nullifier leaf not in nullifier tree",
-    );
-    assert(
-        full_field_less_than(full_key_note.low_nullifier_value, key_note_siloed_nullifier),
-        "Key nullifier non-inclusion: low leaf not less than target",
-    );
-    assert(
-        full_field_greater_than(
-            full_key_note.low_nullifier_next_value,
-            key_note_siloed_nullifier,
-        )
-            | (full_key_note.low_nullifier_next_index == 0),
-        "Key nullifier non-inclusion: next leaf not greater than target",
-    );
-
-    // ============================================================
-    // 7. Compute archive root from block header
+    // 6. Compute archive root from block header
     // ============================================================
     let archive_block_header_hash = archive_proof_data.archive_block_header.hash();
     let computed_archive_root = root_from_sibling_path(
@@ -247,7 +218,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     );
 
     // ============================================================
-    // 8. Enqueue public verification of archive root and snapshot height
+    // 7. Enqueue public verification of archive root and snapshot height
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_b(computed_archive_root)
