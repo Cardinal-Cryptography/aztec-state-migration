@@ -24,7 +24,7 @@ pub contract MigrationKeyRegistry {
     fn constructor() {}
 
     /// Register a migration public key for the caller (once only).
-    /// A second call will fail with "Attempted to emit duplicate nullifier".
+    /// A second call will fail because the initialization nullifier already exists.
     #[external("private")]
     fn register(mpk: Point) {
         assert(
