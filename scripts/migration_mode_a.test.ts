@@ -170,13 +170,14 @@ async function main() {
       .simulate({ from: newUserManager.address });
     console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
 
-    if (BigInt(newBalanceAfter) === LOCK_AMOUNT) {
-      console.log("\n   Cross-rollup migration fully successful!");
-    } else {
-      console.log("\n   Migration completed but balance does not match.");
+    if (BigInt(newBalanceAfter) !== LOCK_AMOUNT) {
+      throw new Error(
+        `Migration completed but balance ${newBalanceAfter} does not match expected ${LOCK_AMOUNT}`,
+      );
     }
+    console.log("\n   Cross-rollup migration fully successful!");
   } catch (e) {
-    console.log(`   migrate failed: ${(e as Error).message}`);
+    throw new Error(`migrate_mode_a failed: ${(e as Error).message}`);
   }
 
   const newBalanceAfter = await newApp.methods
@@ -328,13 +329,14 @@ async function main() {
       `   Public balance on NEW rollup after: ${newPublicBalanceAfterMigrate}`,
     );
 
-    if (BigInt(newPublicBalanceAfterMigrate) === PUBLIC_LOCK_AMOUNT) {
-      console.log("✅ Public balance migration fully successful!");
-    } else {
-      console.log("⚠️  Migration completed but public balance does not match.");
+    if (BigInt(newPublicBalanceAfterMigrate) !== PUBLIC_LOCK_AMOUNT) {
+      throw new Error(
+        `Migration completed but public balance ${newPublicBalanceAfterMigrate} does not match expected ${PUBLIC_LOCK_AMOUNT}`,
+      );
     }
+    console.log("   Public balance migration fully successful!");
   } catch (e) {
-    console.log(`   ❌ migrate_to_public failed: ${(e as Error).message}`);
+    throw new Error(`migrate_to_public failed: ${(e as Error).message}`);
   }
 
   const newPublicBalanceAfter = await newApp.methods

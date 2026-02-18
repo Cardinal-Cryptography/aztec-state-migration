@@ -3,26 +3,46 @@ import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import { AccountData, ProvenTx } from "@aztec/test-wallet/server";
-import { AccountManager, SendOptions, SimulateOptions } from "@aztec/aztec.js/wallet";
+import {
+  AccountManager,
+  SendOptions,
+  SimulateOptions,
+} from "@aztec/aztec.js/wallet";
 import { SchnorrAccountContract } from "@aztec/accounts/schnorr";
 import { GrumpkinScalar } from "@aztec/aztec.js/fields";
-import { AuthWitness, CallIntent, ContractFunctionInteractionCallIntent, getMessageHashFromIntent, IntentInnerHash, lookupValidity, SetPublicAuthwitContractInteraction } from "@aztec/aztec.js/authorization";
+import {
+  AuthWitness,
+  CallIntent,
+  ContractFunctionInteractionCallIntent,
+  getMessageHashFromIntent,
+  IntentInnerHash,
+  lookupValidity,
+  SetPublicAuthwitContractInteraction,
+} from "@aztec/aztec.js/authorization";
 import { ContractInstanceWithAddress } from "@aztec/stdlib/contract";
 import { ContractArtifact } from "@aztec/stdlib/abi";
-import { ExecutionPayload, mergeExecutionPayloads, TxSimulationResult } from "@aztec/stdlib/tx";
+import {
+  ExecutionPayload,
+  mergeExecutionPayloads,
+  TxSimulationResult,
+} from "@aztec/stdlib/tx";
 import { DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
 import { BaseMigrationWallet } from "./migration-base-wallet.js";
-import { BaseMigrationAccount, MigrationAccount, SignerlessMigrationAccount } from "./migration-account.js";
+import {
+  BaseMigrationAccount,
+  MigrationAccount,
+  SignerlessMigrationAccount,
+} from "./migration-account.js";
 
 /**
  * Copy of `BaseTestWallet` from `@aztec/src/test-wallet/wallet/test_wallet.ts`
- * 
+ *
  * Changes:
  * - Implements `MigrationAccount` instead of `Account`
  * - Implements `SignerlessMigrationAccount` instead of `SignerlessAccount`
  */
 export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
-    protected accounts: Map<string, MigrationAccount> = new Map();
+  protected accounts: Map<string, MigrationAccount> = new Map();
 
   /**
    * Toggle for running "simulated simulations" when calling simulateTx.
@@ -55,13 +75,15 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
     this.baseFeePadding = value ?? 0.5;
   }
 
-  protected async getAccountFromAddress(address: AztecAddress): Promise<MigrationAccount> {
+  protected async getAccountFromAddress(
+    address: AztecAddress,
+  ): Promise<MigrationAccount> {
     let account: MigrationAccount | undefined;
     if (address.equals(AztecAddress.ZERO)) {
       const chainInfo = await this.getChainInfo();
       account = new SignerlessMigrationAccount(chainInfo);
     } else {
-      account = this.accounts.get(address?.toString() ?? '');
+      account = this.accounts.get(address?.toString() ?? "");
     }
 
     if (!account) {
@@ -72,7 +94,12 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
   }
 
   getAccounts() {
-    return Promise.resolve(Array.from(this.accounts.values()).map(acc => ({ alias: '', item: acc.getAddress() })));
+    return Promise.resolve(
+      Array.from(this.accounts.values()).map((acc) => ({
+        alias: "",
+        item: acc.getAddress(),
+      })),
+    );
   }
 
   /**
@@ -87,14 +114,21 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
     const secret = accountData?.secret ?? Fr.random();
     const salt = accountData?.salt ?? Fr.random();
     // Use SchnorrAccountContract if not provided
-    const contract = accountData?.contract ?? new SchnorrAccountContract(GrumpkinScalar.random());
+    const contract =
+      accountData?.contract ??
+      new SchnorrAccountContract(GrumpkinScalar.random());
 
-    const accountManager = await AccountManager.create(this, secret, contract, salt);
+    const accountManager = await AccountManager.create(
+      this,
+      secret,
+      contract,
+      salt,
+    );
     const instance = accountManager.getInstance();
     const artifact = await contract.getContractArtifact();
-    
+
     await this.registerContract(instance, artifact, secret);
-    
+
     const account = await accountManager.getAccount();
     const migrationAccount = await BaseMigrationAccount.create(account, secret);
     this.accounts.set(accountManager.address.toString(), migrationAccount);
@@ -102,9 +136,21 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
     return accountManager;
   }
 
-  abstract createSchnorrAccount(secret: Fr, salt: Fr, signingKey?: Fq): Promise<AccountManager>;
-  abstract createECDSARAccount(secret: Fr, salt: Fr, signingKey: Buffer): Promise<AccountManager>;
-  abstract createECDSAKAccount(secret: Fr, salt: Fr, signingKey: Buffer): Promise<AccountManager>;
+  abstract createSchnorrAccount(
+    secret: Fr,
+    salt: Fr,
+    signingKey?: Fq,
+  ): Promise<AccountManager>;
+  abstract createECDSARAccount(
+    secret: Fr,
+    salt: Fr,
+    signingKey: Buffer,
+  ): Promise<AccountManager>;
+  abstract createECDSAKAccount(
+    secret: Fr,
+    salt: Fr,
+    signingKey: Buffer,
+  ): Promise<AccountManager>;
 
   /**
    * Lookup the validity of an authwit in private and public contexts.
@@ -119,7 +165,10 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
    */
   lookupValidity(
     onBehalfOf: AztecAddress,
-    intent: IntentInnerHash | CallIntent | ContractFunctionInteractionCallIntent,
+    intent:
+      | IntentInnerHash
+      | CallIntent
+      | ContractFunctionInteractionCallIntent,
     witness: AuthWitness,
   ): Promise<{
     /** boolean flag indicating if the authwit is valid in private context */
@@ -139,10 +188,19 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
    */
   public setPublicAuthWit(
     from: AztecAddress,
-    messageHashOrIntent: Fr | IntentInnerHash | CallIntent | ContractFunctionInteractionCallIntent,
+    messageHashOrIntent:
+      | Fr
+      | IntentInnerHash
+      | CallIntent
+      | ContractFunctionInteractionCallIntent,
     authorized: boolean,
   ): Promise<SetPublicAuthwitContractInteraction> {
-    return SetPublicAuthwitContractInteraction.create(this, from, messageHashOrIntent, authorized);
+    return SetPublicAuthwitContractInteraction.create(
+      this,
+      from,
+      messageHashOrIntent,
+      authorized,
+    );
   }
 
   /**
@@ -154,26 +212,49 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
    */
   public override async createAuthWit(
     from: AztecAddress,
-    messageHashOrIntent: Fr | IntentInnerHash | CallIntent | ContractFunctionInteractionCallIntent,
+    messageHashOrIntent:
+      | Fr
+      | IntentInnerHash
+      | CallIntent
+      | ContractFunctionInteractionCallIntent,
   ): Promise<AuthWitness> {
     const account = await this.getAccountFromAddress(from);
     const chainInfo = await this.getChainInfo();
-    const messageHash = await getMessageHashFromIntent(messageHashOrIntent, chainInfo);
+    const messageHash = await getMessageHashFromIntent(
+      messageHashOrIntent,
+      chainInfo,
+    );
     return account.createAuthWit(messageHash);
   }
 
   abstract getFakeAccountDataFor(
     address: AztecAddress, // eslint-disable-next-line jsdoc/require-jsdoc
-  ): Promise<{ account: Account; instance: ContractInstanceWithAddress; artifact: ContractArtifact }>;
+  ): Promise<{
+    account: Account;
+    instance: ContractInstanceWithAddress;
+    artifact: ContractArtifact;
+  }>;
 
-  override async simulateTx(executionPayload: ExecutionPayload, opts: SimulateOptions): Promise<TxSimulationResult> {
+  override async simulateTx(
+    executionPayload: ExecutionPayload,
+    opts: SimulateOptions,
+  ): Promise<TxSimulationResult> {
     if (!this.simulatedSimulations) {
       return super.simulateTx(executionPayload, opts);
     } else {
       const feeOptions = opts.fee?.estimateGas
-        ? await this.completeFeeOptionsForEstimation(opts.from, executionPayload.feePayer, opts.fee?.gasSettings)
-        : await this.completeFeeOptions(opts.from, executionPayload.feePayer, opts.fee?.gasSettings);
-      const feeExecutionPayload = await feeOptions.walletFeePaymentMethod?.getExecutionPayload();
+        ? await this.completeFeeOptionsForEstimation(
+            opts.from,
+            executionPayload.feePayer,
+            opts.fee?.gasSettings,
+          )
+        : await this.completeFeeOptions(
+            opts.from,
+            executionPayload.feePayer,
+            opts.fee?.gasSettings,
+          );
+      const feeExecutionPayload =
+        await feeOptions.walletFeePaymentMethod?.getExecutionPayload();
       const executionOptions: DefaultAccountEntrypointOptions = {
         txNonce: Fr.random(),
         cancellable: this.cancellableTransactions,
@@ -182,7 +263,11 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
       const finalExecutionPayload = feeExecutionPayload
         ? mergeExecutionPayloads([feeExecutionPayload, executionPayload])
         : executionPayload;
-      const { account: fromAccount, instance, artifact } = await this.getFakeAccountDataFor(opts.from);
+      const {
+        account: fromAccount,
+        instance,
+        artifact,
+      } = await this.getFakeAccountDataFor(opts.from);
       const txRequest = await fromAccount.createTxExecutionRequest(
         finalExecutionPayload,
         feeOptions.gasSettings,
@@ -191,7 +276,13 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
       const contractOverrides = {
         [opts.from.toString()]: { instance, artifact },
       };
-      return this.pxe.simulateTx(txRequest, true /* simulatePublic */, true, true, { contracts: contractOverrides });
+      return this.pxe.simulateTx(
+        txRequest,
+        true /* simulatePublic */,
+        true,
+        true,
+        { contracts: contractOverrides },
+      );
     }
   }
 
@@ -205,8 +296,16 @@ export abstract class MigrationTestBaseWallet extends BaseMigrationWallet {
    * @returns - A proven tx ready to be sent to the network
    */
   async proveTx(exec: ExecutionPayload, opts: SendOptions): Promise<ProvenTx> {
-    const fee = await this.completeFeeOptions(opts.from, exec.feePayer, opts.fee?.gasSettings);
-    const txRequest = await this.createTxExecutionRequestFromPayloadAndFee(exec, opts.from, fee);
+    const fee = await this.completeFeeOptions(
+      opts.from,
+      exec.feePayer,
+      opts.fee?.gasSettings,
+    );
+    const txRequest = await this.createTxExecutionRequestFromPayloadAndFee(
+      exec,
+      opts.from,
+      fee,
+    );
     const txProvingResult = await this.pxe.proveTx(txRequest);
     return new ProvenTx(
       this.aztecNode,

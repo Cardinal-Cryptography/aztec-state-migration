@@ -11,7 +11,11 @@ const AZTEC_NODE_URL = process.env.AZTEC_NODE_URL ?? "http://localhost:8080";
 
 /** simulate() returns a plain {x, y, is_infinite} object – convert to a Point instance. */
 function toPoint(obj: any): Point {
-  return new Point(Fr.fromPlainObject(obj.x), Fr.fromPlainObject(obj.y), obj.is_infinite);
+  return new Point(
+    Fr.fromPlainObject(obj.x),
+    Fr.fromPlainObject(obj.y),
+    obj.is_infinite,
+  );
 }
 
 /** Point.toString() throws for infinite points – use this for safe logging. */
@@ -58,9 +62,9 @@ async function main() {
   // Step 3: Verify no key is registered initially
   // ============================================================
   console.log("3. Verifying initial state...");
-  const initialKey = toPoint(await registry.methods
-    .get(alice)
-    .simulate({ from: alice }));
+  const initialKey = toPoint(
+    await registry.methods.get(alice).simulate({ from: alice }),
+  );
   console.log(`   Alice's initial mpk: ${pointStr(initialKey)}`);
   if (!initialKey.isZero()) {
     throw new Error("Expected initial mpk to be zero (point at infinity)");
@@ -86,9 +90,9 @@ async function main() {
   // Step 5: Query and verify the registered key
   // ============================================================
   console.log("5. Querying registered key...");
-  const registeredKey = toPoint(await registry.methods
-    .get(alice)
-    .simulate({ from: alice }));
+  const registeredKey = toPoint(
+    await registry.methods.get(alice).simulate({ from: alice }),
+  );
   console.log(`   Alice's mpk: ${pointStr(registeredKey)}`);
 
   if (registeredKey.isZero()) {
@@ -105,7 +109,9 @@ async function main() {
   // Step 6: Verify Bob has no key registered
   // ============================================================
   console.log("6. Verifying Bob has no key...");
-  const bobKey = toPoint(await registry.methods.get(bob).simulate({ from: bob }));
+  const bobKey = toPoint(
+    await registry.methods.get(bob).simulate({ from: bob }),
+  );
   console.log(`   Bob's mpk: ${pointStr(bobKey)}`);
   if (!bobKey.isZero()) {
     throw new Error("Expected Bob's mpk to be zero");
@@ -127,9 +133,13 @@ async function main() {
   } catch (e) {
     const err = e as Error;
     if (err.message.includes("duplicate nullifier")) {
-      console.log("   OK: Second registration correctly rejected (duplicate nullifier).\n");
+      console.log(
+        "   OK: Second registration correctly rejected (duplicate nullifier).\n",
+      );
     } else {
-      throw new Error(`Unexpected error on second registration: ${err.message}`);
+      throw new Error(
+        `Unexpected error on second registration: ${err.message}`,
+      );
     }
   }
 
@@ -137,9 +147,9 @@ async function main() {
   // Step 8: Verify key is unchanged after failed second registration
   // ============================================================
   console.log("8. Verifying key unchanged after failed registration...");
-  const keyAfterFailedRegister = toPoint(await registry.methods
-    .get(alice)
-    .simulate({ from: alice }));
+  const keyAfterFailedRegister = toPoint(
+    await registry.methods.get(alice).simulate({ from: alice }),
+  );
   if (!keyAfterFailedRegister.equals(mpk)) {
     throw new Error("Key changed after failed second registration");
   }
