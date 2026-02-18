@@ -11,7 +11,7 @@
     "clean": "rm -rf noir/target noir/codegenCache.json solidity/target solidity/cache",
     "sol:deps": "cd solidity && soldeer install",
     "sol:compile": "cd solidity && forge build",
-    "sol:fmt": "cd solidity && forge fmt --write",
+    "sol:fmt": "cd solidity && forge fmt",
     "sol:fmt:check": "cd solidity && forge fmt --check",
     "noir:compile": "cd noir && aztec compile",
     "noir:codegen": "cd noir && aztec codegen ./target -o ./target/artifacts",

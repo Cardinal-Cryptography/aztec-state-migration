@@ -11,9 +11,7 @@ pub contract ExampleMigrationApp {
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol_types::{
-            address::AztecAddress, hash::poseidon2_hash, public_keys::PublicKeys, traits::Serialize,
-        },
+        protocol_types::{address::AztecAddress, public_keys::PublicKeys},
         state_vars::{
             map::Map, owned::Owned, public_immutable::PublicImmutable,
             public_mutable::PublicMutable,
@@ -132,17 +130,7 @@ pub contract ExampleMigrationApp {
 
         self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
 
-        // 2. Compute migration data
-        let serialized = amount.serialize();
-        let migration_data = poseidon2_hash(serialized);
-
-        lock_migration_notes(
-            self.context,
-            note_owner,
-            destination_rollup,
-            mpk,
-            [migration_data],
-        );
+        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
     }
 
     /// Lock a public token balance for migration to a new rollup.
@@ -156,18 +144,7 @@ pub contract ExampleMigrationApp {
     fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
-        // 1. Compute migration data (same as private lock)
-        let serialized = amount.serialize();
-        let migration_data = poseidon2_hash(serialized);
-
-        // 2. Call Migrator contract to create and store the MigrationNote
-        lock_migration_notes(
-            self.context,
-            note_owner,
-            destination_rollup,
-            mpk,
-            [migration_data],
-        );
+        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
 
         // 3. Enqueue public balance decrement (executes after private phase)
         //    If this fails (insufficient balance), the entire tx reverts including the MigrationNote
@@ -195,15 +172,14 @@ pub contract ExampleMigrationApp {
         mpk: Point,
         signature: [u8; 64],
         //
-        note_proof_data: [MigrationNoteProofData; 1],
+        note_proof_data: [MigrationNoteProofData<u128>; 1],
         //
         archive_proof_data: ArchiveProofData,
     ) {
+        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].migration_data`
+        let amount_from_data = note_proof_data[0].migration_data;
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
-        let serialized = amount.serialize();
-        let migration_data = poseidon2_hash(serialized);
-
-        assert(migration_data == note_proof_data[0].migration_data, "Migration data hash mismatch");
+        assert(amount_from_data == amount, "Migration data hash mismatch");
 
         let old_app = self.storage.old_rollup_app_address.read();
 
@@ -231,13 +207,13 @@ pub contract ExampleMigrationApp {
         amount: u128,
         mpk: Point,
         signature: [u8; 64],
-        note_proof_data: [MigrationNoteProofData; 1],
+        note_proof_data: [MigrationNoteProofData<u128>; 1],
         archive_proof_data: ArchiveProofData,
     ) {
+        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].migration_data`
+        let amount_from_data = note_proof_data[0].migration_data;
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
-        let serialized = amount.serialize();
-        let migration_data = poseidon2_hash(serialized);
-        assert(migration_data == note_proof_data[0].migration_data, "Migration data hash mismatch");
+        assert(amount_from_data == amount, "Migration data hash mismatch");
 
         // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
         let old_app = self.storage.old_rollup_app_address.read();
