@@ -107,6 +107,8 @@ jobs:
         run: yarn test:mode-a
       - name: Test - Migration Mode B
         run: yarn test:mode-b
+      - name: Test - Migration Mode B (Public)
+        run: yarn test:mode-b:public
       - name: Tear down infrastructure
         if: always()
         run: yarn test:stop

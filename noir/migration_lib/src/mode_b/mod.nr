@@ -1,3 +1,4 @@
+pub mod public_state_migration;
 use crate::ArchiveProofData;
 use aztec::{
     context::private_context::PrivateContext,
