@@ -197,11 +197,8 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // ============================================================
     // 5. Verify MigrationKeyNote inclusion in note hash tree
     // ============================================================
-    let computed_key_note_root = root_from_sibling_path(
-        key_unique,
-        key_note.leaf_index,
-        key_note.sibling_path,
-    );
+    let computed_key_note_root =
+        root_from_sibling_path(key_unique, key_note.leaf_index, key_note.sibling_path);
     assert(
         computed_key_note_root == note_hash_tree_root,
         "Migration key note not in note hash tree",

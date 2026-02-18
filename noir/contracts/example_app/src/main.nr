@@ -23,7 +23,7 @@ pub contract ExampleMigrationApp {
     use migration::{
         ArchiveProofData,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
-        mode_b::{KeyNoteProofData, FullProofData, migrate_notes_mode_b},
+        mode_b::{FullProofData, KeyNoteProofData, migrate_notes_mode_b},
         Point,
         Scalar,
     };
