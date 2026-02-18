@@ -1,3 +1,10 @@
+---
+layout: default
+title: Migration Specification
+---
+
+[← Home](..)
+
 ## Overview
 
 This spec describes migration for Aztec-native tokens. Throughout the document, **TokenV1** refers to the original token contract on the old rollup, and **TokenV2** refers to its counterpart on the new rollup.

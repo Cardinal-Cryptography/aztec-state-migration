@@ -1,3 +1,10 @@
+---
+layout: default
+title: Mode B Architecture
+---
+
+[← Home](.)
+
 # Mode B Architecture: Emergency Snapshot Migration
 
 This document describes the architectural choices made when implementing Mode B (Emergency Snapshot Migration) for Aztec cross-rollup token migration.
