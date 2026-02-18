@@ -2,11 +2,8 @@ import type { Fr } from "@aztec/foundation/curves/bn254";
 import type { Note, NoteDao, NotesFilter } from "@aztec/stdlib/note";
 import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import { Point } from "@aztec/foundation/schemas";
-
-/** Minimal interface for a wallet/PXE that can retrieve notes. */
-export interface NoteProvider {
-  getNotes(filter: NotesFilter): Promise<NoteDao[]>;
-}
+import { AbiType } from "@aztec/stdlib/abi";
+import { PrivateEvent } from "@aztec/aztec.js/wallet";
 
 /** Generic note inclusion proof data. */
 export interface NoteProofData<Note> {
@@ -30,8 +27,8 @@ export interface NullifierProofData {
 export type FullProofData<Note> = NoteProofData<Note> & NullifierProofData;
 
 /** Migration note proof data (for migration verification). */
-export interface MigrationNoteProofData {
-  migration_data: Fr;
+export interface MigrationNoteProofData<T> {
+  migration_data: T;
   randomness: Fr;
   nonce: Fr;
   leaf_index: Fr;
@@ -44,18 +41,22 @@ export const MigrationNoteProofData = {
    * Convert a generic {@link NoteProofData} (keyed by a {@link MigrationNote}) into the
    * flattened proof shape expected by the Noir migration verifier.
    *
-   * @param p - A note proof whose `note` field is a decoded {@link MigrationNote}.
+   * @param proofData - A note proof whose `note` field is a decoded {@link MigrationNote}.
+   * @param migrationEvent - A private event containing the migration data.
    * @returns A {@link MigrationNoteProofData} ready to pass into a contract call.
    */
-  fromNoteProofData: (
-    p: NoteProofData<MigrationNote>,
-  ): MigrationNoteProofData => ({
-    migration_data: p.note.migration_data,
-    randomness: p.randomness,
-    nonce: p.nonce,
-    leaf_index: p.leaf_index,
-    sibling_path: p.sibling_path,
-  }),
+  fromProofDataAndEvent<T>(
+    proofData: NoteProofData<MigrationNote>,
+    migrationEvent: PrivateEvent<T>,
+  ): MigrationNoteProofData<T> {
+    return {
+      migration_data: migrationEvent.event,
+      randomness: proofData.randomness,
+      nonce: proofData.nonce,
+      leaf_index: proofData.leaf_index,
+      sibling_path: proofData.sibling_path,
+    };
+  },
 };
 
 // ============================================================
@@ -147,7 +148,7 @@ export type MigrationNote = {
     is_inifinite: boolean;
   };
   destination_rollup: Fr;
-  migration_data: Fr;
+  migration_data_hash: Fr;
 };
 
 /** Helpers for {@link MigrationNote}. */
@@ -163,6 +164,6 @@ export const MigrationNote = {
       is_inifinite: note.items[3].toBool(),
     },
     destination_rollup: note.items[4],
-    migration_data: note.items[5],
+    migration_data_hash: note.items[5],
   }),
 };

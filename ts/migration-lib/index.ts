@@ -36,7 +36,6 @@ export type { PollOptions } from "./polling.js";
 
 // Types
 export type {
-  NoteProvider,
   MigrationNoteProofData,
   NoteProofData,
   ArchiveProofData,

@@ -12,6 +12,13 @@ import {
   MigrationNote,
   MigrationNoteProofData,
 } from "../ts/migration-lib/types.js";
+import { AbiType } from "@aztec/stdlib/abi";
+
+/** ABI type for decoding the MigrationDataEvent payload.
+ *  The ExampleApp passes raw `amount` (u128) as migration_data.
+ *  #[derive(Serialize)] flattens MigrationDataEvent<u128> to a single Field,
+ *  so { kind: "field" } decodes it as a bigint. */
+const MIGRATION_DATA_TYPE: AbiType = { kind: "field" };
 
 async function main() {
   console.log("=== Cross-Rollup Migration E2E Test (Mode A) ===\n");
@@ -80,7 +87,7 @@ async function main() {
   const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
   console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
-  const LOCK_AMOUNT = 500n;
+  const LOCK_AMOUNT = 300n;
   const lockTx = await oldAppUser.methods
     .lock_migration_notes_mode_a(
       LOCK_AMOUNT,
@@ -122,14 +129,27 @@ async function main() {
     throw new Error("No migration notes found");
   }
 
-  // Build proofs via wallet
-  const migrationNoteProofs = (
-    await oldUserWallet.buildNoteProofs(
-      provenBlockNumber,
-      lockNotes,
-      MigrationNote.fromNote,
-    )
-  ).map((p) => MigrationNoteProofData.fromNoteProofData(p));
+  // Fetch encrypted migration data events emitted alongside the lock notes
+  const migrationDataEvents =
+    await oldUserWallet.getMigrationDataEvents<bigint>(MIGRATION_DATA_TYPE, {
+      contractAddress: oldApp.address,
+      scopes: [oldUserManager.address],
+      txHash: lockTx.txHash,
+    });
+  console.log(`   Found ${migrationDataEvents.length} MigrationDataEvent(s)`);
+  if (migrationDataEvents.length === 0) {
+    throw new Error("No MigrationDataEvents found — event delivery failed");
+  }
+
+  // Build proofs via wallet, combining note proofs with event data
+  const noteProofs = await oldUserWallet.buildNoteProofs(
+    provenBlockNumber,
+    lockNotes,
+    MigrationNote.fromNote,
+  );
+  const migrationNoteProofs = noteProofs.map((p, i) =>
+    MigrationNoteProofData.fromProofDataAndEvent(p, migrationDataEvents[i]),
+  );
 
   // Sign via standalone function
   const oldAccount = await oldUserWallet.getMigrationAccount(
@@ -180,7 +200,7 @@ async function main() {
     throw new Error(`migrate_mode_a failed: ${(e as Error).message}`);
   }
 
-  const newBalanceAfter = await newApp.methods
+  const newBalanceAfter = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
 
@@ -278,13 +298,30 @@ async function main() {
     `   Found ${publicLockNotes.length} lock note(s) in PXE, using the last one`,
   );
 
-  const publicMigrationNoteProofs = (
-    await oldUserWallet.buildNoteProofs(
-      publicProvenBlockNumber,
-      [publicLockNote],
-      MigrationNote.fromNote,
-    )
-  ).map((p) => MigrationNoteProofData.fromNoteProofData(p));
+  // Fetch migration data events for the public lock
+  const publicMigrationDataEvents =
+    await oldUserWallet.getMigrationDataEvents<bigint>(MIGRATION_DATA_TYPE, {
+      contractAddress: oldApp.address,
+      scopes: [oldUserManager.address],
+      txHash: lockPublicTx.txHash,
+    });
+  if (publicMigrationDataEvents.length === 0) {
+    throw new Error(
+      "No MigrationDataEvents found for public lock — event delivery failed",
+    );
+  }
+
+  const publicNoteProofs = await oldUserWallet.buildNoteProofs(
+    publicProvenBlockNumber,
+    [publicLockNote],
+    MigrationNote.fromNote,
+  );
+  const publicMigrationNoteProofs = publicNoteProofs.map((p, i) =>
+    MigrationNoteProofData.fromProofDataAndEvent(
+      p,
+      publicMigrationDataEvents[i],
+    ),
+  );
 
   // Sign via standalone function
   const publicSignature = await signMigrationModeA(
@@ -339,7 +376,7 @@ async function main() {
     throw new Error(`migrate_to_public failed: ${(e as Error).message}`);
   }
 
-  const newPublicBalanceAfter = await newApp.methods
+  const newPublicBalanceAfter = await newAppUser.methods
     .get_public_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
 

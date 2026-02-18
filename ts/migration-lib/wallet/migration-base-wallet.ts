@@ -24,6 +24,12 @@ import {
   signMigrationModeB as signModeB,
 } from "../keys.js";
 import { PublicKeys } from "@aztec/stdlib/keys";
+import { PrivateEvent, PrivateEventFilter } from "@aztec/aztec.js/wallet";
+import {
+  AbiType,
+  EventMetadataDefinition,
+  EventSelector,
+} from "@aztec/stdlib/abi";
 
 /**
  * Abstract wallet that adds migration-specific helpers (signing, proof building,
@@ -157,6 +163,28 @@ export abstract class BaseMigrationWallet extends BaseWallet {
       ...filter,
       storageSlot: new Fr(MIGRATION_NOTE_SLOT),
     });
+  }
+
+  /**
+   * Fetch Mode A migration data events from the PXE, filtering on the well-known
+   * `MigrationDataEvent` selector.
+   *
+   * @param eventFilter - Additional note filters (owner, contract address, etc.).
+   * @param eventDef - The event metadata definition.
+   * @returns The matching migration notes.
+   */
+  async getMigrationDataEvents<T>(
+    abiType: AbiType,
+    eventFilter: PrivateEventFilter,
+  ): Promise<PrivateEvent<T>[]> {
+    const eventSelector =
+      await EventSelector.fromSignature("MigrationDataEvent");
+    const eventDefWithSelector = {
+      eventSelector,
+      abiType,
+      fieldNames: ["migration_data"],
+    };
+    return this.getPrivateEvents(eventDefWithSelector, eventFilter);
   }
 
   /**
