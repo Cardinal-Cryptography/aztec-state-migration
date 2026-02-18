@@ -132,9 +132,12 @@ async function main() {
     throw new Error("Expected second registration to fail, but it succeeded");
   } catch (e) {
     const err = e as Error;
-    if (err.message.includes("duplicate nullifier")) {
+    if (
+      err.message.includes("duplicate nullifier") ||
+      err.message.includes("Existing nullifier")
+    ) {
       console.log(
-        "   OK: Second registration correctly rejected (duplicate nullifier).\n",
+        "   OK: Second registration correctly rejected (existing nullifier).\n",
       );
     } else {
       throw new Error(
