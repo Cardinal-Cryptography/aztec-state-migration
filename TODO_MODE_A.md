@@ -22,11 +22,15 @@ The Noir circuit (`migrate_notes_mode_a`) already accepts `[MigrationNoteProofDa
 
 Apps that create multiple MigrationNotes per lock (e.g. locking distinct asset types) would need the TS client to retrieve all migration notes and build an array of `MigrationNoteProofData` proofs. The library circuit is ready; only the app contract's array size and TS client need updating.
 
-## 3. migration_data is a Single Field
+## ~~3. migration_data_hash: Only a Hash is Stored in the Note~~ (Done)
 
-Each `MigrationNote` carries one `migration_data: Field`. This is intentionally minimal — apps handle complexity at their level:
-- Hash multiple fields/nested data into a single field and reconstruct on the new rollup (as the ExampleApp does with `poseidon2(amount.serialize())`)
-- Lock multiple `MigrationNote`s if distinct pieces of data need to be migrated independently
+`MigrationNote` stores `migration_data_hash: Field` — a `poseidon2_hash` of the original data's packed representation. The `MigrationNote::new<T: Packable>` constructor accepts any `T: Packable` and hashes it automatically.
+
+The original data is now delivered via an encrypted `MigrationDataEvent<T>` emitted by `lock_migration_notes` alongside note creation. The event uses `emit_event_in_private` + `deliver_to` for end-to-end encryption (AES128 ECDH). The `#[event]` macro doesn't support generics, so `MigrationDataEvent` implements `EventInterface` manually with `#[derive(Serialize)]`.
+
+On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves the decrypted events, and `MigrationNoteProofData.fromProofDataAndEvent()` combines note proofs with event data. Events should be filtered by `txHash` to match them to the correct lock transaction.
+
+**TODO:** Consider including a note-identifying hash in the event (e.g. `migration_note_hash`) so wallet clients can match events to notes without relying on `txHash` filtering. The full note hash requires randomness from `create_note`, which isn't easily accessible at event emission time.
 
 ## 4. Supply Cap
 

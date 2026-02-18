@@ -5,7 +5,7 @@ use aztec::{
     protocol_types::{
         address::AztecAddress,
         constants::{GENERATOR_INDEX__NOTE_HASH, GENERATOR_INDEX__NOTE_NULLIFIER},
-        hash::poseidon2_hash_with_separator,
+        hash::{poseidon2_hash, poseidon2_hash_with_separator},
         traits::{Deserialize, Packable, Serialize, ToField},
     },
 };
@@ -25,14 +25,26 @@ pub global MIGRATION_MODE_A_STORAGE_SLOT: Field =
 /// - `note_creator`: Address of the note creator (typically app contract)
 /// - `mpk`: Migration public key (Grumpkin curve point).
 /// - `destination_rollup`: Identifier of the destination rollup (prevents cross-rollup replay)
-/// - `migration_data`: Data to migrate (e.g., hash of original note data
+/// - `migration_data_hash`: Hash of the data to migrate (e.g., hash of original note data)
 #[derive(Deserialize, Eq, Serialize, Packable)]
 #[custom_note]
 pub struct MigrationNote {
     pub note_creator: AztecAddress,
     pub mpk: Point,
     pub destination_rollup: Field,
-    pub migration_data: Field,
+    pub migration_data_hash: Field,
+}
+
+impl MigrationNote {
+    pub fn new<T: Packable>(
+        note_creator: AztecAddress,
+        mpk: Point,
+        destination_rollup: Field,
+        migration_data: T,
+    ) -> Self {
+        let migration_data_hash = poseidon2_hash(migration_data.pack());
+        Self { note_creator, mpk, destination_rollup, migration_data_hash }
+    }
 }
 
 impl NoteHash for MigrationNote {
@@ -49,7 +61,7 @@ impl NoteHash for MigrationNote {
                 self.mpk.x,
                 self.mpk.y,
                 self.destination_rollup,
-                self.migration_data,
+                self.migration_data_hash,
                 storage_slot,
                 randomness,
             ],
@@ -90,16 +102,5 @@ impl NoteHash for MigrationNote {
             [note_hash_for_nullification, randomness],
             GENERATOR_INDEX__NOTE_NULLIFIER,
         )
-    }
-}
-
-impl MigrationNote {
-    pub fn new(
-        note_creator: AztecAddress,
-        mpk: Point,
-        destination_rollup: Field,
-        migration_data: Field,
-    ) -> Self {
-        Self { note_creator, mpk, destination_rollup, migration_data }
     }
 }

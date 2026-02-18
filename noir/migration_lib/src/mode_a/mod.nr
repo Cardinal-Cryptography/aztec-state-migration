@@ -1,7 +1,9 @@
 mod migration_note;
+mod migration_data_event;
 use crate::ArchiveProofData;
 use aztec::{
     context::PrivateContext,
+    event::event_emission::emit_event_in_private,
     messages::message_delivery::MessageDelivery,
     note::{lifecycle::create_note, note_interface::NoteHash},
     protocol_types::{
@@ -13,6 +15,7 @@ use aztec::{
     },
 };
 use migration_archive_registry::MigrationArchiveRegistry;
+use migration_data_event::MigrationDataEvent;
 use migration_note::{MIGRATION_MODE_A_STORAGE_SLOT, MigrationNote};
 use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
@@ -21,8 +24,8 @@ pub global CLAIM_DOMAIN_A: Field = MIGRATION_MODE_A_STORAGE_SLOT; // poseidon2 o
 /// Per-note inclusion proof data needed to verify a MigrationNote exists in the
 /// old rollup's note hash tree. Supplied by the migrating user alongside `MigrationArgs`.
 #[derive(Serialize, Packable)]
-pub struct MigrationNoteProofData {
-    pub migration_data: Field,
+pub struct MigrationNoteProofData<T> {
+    pub migration_data: T,
     pub randomness: Field,
     pub nonce: Field,
     pub leaf_index: Field,
@@ -46,13 +49,16 @@ pub struct MigrationNoteProofData {
 /// - `destination_rollup`: version identifier of the target rollup (prevents replay)
 /// - `mpk`: migration public key (Grumpkin point); must be on-curve
 /// - `migration_data`: app-specific data to lock (one note per element)
-pub fn lock_migration_notes<let N: u32>(
+pub fn lock_migration_notes<T, let N: u32>(
     context: &mut PrivateContext,
     notes_owner: AztecAddress,
     destination_rollup: Field,
     mpk: Point,
-    migration_data: [Field; N],
-) {
+    migration_data: [T; N],
+)
+where
+    T: Packable + Serialize,
+{
     assert(
         (mpk.y * mpk.y == mpk.x * mpk.x * mpk.x - 17) & (!mpk.is_infinite),
         "mpk not on Grumpkin curve",
@@ -69,6 +75,13 @@ pub fn lock_migration_notes<let N: u32>(
             migration_note,
         )
             .deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        // Emit migration data as an encrypted private event so the recipient can
+        // reconstruct the original data when claiming on the new rollup.
+        emit_event_in_private(
+            context,
+            MigrationDataEvent { migration_data: migration_data[i] },
+        )
+            .deliver_to(notes_owner, MessageDelivery.CONSTRAINED_ONCHAIN);
     }
 }
 
@@ -91,7 +104,7 @@ pub fn lock_migration_notes<let N: u32>(
 /// - `old_app`: address of the app contract on the old rollup (used for note siloing)
 /// - `full_proof_data`: per-note inclusion proofs and migration data
 /// - `migration_args`: archive-level proof (block header, sibling path) and migration secret key
-pub fn migrate_notes_mode_a<let N: u32>(
+pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
     // Authentication
@@ -100,7 +113,7 @@ pub fn migrate_notes_mode_a<let N: u32>(
     //
     old_app: AztecAddress,
     //
-    full_proof_data: [MigrationNoteProofData; N],
+    full_proof_data: [MigrationNoteProofData<T>; N],
     //
     archive_proof_data: ArchiveProofData,
 ) {
@@ -164,12 +177,12 @@ pub fn migrate_notes_mode_a<let N: u32>(
 /// when committing notes:
 ///   note_hash -> siloed_note_hash (with contract address) -> unique_note_hash (with nonce)
 /// Then verifies the unique hash against the note hash tree root via Merkle proof.
-fn migrate_note(
+fn migrate_note<T: Packable>(
     context: &mut PrivateContext,
     old_app_address: AztecAddress,
     mpk: Point,
     current_rollup: Field,
-    full_note: MigrationNoteProofData,
+    full_note: MigrationNoteProofData<T>,
     note_hash_tree_root: Field,
 ) -> Field {
     // Reconstruct the MigrationNote and compute its hash
