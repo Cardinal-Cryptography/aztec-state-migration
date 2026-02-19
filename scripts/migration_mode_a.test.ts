@@ -215,7 +215,7 @@ async function main() {
     .send({ from: oldUserManager.address })
     .wait();
 
-  const oldPublicBalanceAfterMint = await oldApp.methods
+  const oldPublicBalanceAfterMint = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(
@@ -249,7 +249,7 @@ async function main() {
 
   console.log(`   Lock public tx: ${lockPublicTx.txHash}`);
 
-  const oldPublicBalanceAfterLock = await oldApp.methods
+  const oldPublicBalanceAfterLock = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(
@@ -328,9 +328,9 @@ async function main() {
   );
 
   // ============================================================
-  // Step 21: Call migrate_to_public on NEW rollup
+  // Step 21: Call migrate_to_public_mode_a on NEW rollup
   // ============================================================
-  console.log("21. Calling migrate_to_public on NEW rollup...");
+  console.log("21. Calling migrate_to_public_mode_a on NEW rollup...");
 
   const newPublicBalanceBefore = await newAppUser.methods
     .get_public_balance(newUserManager.address)
@@ -341,7 +341,7 @@ async function main() {
 
   try {
     const migratePublicTx = await newAppUser.methods
-      .migrate_to_public(
+      .migrate_to_public_mode_a(
         PUBLIC_LOCK_AMOUNT,
         mpk.toNoirStruct(),
         publicSignature,
@@ -353,7 +353,7 @@ async function main() {
 
     console.log(`   Migrate to public tx: ${migratePublicTx.txHash}`);
 
-    const newPublicBalanceAfterMigrate = await newApp.methods
+    const newPublicBalanceAfterMigrate = await newAppUser.methods
       .get_public_balance(newUserManager.address)
       .simulate({ from: newUserManager.address });
     console.log(
@@ -367,7 +367,7 @@ async function main() {
     }
     console.log("   Public balance migration fully successful!");
   } catch (e) {
-    throw new Error(`migrate_to_public failed: ${(e as Error).message}`);
+    throw new Error(`migrate_to_public_mode_a failed: ${(e as Error).message}`);
   }
 
   const newPublicBalanceAfter = await newAppUser.methods

@@ -53,7 +53,6 @@ export type MigrationNoteProofData<T> = NoteProofData<T>;
 /** Archive membership proof: block header + archive sibling path. */
 export interface ArchiveProofData {
   archive_block_header: ReturnType<typeof blockHeaderToNoir>;
-  archive_leaf_index: Fr;
   archive_sibling_path: Fr[];
 }
 
