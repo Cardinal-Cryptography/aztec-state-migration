@@ -17,8 +17,9 @@ import { KeyNote } from "../ts/migration-lib/types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 
 // Must match CLAIM_DOMAIN_B_PUBLIC in public_state_migration.nr
-const CLAIM_DOMAIN_B_PUBLIC = new Fr(0xdeadbeefn);
+const CLAIM_DOMAIN_B_PUBLIC = new Fr(0xdeafbeefn);
 
+// TODO: this should be part of the library
 /**
  * Build a PublicDataSlotProofData for a single storage slot by querying
  * the public data tree witness from the Aztec node.
