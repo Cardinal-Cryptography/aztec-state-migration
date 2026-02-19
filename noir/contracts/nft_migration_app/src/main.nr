@@ -27,6 +27,7 @@ pub contract NftMigrationApp {
     };
     use migration::{
         ArchiveProofData,
+        CLAIM_DOMAIN_B_PUBLIC,
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
@@ -86,6 +87,7 @@ pub contract NftMigrationApp {
     #[external("private")]
     fn mint_to_public(to: AztecAddress, token_id: Field) {
         assert(self.context.msg_sender().unwrap() == self.storage.minter.read(), "Only minter");
+        assert(to != AztecAddress::zero(), "Cannot mint to zero address");
         NftMigrationApp::at(self.context.this_address())
             ._set_public_owner(token_id, to)
             .enqueue(self.context);
@@ -241,6 +243,7 @@ pub contract NftMigrationApp {
         );
 
         let old_app = self.storage.old_rollup_app_address.read();
+        // NOTE: assumes old and new contracts have identical storage layout
         let expected_storage_slot =
             STORAGE_LAYOUT_NftMigrationApp.fields.private_nfts.slot;
 
@@ -270,22 +273,29 @@ pub contract NftMigrationApp {
     }
 
     /// Claim a Mode B migration for a public NFT owner mapping entry.
-    /// Proves public_owners[token_id] at snapshot height and migrates to proven owner.
+    /// Proves public_owners[token_id] at snapshot height, verifies ownership via
+    /// migration key signature, and mints to the authenticated recipient.
     #[external("private")]
     fn migrate_public_owner_mode_b(
         proof_data: PublicStateProofData<AztecAddress, 1>,
         archive_proof_data: ArchiveProofData,
         token_id: Field,
+        signature: MigrationSignature,
+        key_note: KeyNoteProofData,
     ) {
         assert(
             proof_data.data != AztecAddress::zero(),
             "Cannot migrate zero-address ownership",
         );
 
+        let archive_registry = self.storage.archive_root_address.read();
         let old_app = self.storage.old_rollup_app_address.read();
+
+        // 1. Verify public state existed at snapshot height
+        // NOTE: assumes old and new contracts have identical storage layout
         migrate_public_map_state_mode_b(
             self.context,
-            self.storage.archive_root_address.read(),
+            archive_registry,
             old_app,
             proof_data,
             STORAGE_LAYOUT_NftMigrationApp.fields.public_owners.slot,
@@ -293,9 +303,36 @@ pub contract NftMigrationApp {
             token_id,
         );
 
+        // 2. Verify key note belongs to the proven owner
         let proven_owner = proof_data.data;
+        let note_hash_tree_root =
+            archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+        let _ = key_note.verify_key_note_inclusion(
+            self.context,
+            archive_registry,
+            proven_owner,
+            note_hash_tree_root,
+        );
+
+        // 3. Verify signature over recipient (prevents front-running)
+        let public_state_hash = proof_data.public_state_hash();
+        let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
+        let current_rollup = self.context.version();
+        let recipient = self.context.msg_sender().unwrap();
+        let new_app = self.context.this_address();
+
+        signature.verify_migration_signature::<CLAIM_DOMAIN_B_PUBLIC>(
+            old_rollup,
+            current_rollup,
+            public_state_hash,
+            recipient,
+            new_app,
+            key_note.data.mpk,
+        );
+
+        // 4. Mint to authenticated recipient
         NftMigrationApp::at(self.context.this_address())
-            ._set_public_owner(token_id, proven_owner)
+            ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
     }
 
