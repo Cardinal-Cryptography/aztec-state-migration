@@ -270,19 +270,15 @@ pub contract NftMigrationApp {
     }
 
     /// Claim a Mode B migration for a public NFT owner mapping entry.
-    /// Proves public_owners[token_id] == old_owner at snapshot height.
+    /// Proves public_owners[token_id] at snapshot height and migrates to proven owner.
     #[external("private")]
     fn migrate_public_owner_mode_b(
         proof_data: PublicStateProofData<AztecAddress, 1>,
-        signature: MigrationSignature,
         archive_proof_data: ArchiveProofData,
-        old_owner: AztecAddress,
         token_id: Field,
-        key_note: KeyNoteProofData,
     ) {
-        assert(proof_data.data == old_owner, "Proven owner does not match claimed owner");
         assert(
-            old_owner != AztecAddress::zero(),
+            proof_data.data != AztecAddress::zero(),
             "Cannot migrate zero-address ownership",
         );
 
@@ -290,19 +286,16 @@ pub contract NftMigrationApp {
         migrate_public_map_state_mode_b(
             self.context,
             self.storage.archive_root_address.read(),
-            signature,
             old_app,
             proof_data,
             STORAGE_LAYOUT_NftMigrationApp.fields.public_owners.slot,
             archive_proof_data,
-            old_owner,
             token_id,
-            key_note,
         );
 
-        let recipient = self.context.msg_sender().unwrap();
+        let proven_owner = proof_data.data;
         NftMigrationApp::at(self.context.this_address())
-            ._set_public_owner(token_id, recipient)
+            ._set_public_owner(token_id, proven_owner)
             .enqueue(self.context);
     }
 
