@@ -221,7 +221,12 @@ pub fn migrate_public_state_mode_b<T: Packable>(
     let public_state_tree_root =
         archive_proof_data.archive_block_header.state.partial.public_data_tree.root;
 
-    public_state_proof_data.verify_public_state(base_storage_slot, old_app, public_state_tree_root);
+    public_state_proof_data.migrate_public_state(
+        context,
+        base_storage_slot,
+        old_app,
+        public_state_tree_root,
+    );
 
     let public_state_hash: Field = public_state_proof_data.public_state_hash();
     let old_rollup = archive_proof_data.archive_block_header.global_variables.version;

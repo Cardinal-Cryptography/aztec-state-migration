@@ -11,3 +11,6 @@ pub global CLAIM_DOMAIN_B: Field =
 
 // TODO: use a different domain separator
 pub global CLAIM_DOMAIN_B_PUBLIC: Field = 0xdeafbeef;
+
+// TODO: use a different domain separator
+pub global GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER: Field = 0x12345678;

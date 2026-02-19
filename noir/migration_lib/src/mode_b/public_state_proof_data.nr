@@ -1,9 +1,13 @@
-use aztec::protocol_types::{
-    address::AztecAddress,
-    constants::{GENERATOR_INDEX__PUBLIC_LEAF_INDEX, PUBLIC_DATA_TREE_HEIGHT},
-    hash::{poseidon2_hash, poseidon2_hash_with_separator},
-    merkle_tree::root::root_from_sibling_path,
-    traits::{Deserialize, Packable, Serialize, ToField},
+use crate::constants::GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER;
+use aztec::{
+    context::private_context::PrivateContext,
+    protocol_types::{
+        address::AztecAddress,
+        constants::{GENERATOR_INDEX__PUBLIC_LEAF_INDEX, PUBLIC_DATA_TREE_HEIGHT},
+        hash::{poseidon2_hash, poseidon2_hash_with_separator},
+        merkle_tree::root::root_from_sibling_path,
+        traits::{Deserialize, Packable, Serialize, ToField},
+    },
 };
 
 #[derive(Packable, Serialize, Deserialize)]
@@ -54,9 +58,14 @@ pub struct PublicStateProofData<T, let N: u32> {
 }
 
 impl<T: Packable, let N: u32> PublicStateProofData<T, N> {
+    pub fn public_state_hash(self) -> Field {
+        poseidon2_hash(self.data.pack())
+    }
+
     /// Verify public data existed in the public data tree
-    pub fn verify_public_state(
+    pub fn migrate_public_state(
         self,
+        context: &mut PrivateContext,
         base_storage_slot: Field,
         old_app: AztecAddress,
         public_state_tree_root: Field,
@@ -78,9 +87,13 @@ impl<T: Packable, let N: u32> PublicStateProofData<T, N> {
                 public_state_tree_root,
             );
         }
-    }
 
-    pub fn public_state_hash(self) -> Field {
-        poseidon2_hash(self.data.pack())
+        // After verifying the public state, we push a nullifier
+        // to prevent double-migration of the same storage slots.
+        let nullifier = poseidon2_hash_with_separator(
+            [base_storage_slot],
+            GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER,
+        );
+        context.push_nullifier(nullifier);
     }
 }
