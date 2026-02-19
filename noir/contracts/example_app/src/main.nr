@@ -23,7 +23,6 @@ pub contract ExampleMigrationApp {
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b},
-        NoteProofData,
         Point,
         Scalar,
     };
@@ -209,7 +208,7 @@ pub contract ExampleMigrationApp {
         amount: u128,
         mpk: Point,
         signature: MigrationSignature,
-        note_proof_data: [NoteProofData<u128>; 1],
+        note_proof_data: [MigrationNoteProofData<u128>; 1],
         archive_proof_data: ArchiveProofData,
     ) {
         // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].data`
