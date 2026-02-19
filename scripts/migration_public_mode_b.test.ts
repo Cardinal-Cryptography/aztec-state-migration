@@ -148,11 +148,8 @@ async function main() {
   // ============================================================
   console.log("5. Bridging archive root and setting snapshot height...");
 
-  const { l1Result, provenBlockNumber, archiveProof, blockHeader } = await bridgeBlock(
-    env,
-    newArchiveRegistry,
-    registerTx.blockNumber!,
-  );
+  const { l1Result, provenBlockNumber, archiveProof, blockHeader } =
+    await bridgeBlock(env, newArchiveRegistry, registerTx.blockNumber!);
   console.log(`   Proven block: ${l1Result.provenBlockNumber}`);
   console.log(`   Archive root: ${l1Result.provenArchiveRoot}`);
 

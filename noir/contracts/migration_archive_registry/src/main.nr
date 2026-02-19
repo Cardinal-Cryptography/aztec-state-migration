@@ -92,15 +92,9 @@ pub contract MigrationArchiveRegistry {
         // Compute block hash and verify it's in the archive tree
         let block_number = block_header.global_variables.block_number;
         let block_hash = block_header.hash();
-        let computed_archive_root = root_from_sibling_path(
-            block_hash,
-            block_number.to_field(),
-            archive_sibling_path,
-        );
-        assert(
-            computed_archive_root == archive_root,
-            "Block header not in archive tree",
-        );
+        let computed_archive_root =
+            root_from_sibling_path(block_hash, block_number.to_field(), archive_sibling_path);
+        assert(computed_archive_root == archive_root, "Block header not in archive tree");
 
         // The block must be within the proven range
         assert(
@@ -160,11 +154,8 @@ pub contract MigrationArchiveRegistry {
             );
             // Verify snapshot block is in reference block's archive
             let archive_root = reference_block_header.last_archive.root;
-            let computed_root = root_from_sibling_path(
-                snapshot_block_hash,
-                height as Field,
-                archive_sibling_path,
-            );
+            let computed_root =
+                root_from_sibling_path(snapshot_block_hash, height as Field, archive_sibling_path);
             assert(
                 computed_root == archive_root,
                 "Snapshot block not in reference block's archive",
@@ -186,10 +177,7 @@ pub contract MigrationArchiveRegistry {
     fn verify_migration_mode_a(block_number: u32, block_hash: Field) {
         let stored_hash = self.storage.block_hashes.at(block_number).read();
         assert(stored_hash != 0, "Block hash not registered for this block");
-        assert(
-            block_hash == stored_hash,
-            "Block hash mismatch - block header not from old rollup",
-        );
+        assert(block_hash == stored_hash, "Block hash mismatch - block header not from old rollup");
     }
 
     // ============================================================

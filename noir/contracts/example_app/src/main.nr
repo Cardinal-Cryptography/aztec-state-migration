@@ -21,6 +21,7 @@ pub contract ExampleMigrationApp {
             public_mutable::PublicMutable,
         },
     };
+    use aztec::protocol_types::abis::block_header::BlockHeader;
     use balance_set::balance_set::BalanceSet;
     use migration::{
         MigrationSignature,
@@ -34,7 +35,6 @@ pub contract ExampleMigrationApp {
         Scalar,
     };
     use uint_note::uint_note::UintNote;
-    use aztec::protocol_types::abis::block_header::BlockHeader;
 
     // Only Packable needed for Migration
     // Serialize and Deserialize because it's used as argument

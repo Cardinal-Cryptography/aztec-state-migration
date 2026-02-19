@@ -141,10 +141,7 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     //    registered in MigrationArchiveRegistry (bridged from L1)
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
-        .verify_migration_mode_a(
-            block_header.global_variables.block_number,
-            block_hash,
-        )
+        .verify_migration_mode_a(block_header.global_variables.block_number, block_hash)
         .enqueue(context);
 }
 

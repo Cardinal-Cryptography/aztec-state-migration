@@ -1,7 +1,4 @@
-use crate::{
-    constants::{CLAIM_DOMAIN_B, CLAIM_DOMAIN_B_PUBLIC},
-    signature::MigrationSignature,
-};
+use crate::{constants::{CLAIM_DOMAIN_B, CLAIM_DOMAIN_B_PUBLIC}, signature::MigrationSignature};
 use super::{
     FullNoteProofData, key_note_proof_data::KeyNoteProofData,
     public_state_proof_data::PublicStateProofData,
@@ -89,10 +86,8 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // 2. For each note, verify inclusion and non-nullification in the snapshot state
     // ============================================================
 
-    let nullifier_tree_root =
-        block_header.state.partial.nullifier_tree.root;
-    let note_hash_tree_root =
-        block_header.state.partial.note_hash_tree.root;
+    let nullifier_tree_root = block_header.state.partial.nullifier_tree.root;
+    let note_hash_tree_root = block_header.state.partial.note_hash_tree.root;
 
     // Derive nsk_app for the old app contract:
     let nsk_app =
@@ -212,8 +207,7 @@ pub fn migrate_public_state_mode_b<T: Packable>(
     // ============================================================
     // 1. Verify public data existed in the public data tree
     // ============================================================
-    let public_state_tree_root =
-        block_header.state.partial.public_data_tree.root;
+    let public_state_tree_root = block_header.state.partial.public_data_tree.root;
 
     public_state_proof_data.migrate_public_state(
         context,
@@ -304,8 +298,7 @@ pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
     // ============================================================
     // 3. Verify MigrationKeyNote inclusion
     // ============================================================
-    let note_hash_tree_root =
-        block_header.state.partial.note_hash_tree.root;
+    let note_hash_tree_root = block_header.state.partial.note_hash_tree.root;
 
     let _ = key_note.verify_key_note_inclusion(
         context,

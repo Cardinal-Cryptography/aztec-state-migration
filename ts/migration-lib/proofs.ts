@@ -134,9 +134,7 @@ export async function buildBlockHeader(
 ) {
   const blockHeader = await node.getBlockHeader(blockNumber);
   if (!blockHeader) {
-    throw new Error(
-      `Could not get block header for block ${blockNumber}`,
-    );
+    throw new Error(`Could not get block header for block ${blockNumber}`);
   }
   return blockHeaderToNoir(blockHeader);
 }
