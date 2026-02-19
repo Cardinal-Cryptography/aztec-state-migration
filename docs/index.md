@@ -5,9 +5,7 @@ title: Home
 
 # Aztec Contract Migration
 
-Dual-rollup migration protocol for Aztec token contracts, using cryptographic proofs anchored by L1.
-
-Users lock or burn balances on the old rollup and claim equivalent tokens on the new rollup, verified via archive roots relayed through L1.
+This documentation introduces the problem of application migration during Aztec Network version upgrades and proposes a solution to address it.
 
 ## Documentation
 
