@@ -223,10 +223,8 @@ async function main() {
 
   // Build proofs via wallet
   const [fullProofs, keyNoteProof] = await Promise.all([
-    oldUserWallet.buildNoteAndNullifierProofs(
-      provenBlockNumber,
-      balanceNotes,
-      (note) => UintNote.fromNote(note),
+    oldUserWallet.buildFullNoteProofs(provenBlockNumber, balanceNotes, (note) =>
+      UintNote.fromNote(note),
     ),
     oldUserWallet
       .buildNoteProofs(provenBlockNumber, [keyNotes[0]], (note) =>
@@ -257,7 +255,7 @@ async function main() {
 
   // The ExampleMigrationApp currently only supports migrating one note at a time.
   const noteProof = fullProofs[0];
-  const migrateAmount = noteProof.note.value;
+  const migrateAmount = noteProof.note_proof_data.data.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
   const newBalanceBefore = await newAppUser.methods
@@ -266,10 +264,10 @@ async function main() {
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
 
   try {
-    const migrateTx = await newAppUser.methods
+    await newAppUser.methods
       .migrate_mode_b(
         migrateAmount,
-        [...signature],
+        signature,
         [noteProof],
         archiveProof,
         oldUserManager.address,
@@ -313,7 +311,7 @@ async function main() {
   // Take one nullified note
   const nullifiedNote = balanceNotesNullified[0];
 
-  const [nullifiedNoteProof] = await oldUserWallet.buildNoteAndNullifierProofs(
+  const [nullifiedNoteProof] = await oldUserWallet.buildFullNoteProofs(
     provenBlockNumber,
     [nullifiedNote],
     (note) => UintNote.fromNote(note),
@@ -328,13 +326,13 @@ async function main() {
     newApp.address,
   );
 
-  const amount = nullifiedNoteProof.note.value;
+  const amount = nullifiedNoteProof.note_proof_data.data.value;
 
   try {
     let res = await newAppUser.methods
       .migrate_mode_b(
         amount,
-        [...nullifedNoteSig],
+        nullifedNoteSig,
         [nullifiedNoteProof],
         archiveProof,
         oldUserManager.address,

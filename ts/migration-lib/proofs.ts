@@ -3,11 +3,14 @@ import { BlockNumber } from "@aztec/foundation/branded-types";
 import { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import type { AztecNode } from "@aztec/aztec.js/node";
 import type { Note, NoteDao } from "@aztec/stdlib/note";
-import type {
-  NoteProofData,
-  ArchiveProofData,
-  NullifierProofData,
+import {
+  type NoteProofData,
+  type ArchiveProofData,
+  type NonNullificationProofData,
+  MigrationNoteProofData,
+  MigrationNote,
 } from "./types.js";
+import { PrivateEvent } from "@aztec/aztec.js/wallet";
 
 /**
  * Build a {@link NoteProofData} for a single note (note-hash inclusion proof).
@@ -27,7 +30,7 @@ export async function buildNoteProof<NoteLike>(
   const leafIndex = noteDao.index;
   const siblingPath = await node.getNoteHashSiblingPath(blockNumber, leafIndex);
   return {
-    note: noteMapper(noteDao.note),
+    data: noteMapper(noteDao.note),
     randomness: noteDao.randomness,
     nonce: noteDao.noteNonce,
     leaf_index: new Fr(leafIndex),
@@ -35,8 +38,26 @@ export async function buildNoteProof<NoteLike>(
   };
 }
 
+export async function buildMigrationNoteProof<T>(
+  node: AztecNode,
+  blockNumber: BlockNumber,
+  noteDao: NoteDao,
+  migration_data_event: PrivateEvent<T>,
+): Promise<MigrationNoteProofData<T>> {
+  const noteProof = await buildNoteProof(
+    node,
+    blockNumber,
+    noteDao,
+    MigrationNote.fromNote,
+  );
+  return {
+    ...noteProof,
+    data: migration_data_event.event,
+  };
+}
+
 /**
- * Build a {@link NullifierProofData} proving that a note has **not** been nullified.
+ * Build a {@link NonNullificationProofData} proving that a note has **not** been nullified.
  * Queries the low-nullifier membership witness from the nullifier tree.
  *
  * @param node - Aztec node client to query the nullifier tree.
@@ -48,7 +69,7 @@ export async function buildNullifierProof(
   node: AztecNode,
   blockNumber: BlockNumber,
   noteDao: NoteDao,
-): Promise<NullifierProofData> {
+): Promise<NonNullificationProofData> {
   const lowNullifierWitness = await node.getLowNullifierMembershipWitness(
     blockNumber,
     noteDao.siloedNullifier,

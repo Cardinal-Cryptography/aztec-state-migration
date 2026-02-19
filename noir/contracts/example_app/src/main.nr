@@ -20,8 +20,9 @@ pub contract ExampleMigrationApp {
     use balance_set::balance_set::BalanceSet;
     use migration::{
         ArchiveProofData,
+        MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
-        mode_b::{FullProofData, KeyNoteProofData, migrate_notes_mode_b},
+        mode_b::{FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b},
         Point,
         Scalar,
     };
@@ -165,19 +166,19 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn migrate_mode_a(
         // Amount is not strictly needed for the migration (the proof of the MigrationNote is sufficient),
-        // but including it in the arguments allows the contract to verify it matches the migration_data hash,
+        // but including it in the arguments allows the contract to verify it matches the migration data hash,
         // and mint the correct amount of tokens to the user.
         amount: u128,
         // Authentication
         mpk: Point,
-        signature: [u8; 64],
+        signature: MigrationSignature,
         //
         note_proof_data: [MigrationNoteProofData<u128>; 1],
         //
         archive_proof_data: ArchiveProofData,
     ) {
-        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].migration_data`
-        let amount_from_data = note_proof_data[0].migration_data;
+        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].data`
+        let amount_from_data = note_proof_data[0].data;
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
@@ -206,12 +207,12 @@ pub contract ExampleMigrationApp {
     fn migrate_to_public(
         amount: u128,
         mpk: Point,
-        signature: [u8; 64],
+        signature: MigrationSignature,
         note_proof_data: [MigrationNoteProofData<u128>; 1],
         archive_proof_data: ArchiveProofData,
     ) {
-        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].migration_data`
-        let amount_from_data = note_proof_data[0].migration_data;
+        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].data`
+        let amount_from_data = note_proof_data[0].data;
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
@@ -247,9 +248,9 @@ pub contract ExampleMigrationApp {
     fn migrate_mode_b(
         amount: u128,
         // Authentication
-        signature: [u8; 64],
+        signature: MigrationSignature,
         //
-        full_proof_data: [FullProofData<UintNote>; 1],
+        full_proof_data: [FullNoteProofData<UintNote>; 1],
         //
         archive_proof_data: ArchiveProofData,
         //
@@ -268,7 +269,9 @@ pub contract ExampleMigrationApp {
         // is used in test on "old rollup" and "new rollup".
         let balances_expected_storage_slot =
             STORAGE_LAYOUT_ExampleMigrationApp.fields.balances.slot;
-        let sum = full_proof_data.fold(0, |acc, full_note| acc + full_note.note.value);
+        let sum = full_proof_data.fold(0, |acc, full_note_proof_data| {
+            acc + full_note_proof_data.note_proof_data.data.value
+        });
         assert(sum == amount, "Sum of migrated notes does not match the specified amount");
         // 1. Call MigratorModeB to verify all proofs
         migrate_notes_mode_b(

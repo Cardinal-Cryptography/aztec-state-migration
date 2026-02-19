@@ -6,13 +6,16 @@ import { AztecNode } from "@aztec/aztec.js/node";
 import {
   ArchiveProofData,
   FullProofData,
+  MigrationSignature,
   NoteProofData,
-  NullifierProofData,
+  NonNullificationProofData,
+  MigrationNoteProofData,
 } from "../types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { PXE } from "@aztec/pxe/server";
 import {
   buildArchiveProof,
+  buildMigrationNoteProof,
   buildNoteProof,
   buildNullifierProof,
 } from "../proofs.js";
@@ -86,7 +89,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     newRollupVersion: Fr,
     newAppAddress: AztecAddress,
     migrationNotes: NoteDao[],
-  ): Promise<Buffer<ArrayBufferLike>> {
+  ): Promise<MigrationSignature> {
     return signModeA(
       signer.migrationKeySigner,
       oldRollupVersion,
@@ -115,7 +118,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     newRollupVersion: Fr,
     newAppAddress: AztecAddress,
     notes: NoteDao[],
-  ): Promise<Buffer<ArrayBufferLike>> {
+  ): Promise<MigrationSignature> {
     return signModeB(
       signer.migrationKeySigner,
       oldRollupVersion,
@@ -154,6 +157,11 @@ export abstract class BaseMigrationWallet extends BaseWallet {
   /**
    * Fetch Mode A migration notes from the PXE, filtering on the well-known
    * {@link MIGRATION_NOTE_SLOT} storage slot.
+   *
+   * FIXME: Currently, it returns ALL migraton notes created by the user,
+   * meaning that also those which have been already migrated are
+   * nullfied on the new rollup. We should add some filter options
+   * which by default filter out already migrated notes.
    *
    * @param filter - Additional note filters (owner, contract address, etc.).
    * @returns The matching migration notes.
@@ -208,6 +216,31 @@ export abstract class BaseMigrationWallet extends BaseWallet {
   }
 
   /**
+   * Build note-hash inclusion proofs for a batch of notes.
+   *
+   * @param blockNumber - Block number at which to prove inclusion.
+   * @param notes - The notes to prove.
+   * @param noteMapper - Callback that decodes each raw {@link Note} into the desired shape.
+   * @returns An array of {@link NoteProofData}, one per input note.
+   */
+  async buildMigrationNoteProofs<T>(
+    blockNumber: BlockNumber,
+    migrationNotes: NoteDao[],
+    migrationDataEvents: PrivateEvent<T>[],
+  ): Promise<MigrationNoteProofData<T>[]> {
+    return Promise.all(
+      migrationDataEvents.map((event, i) =>
+        buildMigrationNoteProof(
+          this.aztecNode,
+          blockNumber,
+          migrationNotes[i],
+          event,
+        ),
+      ),
+    );
+  }
+
+  /**
    * Build nullifier non-inclusion proofs for a batch of notes.
    *
    * @param blockNumber - Block number at which to prove non-inclusion.
@@ -217,7 +250,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
   async buildNullifierProofs(
     blockNumber: BlockNumber,
     notes: NoteDao[],
-  ): Promise<NullifierProofData[]> {
+  ): Promise<NonNullificationProofData[]> {
     return Promise.all(
       notes.map((n) => buildNullifierProof(this.aztecNode, blockNumber, n)),
     );
@@ -232,7 +265,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
    * @param noteMapper - Callback that decodes each raw {@link Note}.
    * @returns An array of {@link FullProofData}, one per input note.
    */
-  async buildNoteAndNullifierProofs<NoteLike>(
+  async buildFullNoteProofs<NoteLike>(
     blockNumber: BlockNumber,
     notes: NoteDao[],
     noteMapper: (note: Note) => NoteLike,
@@ -244,8 +277,8 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     );
     const nullifierProofs = await this.buildNullifierProofs(blockNumber, notes);
     return noteProofs.map((noteProof, i) => ({
-      ...noteProof,
-      ...nullifierProofs[i],
+      note_proof_data: noteProof,
+      non_nullification_proof_data: nullifierProofs[i],
     }));
   }
 }
