@@ -1,7 +1,9 @@
 use crate::{
-    archive_proof_data::ArchiveProofData, constants::CLAIM_DOMAIN_B, signature::MigrationSignature,
+    archive_proof_data::ArchiveProofData,
+    constants::{CLAIM_DOMAIN_B, CLAIM_DOMAIN_B_PUBLIC},
+    signature::MigrationSignature,
 };
-use super::{FullNoteProofData, KeyNoteProofData};
+use super::{FullNoteProofData, KeyNoteProofData, public_state_proof_data::PublicStateProofData};
 use aztec::{
     context::private_context::PrivateContext,
     note::note_interface::NoteHash,
@@ -10,7 +12,7 @@ use aztec::{
         constants::{GENERATOR_INDEX__NOTE_NULLIFIER, GENERATOR_INDEX__NSK_M},
         hash::{poseidon2_hash, poseidon2_hash_with_separator},
         public_keys::{NpkM, PublicKeys},
-        traits::ToField,
+        traits::{Packable, ToField},
     },
 };
 use migration_archive_registry::MigrationArchiveRegistry;
@@ -200,4 +202,95 @@ fn migrate_note<Note: NoteHash>(
     context.push_nullifier(migration_nullifier);
 
     note_hash
+}
+
+pub fn migrate_public_state_mode_b<T: Packable>(
+    context: &mut PrivateContext,
+    migration_archive_registry: AztecAddress,
+    signature: MigrationSignature,
+    old_app: AztecAddress,
+    public_state_proof_data: PublicStateProofData<T, <T as Packable>::N>,
+    base_storage_slot: Field,
+    archive_proof_data: ArchiveProofData,
+    old_owner: AztecAddress,
+    key_note: KeyNoteProofData,
+) {
+    // ============================================================
+    // 1. Verify public data existed in the public data tree
+    // ============================================================
+    let public_state_tree_root =
+        archive_proof_data.archive_block_header.state.partial.public_data_tree.root;
+
+    public_state_proof_data.verify_public_state(base_storage_slot, old_app, public_state_tree_root);
+
+    let public_state_hash: Field = public_state_proof_data.public_state_hash();
+    let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
+    let current_rollup = context.version();
+    let recipient = context.msg_sender().unwrap();
+    let new_app = context.this_address();
+
+    signature.verify_migration_signature::<CLAIM_DOMAIN_B_PUBLIC>(
+        old_rollup,
+        current_rollup,
+        public_state_hash,
+        recipient,
+        new_app,
+        key_note.data.mpk,
+    );
+
+    // ============================================================
+    // 4. Verify MigrationKeyNote inclusion
+    // ============================================================
+    let note_hash_tree_root =
+        archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+
+    let key_note_hash = key_note.note_hash(
+        old_owner,
+        STORAGE_LAYOUT_MigrationKeyRegistry.fields.registered_keys.slot,
+    );
+
+    // Silo by old key registry contract address
+    let old_registry = MigrationArchiveRegistry::at(migration_archive_registry)
+        .get_old_key_registry()
+        .call(context);
+
+    let _ = key_note.verify_note_inclusion(old_registry, key_note_hash, note_hash_tree_root);
+
+    // ============================================================
+    // 5. Compute archive root from block header
+    // ============================================================
+    let computed_archive_root = archive_proof_data.compute_archive_root();
+
+    // ============================================================
+    // 6. Enqueue public verification of archive root and snapshot height
+    // ============================================================
+    MigrationArchiveRegistry::at(migration_archive_registry)
+        .verify_migration_mode_b(computed_archive_root)
+        .enqueue(context);
+}
+
+pub fn migrate_public_map_state_mode_b<T: Packable, K: ToField>(
+    context: &mut PrivateContext,
+    migration_archive_registry: AztecAddress,
+    signature: MigrationSignature,
+    old_app: AztecAddress,
+    public_state_proof_data: PublicStateProofData<T, <T as Packable>::N>,
+    base_storage_slot: Field,
+    archive_proof_data: ArchiveProofData,
+    old_owner: AztecAddress,
+    map_key: K,
+    key_note: KeyNoteProofData,
+) {
+    let derived_storage_slot = poseidon2_hash([base_storage_slot, map_key.to_field()]);
+    migrate_public_state_mode_b(
+        context,
+        migration_archive_registry,
+        signature,
+        old_app,
+        public_state_proof_data,
+        derived_storage_slot,
+        archive_proof_data,
+        old_owner,
+        key_note,
+    );
 }
