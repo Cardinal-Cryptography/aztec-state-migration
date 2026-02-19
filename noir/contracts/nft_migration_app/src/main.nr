@@ -73,6 +73,7 @@ pub contract NftMigrationApp {
 
     #[external("private")]
     fn mint_to_private(to: AztecAddress, token_id: Field) {
+        assert(self.context.msg_sender().unwrap() == self.storage.minter.read(), "Only minter");
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(to).insert(new_note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
@@ -84,6 +85,7 @@ pub contract NftMigrationApp {
 
     #[external("private")]
     fn mint_to_public(to: AztecAddress, token_id: Field) {
+        assert(self.context.msg_sender().unwrap() == self.storage.minter.read(), "Only minter");
         NftMigrationApp::at(self.context.this_address())
             ._set_public_owner(token_id, to)
             .enqueue(self.context);
@@ -298,8 +300,9 @@ pub contract NftMigrationApp {
             key_note,
         );
 
+        let recipient = self.context.msg_sender().unwrap();
         NftMigrationApp::at(self.context.this_address())
-            ._set_public_owner(token_id, proof_data.data)
+            ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
     }
 
@@ -310,6 +313,7 @@ pub contract NftMigrationApp {
     #[external("public")]
     #[only_self]
     fn _set_public_owner(token_id: Field, owner: AztecAddress) {
+        assert(!self.storage.nft_exists.at(token_id).read(), "NFT already exists");
         self.storage.public_owners.at(token_id).write(owner);
         self.storage.nft_exists.at(token_id).write(true);
     }
@@ -317,6 +321,7 @@ pub contract NftMigrationApp {
     #[external("public")]
     #[only_self]
     fn _set_nft_exists(token_id: Field) {
+        assert(!self.storage.nft_exists.at(token_id).read(), "NFT already exists");
         self.storage.nft_exists.at(token_id).write(true);
     }
 
@@ -326,6 +331,6 @@ pub contract NftMigrationApp {
         let current_owner = self.storage.public_owners.at(token_id).read();
         assert(current_owner == owner, "Not the public owner of this NFT");
         self.storage.public_owners.at(token_id).write(AztecAddress::zero());
-        self.storage.nft_exists.at(token_id).write(false);
+        // nft_exists stays true - monotonic flag prevents replay attacks
     }
 }
