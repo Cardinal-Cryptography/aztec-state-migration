@@ -98,7 +98,9 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     note_proof_data: [MigrationNoteProofData<T>; N],
     archive_proof_data: ArchiveProofData,
 ) {
+    // ============================================================
     // 1. Verify each note's inclusion in the old rollup's note hash tree
+    // ============================================================
     let mut note_hashes: [Field; N] = [0; N];
     let current_rollup = context.version();
     let note_hash_tree_root =
@@ -116,7 +118,9 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
         note_hashes[i] = note_hash;
     }
 
+    // ============================================================
     // 2. Verify the migration signature over the set of notes and migration context
+    // ============================================================
     let notes_hash = poseidon2_hash(note_hashes);
     let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
     let recipient = context.msg_sender().unwrap();
@@ -131,11 +135,15 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
         mpk,
     );
 
-    // 3. Recompute archive root
+    // ============================================================
+    // 3. Compute archive root from block header
+    // ============================================================
     let computed_archive_root = archive_proof_data.compute_archive_root();
 
+    // ============================================================
     // 4. Enqueue public check: computed archive root must match the one
     //    registered in MigrationArchiveRegistry (bridged from L1)
+    // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_a(
             archive_proof_data.archive_block_header.global_variables.block_number,

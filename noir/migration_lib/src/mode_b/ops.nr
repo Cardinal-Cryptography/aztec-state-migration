@@ -144,12 +144,12 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let _ = key_note.verify_note_inclusion(old_registry, key_note_hash, note_hash_tree_root);
 
     // ============================================================
-    // 6. Compute archive root from block header
+    // 5. Compute archive root from block header
     // ============================================================
     let computed_archive_root = archive_proof_data.compute_archive_root();
 
     // ============================================================
-    // 7. Enqueue public verification of archive root and snapshot height
+    // 6. Enqueue public verification of archive root and snapshot height
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_b(computed_archive_root)
@@ -180,7 +180,7 @@ fn migrate_note<Note: NoteHash>(
         note_proof_data.verify_note_inclusion(old_app, note_hash, note_hash_tree_root);
 
     // ============================================================
-    // 3. Compute and verify Note non-nullification
+    // 2. Compute and verify Note non-nullification
     // ============================================================
 
     let _ = non_nullification_proof_data.verify_nullifier_non_inclusion(
@@ -191,7 +191,7 @@ fn migrate_note<Note: NoteHash>(
     );
 
     // ============================================================
-    // 4. Push migration nullifier (prevents double-claiming)
+    // 3. Push migration nullifier (prevents double-claiming)
     // ============================================================
     let migration_nullifier = poseidon2_hash_with_separator(
         [note_unique, note_proof_data.randomness],
