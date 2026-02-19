@@ -115,7 +115,6 @@ export async function buildArchiveProof(
 
   return {
     archive_block_header: blockHeaderToNoir(blockHeader),
-    archive_leaf_index: new Fr(BigInt(blockNumber)),
     archive_sibling_path: archiveSiblingPath.toFields(),
   };
 }
