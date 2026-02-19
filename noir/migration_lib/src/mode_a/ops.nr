@@ -1,5 +1,4 @@
 use crate::{
-    archive_proof_data::ArchiveProofData,
     constants::{CLAIM_DOMAIN_A, MIGRATION_MODE_A_STORAGE_SLOT},
     signature::MigrationSignature,
 };
@@ -11,7 +10,12 @@ use aztec::{
     event::event_emission::emit_event_in_private,
     messages::message_delivery::MessageDelivery,
     note::{lifecycle::create_note, note_interface::NoteHash},
-    protocol_types::{address::AztecAddress, hash::poseidon2_hash, traits::{Packable, Serialize}},
+    protocol_types::{
+        abis::block_header::BlockHeader,
+        address::AztecAddress,
+        hash::poseidon2_hash,
+        traits::{Hash, Packable, Serialize, ToField},
+    },
 };
 use migration_archive_registry::MigrationArchiveRegistry;
 use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
@@ -74,21 +78,14 @@ where
 /// rollup's state.
 ///
 /// Verification chain:
-///   1. Derive `mpk` from the caller-supplied `msk` to authenticate ownership.
-///   2. For each `MigrationNoteProofData`, reconstruct the note hash and verify it
+///   1. For each `MigrationNoteProofData`, reconstruct the note hash and verify it
 ///      exists in the old rollup's note hash tree (via Merkle proof).
-///   3. Recompute the archive root from the block header and its sibling path.
+///   2. Verify the migration signature over the set of notes and migration context.
+///   3. Compute block hash from the block header.
 ///   4. Enqueue a public call to the MigrationArchiveRegistry to verify the computed
-///      archive root matches the one registered on-chain (bridged from L1).
+///      block hash matches the one registered on-chain (bridged from L1).
 ///
 /// Each verified note emits a nullifier (keyed to note randomness) to prevent double-claiming.
-///
-/// # Parameters
-/// - `context`: the calling app contract's private context on the new rollup
-/// - `migration_archive_registry`: address of the MigrationArchiveRegistry contract (holds registered archive roots)
-/// - `old_app`: address of the app contract on the old rollup (used for note siloing)
-/// - `note_proof_data`: per-note inclusion proofs and migration data
-/// - `migration_args`: archive-level proof (block header, sibling path) and migration secret key
 pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
@@ -96,15 +93,14 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     signature: MigrationSignature,
     old_app: AztecAddress,
     note_proof_data: [MigrationNoteProofData<T>; N],
-    archive_proof_data: ArchiveProofData,
+    block_header: BlockHeader,
 ) {
     // ============================================================
     // 1. Verify each note's inclusion in the old rollup's note hash tree
     // ============================================================
     let mut note_hashes: [Field; N] = [0; N];
     let current_rollup = context.version();
-    let note_hash_tree_root =
-        archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+    let note_hash_tree_root = block_header.state.partial.note_hash_tree.root;
 
     for i in 0..N {
         let note_hash = migrate_note(
@@ -122,7 +118,7 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     // 2. Verify the migration signature over the set of notes and migration context
     // ============================================================
     let notes_hash = poseidon2_hash(note_hashes);
-    let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
+    let old_rollup = block_header.global_variables.version;
     let recipient = context.msg_sender().unwrap();
     let new_app_address = context.this_address();
 
@@ -136,28 +132,23 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     );
 
     // ============================================================
-    // 3. Compute archive root from block header
+    // 3. Compute block hash from block header
     // ============================================================
-    let computed_archive_root = archive_proof_data.compute_archive_root();
+    let block_hash = block_header.hash();
 
     // ============================================================
-    // 4. Enqueue public check: computed archive root must match the one
+    // 4. Enqueue public check: block hash must match the one
     //    registered in MigrationArchiveRegistry (bridged from L1)
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_a(
-            archive_proof_data.archive_block_header.global_variables.block_number,
-            computed_archive_root,
+            block_header.global_variables.block_number,
+            block_hash,
         )
         .enqueue(context);
 }
 
 /// Verify a single MigrationNote's inclusion and emit its nullifier.
-///
-/// Reconstructs the note hash following the same pipeline the protocol uses
-/// when committing notes:
-///   note_hash -> siloed_note_hash (with contract address) -> unique_note_hash (with nonce)
-/// Then verifies the unique hash against the note hash tree root via Merkle proof.
 fn migrate_note<T: Packable>(
     context: &mut PrivateContext,
     old_app_address: AztecAddress,

@@ -1,6 +1,3 @@
-mod archive_proof_data;
-pub use archive_proof_data::ArchiveProofData;
-
 mod constants;
 
 mod note_proof_data;

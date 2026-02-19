@@ -5,7 +5,7 @@ import {
   deployAppPair,
   deployArchiveRegistry,
   deployKeyRegistry,
-  bridgeArchiveRoot,
+  bridgeBlock,
   deployAndFundAccount,
 } from "./test-utils.js";
 import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
@@ -134,7 +134,7 @@ async function main() {
   // ============================================================
   console.log("8-10. Bridging archive root and setting snapshot height...");
 
-  const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
+  const { l1Result, provenBlockNumber, archiveProof, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
     registerTx.blockNumber!,
@@ -146,7 +146,13 @@ async function main() {
 
   // Set snapshot height for Mode B
   const setSnapshotTx = await newArchiveRegistry.methods
-    .set_snapshot_height(l1Result.provenBlockNumber)
+    .set_snapshot_height(
+      l1Result.provenBlockNumber,
+      blockHeader,
+      l1Result.provenBlockNumber,
+      blockHeader,
+      archiveProof.archive_sibling_path,
+    )
     .send({ from: newDeployerManager.address })
     .wait();
   console.log(`   Set snapshot height tx: ${setSnapshotTx.txHash}`);
@@ -239,7 +245,7 @@ async function main() {
   );
   const signature = await signMigrationModeB(
     oldAccount.migrationKeySigner,
-    archiveProof.archive_block_header.global_variables.version,
+    blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     balanceNotes,
     newUserManager.address,
@@ -269,7 +275,7 @@ async function main() {
         migrateAmount,
         signature,
         [noteProof],
-        archiveProof,
+        blockHeader,
         oldUserManager.address,
         publicKeys.toNoirStruct(),
         partialAddress,
@@ -319,7 +325,7 @@ async function main() {
 
   const nullifedNoteSig = await signMigrationModeB(
     oldAccount.migrationKeySigner,
-    archiveProof.archive_block_header.global_variables.version,
+    blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     [nullifiedNote],
     newUserManager.address,
@@ -334,7 +340,7 @@ async function main() {
         amount,
         nullifedNoteSig,
         [nullifiedNoteProof],
-        archiveProof,
+        blockHeader,
         oldUserManager.address,
         publicKeys.toNoirStruct(),
         partialAddress,

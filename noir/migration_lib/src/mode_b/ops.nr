@@ -1,5 +1,4 @@
 use crate::{
-    archive_proof_data::ArchiveProofData,
     constants::{CLAIM_DOMAIN_B, CLAIM_DOMAIN_B_PUBLIC},
     signature::MigrationSignature,
 };
@@ -11,11 +10,12 @@ use aztec::{
     context::private_context::PrivateContext,
     note::note_interface::NoteHash,
     protocol_types::{
+        abis::block_header::BlockHeader,
         address::{AztecAddress, partial_address::PartialAddress},
         constants::{GENERATOR_INDEX__NOTE_NULLIFIER, GENERATOR_INDEX__NSK_M},
         hash::{poseidon2_hash, poseidon2_hash_with_separator},
         public_keys::{NpkM, PublicKeys},
-        traits::{Packable, ToField},
+        traits::{Hash, Packable, ToField},
     },
 };
 use migration_archive_registry::MigrationArchiveRegistry;
@@ -31,14 +31,14 @@ use std::embedded_curve_ops::{EmbeddedCurveScalar as Scalar, fixed_base_scalar_m
 //   3. Notes non-nullification at snapshot H (constrained nullifier derivation)
 //   4. MigrationKeyNote inclusion in note_hash_tree at snapshot H
 //   5. Authentication: verify signature over migration context and notes hashes against mpk
-//   6. Archive root verification via block header + merkle proof
+//   6. Block hash verification via block header hash
 
 /// Verify and claim a Mode B (emergency snapshot) migration for a batch of notes.
 ///
 /// Proves that each note existed and was not nullified in the old rollup at
 /// snapshot height H, authenticates the claim via a Schnorr signature over the
 /// migration context, and enqueues a public call to the archive registry for
-/// final archive-root and snapshot-height verification.
+/// final block hash and snapshot-height verification.
 ///
 /// # Parameters
 /// - `context`:                       Private execution context on the new rollup.
@@ -47,7 +47,7 @@ use std::embedded_curve_ops::{EmbeddedCurveScalar as Scalar, fixed_base_scalar_m
 /// - `old_app`:                       Address of the contract that owned the notes on the old rollup.
 /// - `full_proof_data`:               Array of notes with inclusion and non-nullification proofs.
 /// - `expected_storage_slot`:         Expected storage slot for the notes.
-/// - `archive_proof_data`:            Block header and archive Merkle proof for the snapshot block.
+/// - `block_header`:                  Block header at the snapshot height.
 /// - `notes_owner`:                   Address that owned the notes on the old rollup.
 /// - `public_keys`:                   Owner's public key set (npk_m is re-derived from `nsk`).
 /// - `partial_address`:               Owner's partial address for address re-computation.
@@ -60,7 +60,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     old_app: AztecAddress,
     full_proof_data: [FullNoteProofData<Note>; N],
     expected_storage_slot: Field,
-    archive_proof_data: ArchiveProofData,
+    block_header: BlockHeader,
     notes_owner: AztecAddress,
     public_keys: PublicKeys,
     partial_address: Field,
@@ -90,9 +90,9 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // ============================================================
 
     let nullifier_tree_root =
-        archive_proof_data.archive_block_header.state.partial.nullifier_tree.root;
+        block_header.state.partial.nullifier_tree.root;
     let note_hash_tree_root =
-        archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+        block_header.state.partial.note_hash_tree.root;
 
     // Derive nsk_app for the old app contract:
     let nsk_app =
@@ -117,7 +117,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // 3. Authentication: verify the migration signature over the set of notes and migration context
     // ============================================================
     let notes_hash = poseidon2_hash(notes_hashes);
-    let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
+    let old_rollup = block_header.global_variables.version;
     let current_rollup = context.version();
     let recipient = context.msg_sender().unwrap();
     let new_app = context.this_address();
@@ -143,15 +143,15 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     );
 
     // ============================================================
-    // 5. Compute archive root from block header
+    // 5. Compute block hash from block header
     // ============================================================
-    let computed_archive_root = archive_proof_data.compute_archive_root();
+    let block_hash = block_header.hash();
 
     // ============================================================
-    // 6. Enqueue public verification of archive root and snapshot height
+    // 6. Enqueue public verification of block hash against snapshot
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
-        .verify_migration_mode_b(computed_archive_root)
+        .verify_migration_mode_b(block_hash)
         .enqueue(context);
 }
 
@@ -207,13 +207,13 @@ pub fn migrate_public_state_mode_b<T: Packable>(
     old_app: AztecAddress,
     public_state_proof_data: PublicStateProofData<T, <T as Packable>::N>,
     base_storage_slot: Field,
-    archive_proof_data: ArchiveProofData,
+    block_header: BlockHeader,
 ) {
     // ============================================================
     // 1. Verify public data existed in the public data tree
     // ============================================================
     let public_state_tree_root =
-        archive_proof_data.archive_block_header.state.partial.public_data_tree.root;
+        block_header.state.partial.public_data_tree.root;
 
     public_state_proof_data.migrate_public_state(
         context,
@@ -223,15 +223,15 @@ pub fn migrate_public_state_mode_b<T: Packable>(
     );
 
     // ============================================================
-    // 2. Compute archive root from block header
+    // 2. Compute block hash from block header
     // ============================================================
-    let computed_archive_root = archive_proof_data.compute_archive_root();
+    let block_hash = block_header.hash();
 
     // ============================================================
-    // 3. Enqueue public verification of archive root and snapshot height
+    // 3. Enqueue public verification of block hash against snapshot
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
-        .verify_migration_mode_b(computed_archive_root)
+        .verify_migration_mode_b(block_hash)
         .enqueue(context);
 }
 
@@ -241,7 +241,7 @@ pub fn migrate_public_map_state_mode_b<T: Packable, K: ToField>(
     old_app: AztecAddress,
     public_state_proof_data: PublicStateProofData<T, <T as Packable>::N>,
     base_storage_slot: Field,
-    archive_proof_data: ArchiveProofData,
+    block_header: BlockHeader,
     map_key: K,
 ) {
     // ============================================================
@@ -255,7 +255,7 @@ pub fn migrate_public_map_state_mode_b<T: Packable, K: ToField>(
         old_app,
         public_state_proof_data,
         derived_storage_slot,
-        archive_proof_data,
+        block_header,
     );
 }
 
@@ -266,7 +266,7 @@ pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
     old_app: AztecAddress,
     public_state_proof_data: PublicStateProofData<T, <T as Packable>::N>,
     base_storage_slot: Field,
-    archive_proof_data: ArchiveProofData,
+    block_header: BlockHeader,
     old_owner: AztecAddress,
     key_note: KeyNoteProofData,
 ) {
@@ -279,7 +279,7 @@ pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
         old_app,
         public_state_proof_data,
         base_storage_slot,
-        archive_proof_data,
+        block_header,
         old_owner.to_field(),
     );
 
@@ -287,7 +287,7 @@ pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
     // 2. Verify the migration signature over the migration context and public state hash
     // ============================================================
     let public_state_hash: Field = public_state_proof_data.public_state_hash();
-    let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
+    let old_rollup = block_header.global_variables.version;
     let current_rollup = context.version();
     let recipient = context.msg_sender().unwrap();
     let new_app = context.this_address();
@@ -305,7 +305,7 @@ pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
     // 3. Verify MigrationKeyNote inclusion
     // ============================================================
     let note_hash_tree_root =
-        archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+        block_header.state.partial.note_hash_tree.root;
 
     let _ = key_note.verify_key_note_inclusion(
         context,
