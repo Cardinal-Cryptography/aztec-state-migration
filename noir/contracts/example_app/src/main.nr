@@ -316,8 +316,10 @@ pub contract ExampleMigrationApp {
 
     #[external("private")]
     fn migrate_to_public_mode_b(
-        // the number of occupied slots (2) is asserted in the migration function
-        // assert(<T as Packable>::N == N)
+        // the number of occupied slots (2) is asserted in the migration function:
+        // assert(<T as Packable>::N == N),
+        // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
+        // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         some_struct_standalone_proof_data: PublicStateProofData<SomeStruct, 2>,
         signature: MigrationSignature,
         archive_proof_data: ArchiveProofData,
@@ -332,9 +334,9 @@ pub contract ExampleMigrationApp {
             self.storage.archive_root_address.read(),
             signature,
             self.storage.old_rollup_app_address.read(),
-            // The `base_storage_slot` should reflect the `some_struct_map` field in the storage layout
-            // of the contract on the old rollup.
             some_struct_standalone_proof_data,
+            // The `base_storage_slot` should reflect the `some_struct` field in the storage layout
+            // of the contract on the old rollup.
             STORAGE_LAYOUT_ExampleMigrationApp.fields.some_struct.slot,
             archive_proof_data,
             old_owner,
@@ -347,8 +349,10 @@ pub contract ExampleMigrationApp {
 
     #[external("private")]
     fn migrate_to_public_map_mode_b(
-        // the number of occupied slots (2) is asserted in the migration function
-        // assert(<T as Packable>::N == N)
+        // the number of occupied slots (2) is asserted in the migration function:
+        // assert(<T as Packable>::N == N),
+        // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
+        // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         some_struct_in_map_proof_data: PublicStateProofData<SomeStruct, 2>,
         signature: MigrationSignature,
         archive_proof_data: ArchiveProofData,
@@ -366,9 +370,9 @@ pub contract ExampleMigrationApp {
             self.storage.archive_root_address.read(),
             signature,
             self.storage.old_rollup_app_address.read(),
+            some_struct_in_map_proof_data,
             // The `expected_storage_slot` should reflect the `some_struct_map` field in the storage layout
             // of the contract on the old rollup.
-            some_struct_in_map_proof_data,
             STORAGE_LAYOUT_ExampleMigrationApp.fields.some_struct_map.slot,
             archive_proof_data,
             old_owner,

@@ -62,6 +62,10 @@ impl<T: Packable, let N: u32> PublicStateProofData<T, N> {
         public_state_tree_root: Field,
     ) {
         let data_fields = self.data.pack();
+        assert(
+            <T as Packable>::N == N,
+            "Proof data length must match the number of fields in the struct",
+        );
 
         // Each data field occupies a consecutive storage slot (S, S+1, ..., S+N-1).
         // We verify each field's inclusion in the public data tree separately.
