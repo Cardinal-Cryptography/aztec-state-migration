@@ -328,9 +328,9 @@ async function main() {
   );
 
   // ============================================================
-  // Step 21: Call migrate_to_public on NEW rollup
+  // Step 21: Call migrate_to_public_mode_a on NEW rollup
   // ============================================================
-  console.log("21. Calling migrate_to_public on NEW rollup...");
+  console.log("21. Calling migrate_to_public_mode_a on NEW rollup...");
 
   const newPublicBalanceBefore = await newAppUser.methods
     .get_public_balance(newUserManager.address)
@@ -341,7 +341,7 @@ async function main() {
 
   try {
     const migratePublicTx = await newAppUser.methods
-      .migrate_to_public(
+      .migrate_to_public_mode_a(
         PUBLIC_LOCK_AMOUNT,
         mpk.toNoirStruct(),
         publicSignature,
@@ -367,7 +367,7 @@ async function main() {
     }
     console.log("   Public balance migration fully successful!");
   } catch (e) {
-    throw new Error(`migrate_to_public failed: ${(e as Error).message}`);
+    throw new Error(`migrate_to_public_mode_a failed: ${(e as Error).message}`);
   }
 
   const newPublicBalanceAfter = await newAppUser.methods
