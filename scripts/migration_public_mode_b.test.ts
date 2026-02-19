@@ -126,12 +126,19 @@ async function main() {
   console.log(`   Init tx: ${initTx.txHash}`);
   console.log(`   SomeStruct = { a: ${SOME_STRUCT.a}, b: ${SOME_STRUCT.b} }\n`);
 
-  const initStructInMapTx = await oldAppUser.methods
-    .init_some_struct_map(oldUserManager.address, SOME_STRUCT)
-    .send({ from: oldUserManager.address })
-    .wait();
-  console.log(`   Init tx: ${initStructInMapTx.txHash}`);
-  console.log(`   SomeStruct = { a: ${SOME_STRUCT.a}, b: ${SOME_STRUCT.b} }\n`);
+  // const initOwnedStructInMapTx = await oldAppUser.methods
+  //   .init_owned_some_struct_map(SOME_STRUCT)
+  //   .send({ from: oldUserManager.address })
+  //   .wait();
+  // console.log(`   Init tx: ${initOwnedStructInMapTx.txHash}`);
+  // console.log(`   SomeStruct = { a: ${SOME_STRUCT.a}, b: ${SOME_STRUCT.b} }\n`);
+
+  // const initStructInMapTx = await oldAppUser.methods
+  //   .init_some_struct_map(oldUserManager.address, SOME_STRUCT)
+  //   .send({ from: oldUserManager.address })
+  //   .wait();
+  // console.log(`   Init tx: ${initStructInMapTx.txHash}`);
+  // console.log(`   SomeStruct = { a: ${SOME_STRUCT.a}, b: ${SOME_STRUCT.b} }\n`);
 
   // ============================================================
   // Register migration key
@@ -218,30 +225,6 @@ async function main() {
   console.log(`   Public data proofs built\n`);
 
   // ============================================================
-  // Sign migration message
-  // ============================================================
-  console.log("9. Signing migration message...");
-
-  // Pack SomeStruct the same way Noir does: [a_as_field, b_as_field]
-  const packedFields = [new Fr(TEST_A), TEST_B];
-  const publicStateHash = await poseidon2Hash(packedFields);
-  const oldRollupVersion =
-    archiveProof.archive_block_header.global_variables.version;
-
-  const msg = await poseidon2Hash([
-    CLAIM_DOMAIN_B_PUBLIC,
-    oldRollupVersion,
-    new Fr(env.newRollupVersion),
-    publicStateHash,
-    newUserManager.address,
-    newApp.address,
-  ]);
-  const signature = await oldMigrationAccount.migrationKeySigner(
-    msg.toBuffer(),
-  );
-  console.log(`   Signature computed\n`);
-
-  // ============================================================
   // Call migrate_to_public_mode_b on NEW rollup
   // ============================================================
   console.log("10. Calling migrate_to_public_mode_b on NEW rollup...");
@@ -253,10 +236,7 @@ async function main() {
           data: SOME_STRUCT,
           slot_proof_data: publicDataSlotProofs,
         },
-        signature,
         archiveProof,
-        oldUserManager.address,
-        keyNoteProof,
       )
       .send({ from: newUserManager.address })
       .wait();
@@ -277,6 +257,64 @@ async function main() {
   } catch (e) {
     throw new Error(`migrate_to_public_mode_b failed: ${(e as Error).message}`);
   }
+
+  // TODO: Test map migration and owned map migration
+
+  // // ============================================================
+  // // Sign migration message (for owned map)
+  // // ============================================================
+  // console.log("9. Signing migration message...");
+
+  // // Pack SomeStruct the same way Noir does: [a_as_field, b_as_field]
+  // const packedFields = [new Fr(TEST_A), TEST_B];
+  // const publicStateHash = await poseidon2Hash(packedFields);
+  // const oldRollupVersion =
+  //   archiveProof.archive_block_header.global_variables.version;
+
+  // const msg = await poseidon2Hash([
+  //   CLAIM_DOMAIN_B_PUBLIC,
+  //   oldRollupVersion,
+  //   new Fr(env.newRollupVersion),
+  //   publicStateHash,
+  //   newUserManager.address,
+  //   newApp.address,
+  // ]);
+  // const signature = await oldMigrationAccount.migrationKeySigner(
+  //   msg.toBuffer(),
+  // );
+  // console.log(`   Signature computed\n`);
+
+  // try {
+  //   const migrateTx = await newAppUser.methods
+  //     .migrate_to_public_owned_map_mode_b(
+  //       {
+  //         data: SOME_STRUCT,
+  //         slot_proof_data: publicDataSlotProofs,
+  //       },
+  //       signature,
+  //       archiveProof,
+  //       oldUserManager.address,
+  //       keyNoteProof,
+  //     )
+  //     .send({ from: newUserManager.address })
+  //     .wait();
+  //   console.log(`   Migrate tx: ${migrateTx.txHash}`);
+
+  //   // Verify struct was set on new rollup
+  //   const result = await newAppUser.methods
+  //     .get_some_struct()
+  //     .simulate({ from: newUserManager.address });
+  //   console.log(`   Result on NEW rollup: { a: ${result.a}, b: ${result.b} }`);
+
+  //   if (BigInt(result.a) !== TEST_A) {
+  //     throw new Error(
+  //       `Field 'a' mismatch: got ${result.a}, expected ${TEST_A}`,
+  //     );
+  //   }
+  //   console.log("\n   Public state migration (Mode B) successful!");
+  // } catch (e) {
+  //   throw new Error(`migrate_to_public_mode_b failed: ${(e as Error).message}`);
+  // }
 
   // ============================================================
   // Summary

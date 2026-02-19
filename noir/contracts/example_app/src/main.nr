@@ -28,8 +28,8 @@ pub contract ExampleMigrationApp {
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
             FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
-            migrate_public_map_owned_state_mode_b, migrate_public_state_mode_b,
-            PublicStateProofData,
+            migrate_public_map_owned_state_mode_b, migrate_public_map_state_mode_b,
+            migrate_public_state_mode_b, PublicStateProofData,
         },
         Point,
         Scalar,
@@ -54,8 +54,10 @@ pub contract ExampleMigrationApp {
         public_balances: Map<AztecAddress, PublicMutable<u128, Context>, Context>,
         // Some public struct
         some_struct: PublicMutable<SomeStruct, Context>,
-        // Map with some struct
-        some_struct_map: Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>,
+        // Map with some struct where the key is the owner (to show migration of public map state with ownership)
+        owned_some_struct_map: Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>,
+        //
+        some_struct_map: Map<Field, PublicMutable<SomeStruct, Context>, Context>,
     }
 
     #[external("public")]
@@ -343,7 +345,7 @@ pub contract ExampleMigrationApp {
     }
 
     #[external("private")]
-    fn migrate_to_public_map_mode_b(
+    fn migrate_to_public_owned_map_mode_b(
         // the number of occupied slots (2) is asserted in the migration function:
         // assert(<T as Packable>::N == N),
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
@@ -363,15 +365,44 @@ pub contract ExampleMigrationApp {
             signature,
             self.storage.old_rollup_app_address.read(),
             some_struct_in_map_proof_data,
-            // The `expected_storage_slot` should reflect the `some_struct_map` field in the storage layout
+            // The `expected_storage_slot` should reflect the `owned_some_struct_map` field in the storage layout
             // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationApp.fields.some_struct_map.slot,
+            STORAGE_LAYOUT_ExampleMigrationApp.fields.owned_some_struct_map.slot,
             archive_proof_data,
             old_owner,
             key_note,
         );
         ExampleMigrationApp::at(self.context.this_address())
-            .set_some_struct_map(old_owner, some_struct_in_map)
+            .set_owned_some_struct_map(some_struct_in_map)
+            .enqueue(self.context);
+    }
+
+    #[external("private")]
+    fn migrate_to_public_map_mode_b(
+        // the number of occupied slots (2) is asserted in the migration function:
+        // assert(<T as Packable>::N == N),
+        // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
+        // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
+        some_struct_in_map_proof_data: PublicStateProofData<SomeStruct, 2>,
+        archive_proof_data: ArchiveProofData,
+        map_key: Field,
+    ) {
+        // in this example we use struct to show that we can migrate any public state, not just balances.
+        // In a real token contract, this would likely still be `amount: u128`.
+        let some_struct_in_map = some_struct_in_map_proof_data.data;
+        migrate_public_map_state_mode_b(
+            self.context,
+            self.storage.archive_root_address.read(),
+            self.storage.old_rollup_app_address.read(),
+            some_struct_in_map_proof_data,
+            // The `expected_storage_slot` should reflect the `some_struct_map` field in the storage layout
+            // of the contract on the old rollup.
+            STORAGE_LAYOUT_ExampleMigrationApp.fields.some_struct_map.slot,
+            archive_proof_data,
+            map_key,
+        );
+        ExampleMigrationApp::at(self.context.this_address())
+            .set_some_struct_map(map_key, some_struct_in_map)
             .enqueue(self.context);
     }
 
@@ -383,8 +414,14 @@ pub contract ExampleMigrationApp {
 
     #[external("public")]
     #[only_self]
-    fn set_some_struct_map(owner: AztecAddress, some_struct: SomeStruct) {
-        self.storage.some_struct_map.at(owner).write(some_struct);
+    fn set_owned_some_struct_map(some_struct: SomeStruct) {
+        self.storage.owned_some_struct_map.at(self.context.msg_sender().unwrap()).write(some_struct);
+    }
+
+    #[external("public")]
+    #[only_self]
+    fn set_some_struct_map(map_key: Field, some_struct: SomeStruct) {
+        self.storage.some_struct_map.at(map_key).write(some_struct);
     }
 
     // ============================================================
@@ -397,8 +434,12 @@ pub contract ExampleMigrationApp {
     }
 
     #[external("public")]
-    fn init_some_struct_map(owner: AztecAddress, some_struct: SomeStruct) {
-        self.storage.some_struct_map.at(owner).write(some_struct);
+    fn init_owned_some_struct_map(some_struct: SomeStruct) {
+        self.storage.owned_some_struct_map.at(self.context.msg_sender().unwrap()).write(some_struct);
+    }
+    #[external("public")]
+    fn init_some_struct_map(map_key: Field, some_struct: SomeStruct) {
+        self.storage.some_struct_map.at(map_key).write(some_struct);
     }
 
     #[external("utility")]
@@ -408,6 +449,6 @@ pub contract ExampleMigrationApp {
 
     #[external("utility")]
     unconstrained fn get_some_struct_map(owner: AztecAddress) -> SomeStruct {
-        self.storage.some_struct_map.at(owner).read()
+        self.storage.owned_some_struct_map.at(owner).read()
     }
 }
