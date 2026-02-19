@@ -215,7 +215,7 @@ async function main() {
     .send({ from: oldUserManager.address })
     .wait();
 
-  const oldPublicBalanceAfterMint = await oldApp.methods
+  const oldPublicBalanceAfterMint = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(
@@ -249,7 +249,7 @@ async function main() {
 
   console.log(`   Lock public tx: ${lockPublicTx.txHash}`);
 
-  const oldPublicBalanceAfterLock = await oldApp.methods
+  const oldPublicBalanceAfterLock = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(
@@ -353,7 +353,7 @@ async function main() {
 
     console.log(`   Migrate to public tx: ${migratePublicTx.txHash}`);
 
-    const newPublicBalanceAfterMigrate = await newApp.methods
+    const newPublicBalanceAfterMigrate = await newAppUser.methods
       .get_public_balance(newUserManager.address)
       .simulate({ from: newUserManager.address });
     console.log(
