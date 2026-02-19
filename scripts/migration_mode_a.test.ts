@@ -137,18 +137,17 @@ async function main() {
       txHash: lockTx.txHash,
     });
   console.log(`   Found ${migrationDataEvents.length} MigrationDataEvent(s)`);
-  if (migrationDataEvents.length === 0) {
-    throw new Error("No MigrationDataEvents found — event delivery failed");
+  if (migrationDataEvents.length !== lockNotes.length) {
+    throw new Error(
+      `Mismatch between MigrationDataEvents ${migrationDataEvents.length} and MigrationNotes ${lockNotes.length} count`,
+    );
   }
 
   // Build proofs via wallet, combining note proofs with event data
-  const noteProofs = await oldUserWallet.buildNoteProofs(
+  const migrationNoteProofs = await oldUserWallet.buildMigrationNoteProofs(
     provenBlockNumber,
     lockNotes,
-    MigrationNote.fromNote,
-  );
-  const migrationNoteProofs = noteProofs.map((p, i) =>
-    MigrationNoteProofData.fromProofDataAndEvent(p, migrationDataEvents[i]),
+    migrationDataEvents,
   );
 
   // Sign via standalone function
@@ -311,17 +310,12 @@ async function main() {
     );
   }
 
-  const publicNoteProofs = await oldUserWallet.buildNoteProofs(
-    publicProvenBlockNumber,
-    [publicLockNote],
-    MigrationNote.fromNote,
-  );
-  const publicMigrationNoteProofs = publicNoteProofs.map((p, i) =>
-    MigrationNoteProofData.fromProofDataAndEvent(
-      p,
-      publicMigrationDataEvents[i],
-    ),
-  );
+  const publicMigrationNoteProofs =
+    await oldUserWallet.buildMigrationNoteProofs(
+      publicProvenBlockNumber,
+      [publicLockNote],
+      publicMigrationDataEvents,
+    );
 
   // Sign via standalone function
   const publicSignature = await signMigrationModeA(

@@ -1,13 +1,11 @@
 import type { Fr } from "@aztec/foundation/curves/bn254";
-import type { Note, NoteDao, NotesFilter } from "@aztec/stdlib/note";
+import type { Note } from "@aztec/stdlib/note";
 import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
-import { Point } from "@aztec/foundation/schemas";
-import { AbiType } from "@aztec/stdlib/abi";
 import { PrivateEvent } from "@aztec/aztec.js/wallet";
 
 /** Generic note inclusion proof data. */
 export interface NoteProofData<Note> {
-  note: Note;
+  data: Note;
   randomness: Fr;
   nonce: Fr;
   leaf_index: Fr;
@@ -15,7 +13,7 @@ export interface NoteProofData<Note> {
 }
 
 /** Nullifier non-inclusion proof data. */
-export interface NullifierProofData {
+export interface NonNullificationProofData {
   low_nullifier_value: Fr;
   low_nullifier_next_value: Fr;
   low_nullifier_next_index: Fr;
@@ -24,40 +22,13 @@ export interface NullifierProofData {
 }
 
 /** Note inclusion and nullifier non-inclusion proof data. */
-export type FullProofData<Note> = NoteProofData<Note> & NullifierProofData;
-
-/** Migration note proof data (for migration verification). */
-export interface MigrationNoteProofData<T> {
-  migration_data: T;
-  randomness: Fr;
-  nonce: Fr;
-  leaf_index: Fr;
-  sibling_path: Fr[];
+export interface FullProofData<Note> {
+  note_proof_data: NoteProofData<Note>;
+  non_nullification_proof_data: NonNullificationProofData;
 }
 
-/** Helpers for {@link MigrationNoteProofData}. */
-export const MigrationNoteProofData = {
-  /**
-   * Convert a generic {@link NoteProofData} (keyed by a {@link MigrationNote}) into the
-   * flattened proof shape expected by the Noir migration verifier.
-   *
-   * @param proofData - A note proof whose `note` field is a decoded {@link MigrationNote}.
-   * @param migrationEvent - A private event containing the migration data.
-   * @returns A {@link MigrationNoteProofData} ready to pass into a contract call.
-   */
-  fromProofDataAndEvent<T>(
-    proofData: NoteProofData<MigrationNote>,
-    migrationEvent: PrivateEvent<T>,
-  ): MigrationNoteProofData<T> {
-    return {
-      migration_data: migrationEvent.event,
-      randomness: proofData.randomness,
-      nonce: proofData.nonce,
-      leaf_index: proofData.leaf_index,
-      sibling_path: proofData.sibling_path,
-    };
-  },
-};
+/** MigrationNote proof data with generic migration data. */
+export type MigrationNoteProofData<T> = NoteProofData<T>;
 
 // ============================================================
 // Archive proof
