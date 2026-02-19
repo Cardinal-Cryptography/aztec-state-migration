@@ -1,5 +1,5 @@
-mod methods;
-pub use methods::migrate_notes_mode_b;
+mod ops;
+pub use ops::migrate_notes_mode_b;
 use crate::note_proof_data::NoteProofData;
 mod non_nullification_proof_data;
 pub use non_nullification_proof_data::NonNullificationProofData;

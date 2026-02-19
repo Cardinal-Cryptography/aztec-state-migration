@@ -1,5 +1,5 @@
-mod methods;
-pub use methods::{lock_migration_notes, migrate_notes_mode_a};
+mod ops;
+pub use ops::{lock_migration_notes, migrate_notes_mode_a};
 pub(crate) mod migration_note;
 pub(crate) mod migration_data_event;
 
