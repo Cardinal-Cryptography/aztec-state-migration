@@ -176,7 +176,7 @@ async function main() {
       .migrate_mode_a(
         LOCK_AMOUNT,
         mpk.toNoirStruct(),
-        [...signature],
+        signature,
         migrationNoteProofs,
         archiveProof,
       )
@@ -344,7 +344,7 @@ async function main() {
       .migrate_to_public(
         PUBLIC_LOCK_AMOUNT,
         mpk.toNoirStruct(),
-        [...publicSignature],
+        publicSignature,
         publicMigrationNoteProofs,
         publicArchiveProof,
       )

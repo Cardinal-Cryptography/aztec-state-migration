@@ -4,6 +4,7 @@ import { CLAIM_DOMAIN_A, CLAIM_DOMAIN_B, MSK_M_GEN } from "./constants.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { NoteDao } from "@aztec/stdlib/note";
 import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
+import { MigrationSignature } from "./types.js";
 
 /**
  * Derive the master migration secret key from an account's secret key.
@@ -30,13 +31,13 @@ export function deriveMasterMigrationSecretKey(secretKey: Fr): GrumpkinScalar {
  * @returns The raw Schnorr signature buffer.
  */
 export async function signMigrationModeA(
-  signer: (msg: Buffer<ArrayBufferLike>) => Promise<Buffer<ArrayBufferLike>>,
+  signer: (msg: Buffer<ArrayBufferLike>) => Promise<MigrationSignature>,
   oldRollupVersion: Fr,
   newRollupVersion: Fr,
   migrationNotes: NoteDao[],
   recipient: AztecAddress,
   newAppAddress: AztecAddress,
-): Promise<Buffer<ArrayBufferLike>> {
+): Promise<MigrationSignature> {
   const notesHash = await poseidon2Hash(migrationNotes.map((n) => n.noteHash));
   const msg = await poseidon2Hash([
     CLAIM_DOMAIN_A,
@@ -63,13 +64,13 @@ export async function signMigrationModeA(
  * @returns The raw Schnorr signature buffer.
  */
 export async function signMigrationModeB(
-  signer: (msg: Buffer<ArrayBufferLike>) => Promise<Buffer<ArrayBufferLike>>,
+  signer: (msg: Buffer<ArrayBufferLike>) => Promise<MigrationSignature>,
   oldRollupVersion: Fr,
   newRollupVersion: Fr,
   notes: NoteDao[],
   recipient: AztecAddress,
   newAppAddress: AztecAddress,
-): Promise<Buffer<ArrayBufferLike>> {
+): Promise<MigrationSignature> {
   const notesHash = await poseidon2Hash(notes.map((n) => n.noteHash));
   const msg = await poseidon2Hash([
     CLAIM_DOMAIN_B,

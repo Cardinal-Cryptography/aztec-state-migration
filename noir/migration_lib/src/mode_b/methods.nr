@@ -1,4 +1,6 @@
-use crate::{archive_proof_data::ArchiveProofData, constants::CLAIM_DOMAIN_B};
+use crate::{
+    archive_proof_data::ArchiveProofData, constants::CLAIM_DOMAIN_B, signature::MigrationSignature,
+};
 use super::{FullNoteProofData, KeyNoteProofData};
 use aztec::{
     context::private_context::PrivateContext,
@@ -50,7 +52,7 @@ use std::embedded_curve_ops::{EmbeddedCurveScalar as Scalar, fixed_base_scalar_m
 pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
-    signature: [u8; 64],
+    signature: MigrationSignature,
     old_app: AztecAddress,
     full_proof_data: [FullNoteProofData<Note>; N],
     expected_storage_slot: Field,
@@ -110,26 +112,19 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // ============================================================
     // 3. Authentication: verify the migration signature over the set of notes and migration context
     // ============================================================
-
-    // notes_hash = poseidon2_hash([note1_hash, note2_hash, ...])
-    // msg = poseidon2(CLAIM_DOMAIN, "B", old_rollup_id, dest_rollup_id, notes_hash, recipient_address, new_app_address)
     let notes_hash = poseidon2_hash(notes_hashes);
     let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
     let current_rollup = context.version();
-    let recipient = context.msg_sender().unwrap().to_field();
-    let new_app = context.this_address().to_field();
+    let recipient = context.msg_sender().unwrap();
+    let new_app = context.this_address();
 
-    let msg = poseidon2_hash([
-        CLAIM_DOMAIN_B,
+    signature.verify_migration_signature::<CLAIM_DOMAIN_B>(
         old_rollup,
         current_rollup,
         notes_hash,
         recipient,
         new_app,
-    ]);
-    assert(
-        schnorr::verify_signature(key_note.data.mpk, signature, msg.to_be_bytes::<32>()),
-        "Invalid migration signature",
+        key_note.data.mpk,
     );
 
     // ============================================================

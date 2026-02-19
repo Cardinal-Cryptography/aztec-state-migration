@@ -20,6 +20,7 @@ pub contract ExampleMigrationApp {
     use balance_set::balance_set::BalanceSet;
     use migration::{
         ArchiveProofData,
+        MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b},
         NoteProofData,
@@ -171,7 +172,7 @@ pub contract ExampleMigrationApp {
         amount: u128,
         // Authentication
         mpk: Point,
-        signature: [u8; 64],
+        signature: MigrationSignature,
         //
         note_proof_data: [MigrationNoteProofData<u128>; 1],
         //
@@ -207,7 +208,7 @@ pub contract ExampleMigrationApp {
     fn migrate_to_public(
         amount: u128,
         mpk: Point,
-        signature: [u8; 64],
+        signature: MigrationSignature,
         note_proof_data: [NoteProofData<u128>; 1],
         archive_proof_data: ArchiveProofData,
     ) {
@@ -248,7 +249,7 @@ pub contract ExampleMigrationApp {
     fn migrate_mode_b(
         amount: u128,
         // Authentication
-        signature: [u8; 64],
+        signature: MigrationSignature,
         //
         full_proof_data: [FullNoteProofData<UintNote>; 1],
         //

@@ -264,10 +264,10 @@ async function main() {
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
 
   try {
-    const migrateTx = await newAppUser.methods
+    await newAppUser.methods
       .migrate_mode_b(
         migrateAmount,
-        [...signature],
+        signature,
         [noteProof],
         archiveProof,
         oldUserManager.address,
@@ -332,7 +332,7 @@ async function main() {
     let res = await newAppUser.methods
       .migrate_mode_b(
         amount,
-        [...nullifedNoteSig],
+        nullifedNoteSig,
         [nullifiedNoteProof],
         archiveProof,
         oldUserManager.address,

@@ -6,6 +6,7 @@ import { AztecNode } from "@aztec/aztec.js/node";
 import {
   ArchiveProofData,
   FullProofData,
+  MigrationSignature,
   NoteProofData,
   NonNullificationProofData,
   MigrationNoteProofData,
@@ -88,7 +89,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     newRollupVersion: Fr,
     newAppAddress: AztecAddress,
     migrationNotes: NoteDao[],
-  ): Promise<Buffer<ArrayBufferLike>> {
+  ): Promise<MigrationSignature> {
     return signModeA(
       signer.migrationKeySigner,
       oldRollupVersion,
@@ -117,7 +118,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     newRollupVersion: Fr,
     newAppAddress: AztecAddress,
     notes: NoteDao[],
-  ): Promise<Buffer<ArrayBufferLike>> {
+  ): Promise<MigrationSignature> {
     return signModeB(
       signer.migrationKeySigner,
       oldRollupVersion,

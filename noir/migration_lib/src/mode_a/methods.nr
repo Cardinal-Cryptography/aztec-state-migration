@@ -1,6 +1,7 @@
 use crate::{
     archive_proof_data::ArchiveProofData,
     constants::{CLAIM_DOMAIN_A, MIGRATION_MODE_A_STORAGE_SLOT},
+    signature::MigrationSignature,
 };
 use super::{
     migration_data_event::MigrationDataEvent, migration_note::MigrationNote, MigrationNoteProofData,
@@ -10,11 +11,7 @@ use aztec::{
     event::event_emission::emit_event_in_private,
     messages::message_delivery::MessageDelivery,
     note::{lifecycle::create_note, note_interface::NoteHash},
-    protocol_types::{
-        address::AztecAddress,
-        hash::poseidon2_hash,
-        traits::{Packable, Serialize, ToField},
-    },
+    protocol_types::{address::AztecAddress, hash::poseidon2_hash, traits::{Packable, Serialize}},
 };
 use migration_archive_registry::MigrationArchiveRegistry;
 use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
@@ -96,7 +93,7 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
     mpk: Point,
-    signature: [u8; 64],
+    signature: MigrationSignature,
     old_app: AztecAddress,
     note_proof_data: [MigrationNoteProofData<T>; N],
     archive_proof_data: ArchiveProofData,
@@ -122,19 +119,16 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     // 2. Verify the migration signature over the set of notes and migration context
     let notes_hash = poseidon2_hash(note_hashes);
     let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
-    let recipient = context.msg_sender().unwrap().to_field();
-    let new_app_address = context.this_address().to_field();
-    let msg = poseidon2_hash([
-        CLAIM_DOMAIN_A,
+    let recipient = context.msg_sender().unwrap();
+    let new_app_address = context.this_address();
+
+    signature.verify_migration_signature::<CLAIM_DOMAIN_A>(
         old_rollup,
         current_rollup,
         notes_hash,
         recipient,
         new_app_address,
-    ]);
-    assert(
-        schnorr::verify_signature(mpk, signature, msg.to_be_bytes::<32>()),
-        "Invalid migration signature",
+        mpk,
     );
 
     // 3. Recompute archive root

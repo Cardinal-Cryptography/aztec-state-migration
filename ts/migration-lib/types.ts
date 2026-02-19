@@ -3,6 +3,22 @@ import type { Note } from "@aztec/stdlib/note";
 import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import { PrivateEvent } from "@aztec/aztec.js/wallet";
 
+import { SchnorrSignature } from "@aztec/foundation/crypto/schnorr";
+
+/** Represents a migration signature. */
+export interface MigrationSignature {
+  bytes: (number | bigint)[];
+}
+
+export const MigrationSignature = {
+  fromBuffer: (buf: Buffer<ArrayBufferLike>): MigrationSignature => ({
+    bytes: [...buf],
+  }),
+  fromSchnorrSignature: (sig: SchnorrSignature): MigrationSignature => ({
+    bytes: [...sig.toBuffer()],
+  }),
+};
+
 /** Generic note inclusion proof data. */
 export interface NoteProofData<Note> {
   data: Note;

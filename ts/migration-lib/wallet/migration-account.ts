@@ -9,6 +9,7 @@ import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import { Fq, Fr, Point } from "@aztec/aztec.js/fields";
 import { deriveMasterMigrationSecretKey } from "../keys.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
+import { MigrationSignature } from "../types.js";
 
 /**
  * Extension of the standard Aztec {@link Account} with migration-specific
@@ -21,11 +22,11 @@ export interface MigrationAccount extends Account {
   /**
    * Sign an arbitrary message with the master migration secret key (Schnorr).
    * @param msg - The message bytes to sign.
-   * @returns The raw signature buffer.
+   * @returns The migration signature.
    */
   migrationKeySigner: (
     msg: Uint8Array<ArrayBufferLike>,
-  ) => Promise<Buffer<ArrayBufferLike>>;
+  ) => Promise<MigrationSignature>;
 
   /**
    * Compute the masked nullifier secret key for cross-rollup note ownership transfer.
@@ -100,15 +101,15 @@ export class BaseMigrationAccount
   /**
    * Schnorr-sign a message with the master migration secret key.
    * @param msg - The message bytes to sign.
-   * @returns The raw signature buffer.
+   * @returns The migration signature.
    */
   migrationKeySigner = async (
     msg: Uint8Array<ArrayBufferLike>,
-  ): Promise<Buffer<ArrayBufferLike>> => {
+  ): Promise<MigrationSignature> => {
     const schnorr = new Schnorr();
-    return (
-      await schnorr.constructSignature(msg, this.masterMigrationSecretKey)
-    ).toBuffer();
+    return MigrationSignature.fromSchnorrSignature(
+      await schnorr.constructSignature(msg, this.masterMigrationSecretKey),
+    );
   };
 
   /**
@@ -163,7 +164,7 @@ export class SignerlessMigrationAccount
 
   async migrationKeySigner(
     msg: Uint8Array<ArrayBufferLike>,
-  ): Promise<Buffer<ArrayBufferLike>> {
+  ): Promise<MigrationSignature> {
     throw new Error(
       "SignerlessMigrationAccount: Method migrationKeySigner not implemented.",
     );
