@@ -28,7 +28,8 @@ pub contract ExampleMigrationApp {
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
             FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
-            migrate_public_map_state_mode_b, migrate_public_state_mode_b, PublicStateProofData,
+            migrate_public_map_owned_state_mode_b, migrate_public_state_mode_b,
+            PublicStateProofData,
         },
         Point,
         Scalar,
@@ -321,10 +322,7 @@ pub contract ExampleMigrationApp {
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         some_struct_standalone_proof_data: PublicStateProofData<SomeStruct, 2>,
-        signature: MigrationSignature,
         archive_proof_data: ArchiveProofData,
-        old_owner: AztecAddress,
-        key_note: KeyNoteProofData,
     ) {
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
@@ -332,15 +330,12 @@ pub contract ExampleMigrationApp {
         migrate_public_state_mode_b(
             self.context,
             self.storage.archive_root_address.read(),
-            signature,
             self.storage.old_rollup_app_address.read(),
             some_struct_standalone_proof_data,
             // The `base_storage_slot` should reflect the `some_struct` field in the storage layout
             // of the contract on the old rollup.
             STORAGE_LAYOUT_ExampleMigrationApp.fields.some_struct.slot,
             archive_proof_data,
-            old_owner,
-            key_note,
         );
         ExampleMigrationApp::at(self.context.this_address())
             .set_some_struct(some_struct_standalone)
@@ -362,10 +357,7 @@ pub contract ExampleMigrationApp {
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
         let some_struct_in_map = some_struct_in_map_proof_data.data;
-        // In this example, we use the owner address as the map key,
-        // but it could be any field that identifies the map entry
-        let map_key = old_owner;
-        migrate_public_map_state_mode_b(
+        migrate_public_map_owned_state_mode_b(
             self.context,
             self.storage.archive_root_address.read(),
             signature,
@@ -376,7 +368,6 @@ pub contract ExampleMigrationApp {
             STORAGE_LAYOUT_ExampleMigrationApp.fields.some_struct_map.slot,
             archive_proof_data,
             old_owner,
-            map_key,
             key_note,
         );
         ExampleMigrationApp::at(self.context.this_address())
