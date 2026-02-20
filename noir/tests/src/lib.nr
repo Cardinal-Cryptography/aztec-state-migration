@@ -38,10 +38,7 @@ unconstrained fn test_nft_note_hash() {
         [owner, storage_slot, randomness],
         GENERATOR_INDEX__NOTE_HASH,
     );
-    let note_hash = poseidon2_hash_with_separator(
-        [partial, token_id],
-        GENERATOR_INDEX__NOTE_HASH,
-    );
+    let note_hash = poseidon2_hash_with_separator([partial, token_id], GENERATOR_INDEX__NOTE_HASH);
 
     println(f"NFT_NOTE_HASH: {note_hash}");
     println(f"NFT_NOTE_PARTIAL: {partial}");

@@ -12,10 +12,7 @@ use aztec::macros::aztec;
 pub contract NftMigrationApp {
     use crate::types::nft_note::NFTNote;
     use aztec::{
-        macros::{
-            functions::{external, initializer, only_self},
-            storage::storage,
-        },
+        macros::{functions::{external, initializer, only_self}, storage::storage},
         messages::message_delivery::MessageDelivery,
         note::{
             constants::MAX_NOTES_PER_PAGE, note_getter_options::NoteGetterOptions,
@@ -27,8 +24,8 @@ pub contract NftMigrationApp {
     };
     use migration::{
         ArchiveProofData,
-        MigrationSignature,
         constants::CLAIM_DOMAIN_B_PUBLIC,
+        MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
             FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
@@ -79,18 +76,18 @@ pub contract NftMigrationApp {
         self.storage.private_nfts.at(to).insert(new_note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
-        NftMigrationApp::at(self.context.this_address())
-            ._set_nft_exists(token_id)
-            .enqueue(self.context);
+        NftMigrationApp::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
+            self.context,
+        );
     }
 
     #[external("private")]
     fn mint_to_public(to: AztecAddress, token_id: Field) {
         assert(self.context.msg_sender().unwrap() == self.storage.minter.read(), "Only minter");
         assert(to != AztecAddress::zero(), "Cannot mint to zero address");
-        NftMigrationApp::at(self.context.this_address())
-            ._set_public_owner(token_id, to)
-            .enqueue(self.context);
+        NftMigrationApp::at(self.context.this_address())._set_public_owner(token_id, to).enqueue(
+            self.context,
+        );
     }
 
     // ============================================================
@@ -132,14 +129,18 @@ pub contract NftMigrationApp {
     fn lock_nft_mode_a(token_id: Field, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
-        let notes = self.storage.private_nfts.at(note_owner).pop_notes(
-            NoteGetterOptions::new()
-                .select(NFTNote::properties().token_id, Comparator.EQ, token_id)
-                .set_limit(1),
-        );
+        let notes = self.storage.private_nfts.at(note_owner).pop_notes(NoteGetterOptions::new()
+            .select(NFTNote::properties().token_id, Comparator.EQ, token_id)
+            .set_limit(1));
         assert(notes.len() == 1, "NFT not found");
 
-        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [token_id]);
+        lock_migration_notes(
+            self.context,
+            note_owner,
+            destination_rollup,
+            mpk,
+            [token_id],
+        );
     }
 
     /// Lock a publicly owned NFT for migration to a new rollup.
@@ -148,7 +149,13 @@ pub contract NftMigrationApp {
     fn lock_public_nft_for_migration(token_id: Field, destination_rollup: Field, mpk: Point) {
         let note_owner = self.context.msg_sender().unwrap();
 
-        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [token_id]);
+        lock_migration_notes(
+            self.context,
+            note_owner,
+            destination_rollup,
+            mpk,
+            [token_id],
+        );
 
         NftMigrationApp::at(self.context.this_address())
             ._clear_public_owner(note_owner, token_id)
@@ -186,9 +193,9 @@ pub contract NftMigrationApp {
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
-        NftMigrationApp::at(self.context.this_address())
-            ._set_nft_exists(token_id)
-            .enqueue(self.context);
+        NftMigrationApp::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
+            self.context,
+        );
     }
 
     /// Claim a Mode A migration: verify proof and set public owner on new rollup.
@@ -237,15 +244,11 @@ pub contract NftMigrationApp {
         key_note: KeyNoteProofData,
         nsk: Scalar,
     ) {
-        assert(
-            full_proof_data.note_proof_data.data.token_id == token_id,
-            "Token ID mismatch",
-        );
+        assert(full_proof_data.note_proof_data.data.token_id == token_id, "Token ID mismatch");
 
         let old_app = self.storage.old_rollup_app_address.read();
         // NOTE: assumes old and new contracts have identical storage layout
-        let expected_storage_slot =
-            STORAGE_LAYOUT_NftMigrationApp.fields.private_nfts.slot;
+        let expected_storage_slot = STORAGE_LAYOUT_NftMigrationApp.fields.private_nfts.slot;
 
         migrate_notes_mode_b(
             self.context,
@@ -267,9 +270,9 @@ pub contract NftMigrationApp {
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
         );
-        NftMigrationApp::at(self.context.this_address())
-            ._set_nft_exists(token_id)
-            .enqueue(self.context);
+        NftMigrationApp::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
+            self.context,
+        );
     }
 
     /// Claim a Mode B migration for a public NFT owner mapping entry.
@@ -283,10 +286,7 @@ pub contract NftMigrationApp {
         signature: MigrationSignature,
         key_note: KeyNoteProofData,
     ) {
-        assert(
-            proof_data.data != AztecAddress::zero(),
-            "Cannot migrate zero-address ownership",
-        );
+        assert(proof_data.data != AztecAddress::zero(), "Cannot migrate zero-address ownership");
 
         let archive_registry = self.storage.archive_root_address.read();
         let old_app = self.storage.old_rollup_app_address.read();

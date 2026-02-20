@@ -33,7 +33,10 @@ impl NoteHash for NFTNote {
             GENERATOR_INDEX__NOTE_HASH,
         );
         // Second round: include the token_id.
-        poseidon2_hash_with_separator([partial_commitment, self.token_id], GENERATOR_INDEX__NOTE_HASH)
+        poseidon2_hash_with_separator(
+            [partial_commitment, self.token_id],
+            GENERATOR_INDEX__NOTE_HASH,
+        )
     }
 
     fn compute_nullifier(
