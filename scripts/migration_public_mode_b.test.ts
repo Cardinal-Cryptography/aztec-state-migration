@@ -19,7 +19,7 @@ import {
   buildPublicMapDataProof,
 } from "../ts/migration-lib/mode-b/proofs.js";
 import { randomBigInt } from "@aztec/foundation/crypto/random";
-import { MAX_U64_VALUE } from "@aztec/constants";
+
 // Define a struct that matches the one used in the example app contract,
 // for ease of use in the test.
 interface SomeStruct {
@@ -42,7 +42,7 @@ const someStructAbiType = proofDataAbiType.fields.find(
 // Helper function to generate random SomeStruct instances for testing.
 async function randomSomeStruct(): Promise<SomeStruct> {
   return {
-    a: randomBigInt(MAX_U64_VALUE ** 64n),
+    a: randomBigInt(2n ** 128n - 1n),
     b: await AztecAddress.random(),
   };
 }
@@ -282,7 +282,7 @@ async function main() {
   const oldAccountUser = await oldUserWallet.getMigrationAccount(
     OWNED_STRUCT_MAP_OWNER,
   );
-  const ownseStructMapSignature =
+  const ownedStructMapSignature =
     await newUserWallet.signPublicStateMigrationModeB(
       oldAccountUser,
       newUserManager.address,
@@ -297,7 +297,7 @@ async function main() {
       ownedStructMapProof,
       archiveProof,
       OWNED_STRUCT_MAP_OWNER,
-      ownseStructMapSignature,
+      ownedStructMapSignature,
       keyNoteProof,
     )
     .send({ from: newUserManager.address })

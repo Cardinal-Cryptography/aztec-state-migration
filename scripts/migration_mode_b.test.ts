@@ -10,7 +10,6 @@ import {
 } from "./test-utils.js";
 import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
 import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
-import { KeyNote } from "../ts/migration-lib/mode-b/types.js";
 import { UintNote } from "../ts/migration-lib/common-notes.js";
 import { NoteStatus } from "@aztec/stdlib/note";
 
