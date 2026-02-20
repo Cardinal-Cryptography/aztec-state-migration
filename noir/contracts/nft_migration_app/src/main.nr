@@ -306,8 +306,7 @@ pub contract NftMigrationApp {
 
         // 2. Verify key note belongs to the proven owner
         let proven_owner = proof_data.data;
-        let note_hash_tree_root =
-            block_header.state.partial.note_hash_tree.root;
+        let note_hash_tree_root = block_header.state.partial.note_hash_tree.root;
         let _ = key_note.verify_key_note_inclusion(
             self.context,
             archive_registry,
