@@ -177,18 +177,19 @@ pub contract NftMigrationApp {
     ) {
         assert(note_proof_data.data == token_id, "Migration data mismatch");
 
+        let recipient = self.context.msg_sender().unwrap();
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
             self.context,
             self.storage.archive_root_address.read(),
             mpk,
             signature,
+            recipient,
             old_app,
             [note_proof_data],
             block_header,
         );
 
-        let recipient = self.context.msg_sender().unwrap();
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
@@ -209,18 +210,19 @@ pub contract NftMigrationApp {
     ) {
         assert(note_proof_data.data == token_id, "Migration data mismatch");
 
+        let recipient = self.context.msg_sender().unwrap();
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
             self.context,
             self.storage.archive_root_address.read(),
             mpk,
             signature,
+            recipient,
             old_app,
             [note_proof_data],
             block_header,
         );
 
-        let recipient = self.context.msg_sender().unwrap();
         NftMigrationApp::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
@@ -246,6 +248,7 @@ pub contract NftMigrationApp {
     ) {
         assert(full_proof_data.note_proof_data.data.token_id == token_id, "Token ID mismatch");
 
+        let recipient = self.context.msg_sender().unwrap();
         let old_app = self.storage.old_rollup_app_address.read();
         // NOTE: assumes old and new contracts have identical storage layout
         let expected_storage_slot = STORAGE_LAYOUT_NftMigrationApp.fields.private_nfts.slot;
@@ -254,6 +257,7 @@ pub contract NftMigrationApp {
             self.context,
             self.storage.archive_root_address.read(),
             signature,
+            recipient,
             old_app,
             [full_proof_data],
             expected_storage_slot,
@@ -265,7 +269,6 @@ pub contract NftMigrationApp {
             nsk,
         );
 
-        let recipient = self.context.msg_sender().unwrap();
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
             MessageDelivery.CONSTRAINED_ONCHAIN,
@@ -290,6 +293,7 @@ pub contract NftMigrationApp {
         assert(old_owner != AztecAddress::zero(), "Cannot migrate zero-address ownership");
 
         let archive_registry = self.storage.archive_root_address.read();
+        let recipient = self.context.msg_sender().unwrap();
         let old_app = self.storage.old_rollup_app_address.read();
 
         // 1. Verify public state existed at snapshot height
@@ -304,11 +308,11 @@ pub contract NftMigrationApp {
             [token_id],
             old_owner,
             signature,
+            recipient,
             key_note,
         );
 
         // 4. Mint to authenticated recipient
-        let recipient = self.context.msg_sender().unwrap();
         NftMigrationApp::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
