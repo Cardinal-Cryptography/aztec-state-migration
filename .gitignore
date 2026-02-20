@@ -22,6 +22,7 @@ target
 codegenCache.json
 cache
 ts/migration-lib/noir-contracts
+ts/migration-lib/artifacts
 
 # Claude Code per-user settings (do not commit)
 .claude/settings*.json
