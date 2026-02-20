@@ -52,6 +52,12 @@ jobs:
             solidity/dependencies/
             solidity/cache/
           retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: noir-contracts
+          path: |
+            ts/migration-lib/noir-contracts/
+          retention-days: 1
 
   format-and-lint:
     name: Format & Lint
@@ -99,6 +105,10 @@ jobs:
         with:
           name: solidity-build
           path: solidity/
+      - uses: actions/download-artifact@v4
+        with:
+          name: noir-contracts
+          path: ts/migration-lib/noir-contracts/
       - name: Start dual-rollup infrastructure
         run: yarn test:setup
       - name: Test - Migration Key Registry
