@@ -34,29 +34,32 @@ Both modes use the same `ExampleMigrationApp` contract as the token-layer entry 
 
 ## Proof Chain
 
-Mode B's private function verifies a chain of Merkle proofs connecting user notes back to a trusted archive root:
+Mode B's private function verifies a chain of Merkle proofs connecting user notes back to a trusted block hash:
 
 ```
 UintNote hash ──Merkle proof──> note_hash_tree_root ──(embedded in)──> BlockHeader
                                                                            │
 MigrationKeyNote hash ──Merkle proof──> note_hash_tree_root               │
                                                                            │
-                                                   BlockHeader.hash() ──Merkle proof──> archive_root
-                                                                                            │
-                                                                              (trusted from L1 bridge)
+                                                   BlockHeader.hash() ──(== block_hash)──> snapshot_block_hash
+                                                                                               │
+                                                                                (verified at registration time
+                                                                                 via archive Merkle proof)
 ```
 
 Simultaneously, for each note, a **nullifier non-inclusion proof** is checked against the same block header's nullifier tree root.
 
-### Archive Root Trust Anchor
+### Block Hash Trust Anchor
 
-The archive root is bridged from L1 via `register_archive_root`, which consumes an L1-to-L2 message whose content is `poseidon2(old_rollup_version, archive_root, proven_block_number)`. This is the same pattern used in Mode A, reused without modification. The L1 Migrator contract reads the old rollup's `provenCheckpointNumber` and sends it to the new rollup via the inbox.
+The archive root is bridged from L1 via `register_block`, which consumes an L1-to-L2 message whose content is `poseidon2(old_rollup_version, archive_root, proven_block_number)`. At registration time, `register_block` also takes the block header and an archive sibling path, verifies that `root_from_sibling_path(block_header.hash(), block_number, sibling_path) == archive_root`, and stores the verified `block_hash` (not the archive root). This moves the archive Merkle proof verification from every migration circuit to the one-time registration step.
+
+The L1 Migrator contract reads the old rollup's `provenCheckpointNumber` and sends it to the new rollup via the inbox. This L1 component is unchanged.
 
 ### Block Header Binding
 
-The private function verifies that the provided `BlockHeader` has `global_variables.block_number == snapshot_height`. The block header hash is then proven to be a leaf in the archive tree, and the resulting archive root is passed to a public function (`complete_migration_mode_b`) that checks it against the stored trusted value.
+The private function verifies that the provided `BlockHeader` has `global_variables.block_number == snapshot_height`. The block header hash is then passed to a public function (`complete_migration_mode_b`) that checks it against the stored `snapshot_block_hash`.
 
-This private→public split is necessary because the archive roots are stored in public state. The private function computes the archive root and the public function checks it, connected via the enqueue mechanism.
+This private→public split is necessary because the block hashes are stored in public state. The private function computes the block hash and the public function checks it, connected via the enqueue mechanism.
 
 ## Note Hash Computation
 
@@ -149,7 +152,7 @@ This is pushed in the private function via `self.context.push_nullifier()`. Beca
 
 Mode B uses a single global `snapshot_height` — the block number at which all proofs are anchored. This differs from Mode A, which allows proofs against any registered archive root.
 
-**Why a fixed snapshot:** In an emergency, all users should prove against the same state. A moving target would allow race conditions where notes are spent between proof generation and verification. The snapshot height is set once via `set_snapshot_height` and requires that an archive root is already registered for that height.
+**Why a fixed snapshot:** In an emergency, all users should prove against the same state. A moving target would allow race conditions where notes are spent between proof generation and verification. The snapshot height is set once via `set_snapshot_height`, which verifies the snapshot block header against a registered reference block's archive tree and stores the resulting `snapshot_block_hash`.
 
 
 ## PublicImmutable for Cross-Context Configuration
@@ -168,7 +171,7 @@ The E2E test (`scripts/migration_mode_b.test.ts`) runs against two Aztec sandbox
 
 1. Deploys contracts on the old rollup and mints tokens
 2. Registers a migration key on the old rollup
-3. Bridges the archive root via L1
+3. Bridges the archive root via L1 and registers the block hash
 4. Gathers all Merkle proofs and witnesses from the old rollup's node
 5. Calls `migrate_mode_b` on the new rollup
 6. Verifies the balance on the new rollup

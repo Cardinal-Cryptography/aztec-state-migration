@@ -6,3 +6,4 @@ trap "yarn test:stop || true" EXIT
 
 yarn test:mode-a
 yarn test:mode-b
+yarn test:mode-b:public

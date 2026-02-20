@@ -15,6 +15,7 @@ import type {
   ArchiveProofData,
   L1MigrationResult,
 } from "../ts/migration-lib/index.js";
+import type { blockHeaderToNoir } from "../ts/migration-lib/noir-helpers/block-header.js";
 import type { DeploymentResult } from "./deploy-types.js";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { WaitOpts } from "@aztec/aztec.js/contracts";
@@ -167,19 +168,15 @@ export interface BridgeResult {
   l1Result: L1MigrationResult;
   provenBlockNumber: BlockNumber;
   archiveProof: ArchiveProofData;
+  /** Noir-encoded block header for migration calls (no sibling path). */
+  blockHeader: ReturnType<typeof blockHeaderToNoir>;
 }
 
 /**
- * Full bridge sequence: wait for proof → L1 migrate → wait for L1→L2 message → register on new rollup.
- * Returns the L1 result, proven block number, and archive proof.
- *
- * @param env - Deployment result from deploy()
- * @param archiveRegistry - MigrationArchiveRegistry contract instance on new rollup
- * @param blockNumber - Block number that must be proven before bridging
- * @param opts.onWaitForProof - Called while waiting for block proof
- * @param opts.onWaitForMessage - Called while waiting for L1→L2 message
+ * Full bridge sequence: wait for proof → L1 migrate → wait for L1→L2 message → register block on new rollup.
+ * Returns the L1 result, proven block number, archive proof (for registration), and block header (for migration).
  */
-export async function bridgeArchiveRoot(
+export async function bridgeBlock(
   env: DeploymentResult,
   archiveRegistry: MigrationArchiveRegistryContract,
 ): Promise<BridgeResult> {
@@ -215,9 +212,17 @@ export async function bridgeArchiveRoot(
     intervalMs: 10,
   });
 
-  // Step 4: Register archive root on new rollup
+  const provenBlockNumber = BlockNumber(l1Result.provenBlockNumber);
+
+  // Build archive proof (block header + sibling path, needed for register_block)
+  const archiveProof = await buildArchiveProof(
+    old_r.aztecNode,
+    provenBlockNumber,
+  );
+
+  // Step 4a: Consume L1-to-L2 message (stores trusted archive root)
   await archiveRegistry.methods
-    .register_archive_root(
+    .consume_l1_to_l2_message(
       l1Result.provenArchiveRoot,
       l1Result.provenBlockNumber,
       Fr.ZERO,
@@ -226,15 +231,22 @@ export async function bridgeArchiveRoot(
     .send({ from: new_r.deployerManager.address })
     .wait();
 
-  const provenBlockNumber = BlockNumber(l1Result.provenBlockNumber);
+  // Step 4b: Register block (verifies block header against stored archive root)
+  await archiveRegistry.methods
+    .register_block(
+      l1Result.provenBlockNumber,
+      archiveProof.archive_block_header,
+      archiveProof.archive_sibling_path,
+    )
+    .send({ from: new_r.deployerManager.address })
+    .wait();
 
-  // Build archive proof while we're at it
-  const archiveProof = await buildArchiveProof(
-    old_r.aztecNode,
+  return {
+    l1Result,
     provenBlockNumber,
-  );
-
-  return { l1Result, provenBlockNumber, archiveProof };
+    archiveProof,
+    blockHeader: archiveProof.archive_block_header,
+  };
 }
 
 // ============================================================

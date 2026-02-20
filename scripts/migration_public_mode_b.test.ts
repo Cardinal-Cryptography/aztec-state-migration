@@ -4,7 +4,7 @@ import {
   deployAppPair,
   deployArchiveRegistry,
   deployKeyRegistry,
-  bridgeArchiveRoot,
+  bridgeBlock,
   deployAndFundAccount,
   assertEq,
 } from "./test-utils.js";
@@ -32,7 +32,7 @@ interface SomeStruct {
 // so we pull the type from a migration function's PublicStateProofData<SomeStruct,2>.data field.
 const proofDataAbiType = ExampleMigrationAppContractArtifact.functions
   .find((f) => f.name === "migrate_to_public_struct_mode_b")!
-  .parameters.find((p) => p.name === "some_struct_standalone_proof_data")!.type;
+  .parameters.find((p) => p.name === "struct_single_proof_data")!.type;
 if (proofDataAbiType.kind !== "struct")
   throw new Error("Expected struct ABI type");
 const someStructAbiType = proofDataAbiType.fields.find(
@@ -182,14 +182,19 @@ async function main() {
   // ============================================================
   console.log("Step 5. Bridging archive root and setting snapshot height...");
 
-  const { provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
+  const { provenBlockNumber, archiveProof, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
   );
   console.log(`   Proven block: ${provenBlockNumber}`);
 
   await newArchiveRegistry.methods
-    .set_snapshot_height(provenBlockNumber)
+    .set_snapshot_height(
+      provenBlockNumber,
+      blockHeader,
+      provenBlockNumber,
+      archiveProof.archive_sibling_path,
+    )
     .send({ from: newDeployerManager.address })
     .wait();
 
@@ -247,7 +252,7 @@ async function main() {
 
   console.log("Step 7. Migration Single Struct on NEW rollup...");
   await newAppUser.methods
-    .migrate_to_public_struct_mode_b(structSingleProof, archiveProof)
+    .migrate_to_public_struct_mode_b(structSingleProof, blockHeader)
     .send({ from: newUserManager.address })
     .wait();
   // Verify struct was set on new rollup
@@ -261,7 +266,7 @@ async function main() {
   await newAppUser.methods
     .migrate_to_public_struct_map_mode_b(
       structMapProof,
-      archiveProof,
+      blockHeader,
       STRUCT_MAP_KEY,
     )
     .send({ from: newUserManager.address })
@@ -295,7 +300,7 @@ async function main() {
   await newAppUser.methods
     .migrate_to_public_owned_struct_map_mode_b(
       ownedStructMapProof,
-      archiveProof,
+      blockHeader,
       OWNED_STRUCT_MAP_OWNER,
       ownedStructMapSignature,
       keyNoteProof,
@@ -331,7 +336,7 @@ async function main() {
   await newAppUser.methods
     .migrate_to_public_owned_struct_nested_map_mode_b(
       ownedStructNestedMapProof,
-      archiveProof,
+      blockHeader,
       OWNED_STRUCT_NESTED_MAP_OWNER,
       ownedStructNestedMapSignature,
       keyNoteProof2,

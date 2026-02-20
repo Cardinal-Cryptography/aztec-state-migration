@@ -21,9 +21,9 @@ pub contract ExampleMigrationApp {
             public_mutable::PublicMutable,
         },
     };
+    use aztec::protocol_types::abis::block_header::BlockHeader;
     use balance_set::balance_set::BalanceSet;
     use migration::{
-        ArchiveProofData,
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
@@ -198,7 +198,7 @@ pub contract ExampleMigrationApp {
         //
         note_proof_data: [MigrationNoteProofData<u128>; 1],
         //
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
     ) {
         // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].data`
         let amount_from_data = note_proof_data[0].data;
@@ -214,7 +214,7 @@ pub contract ExampleMigrationApp {
             signature,
             old_app,
             note_proof_data,
-            archive_proof_data,
+            block_header,
         );
 
         // 4. If successful, mint the migrated tokens to the user on the new rollup
@@ -232,7 +232,7 @@ pub contract ExampleMigrationApp {
         mpk: Point,
         signature: MigrationSignature,
         note_proof_data: [MigrationNoteProofData<u128>; 1],
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
     ) {
         // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].data`
         let amount_from_data = note_proof_data[0].data;
@@ -248,7 +248,7 @@ pub contract ExampleMigrationApp {
             signature,
             old_app,
             note_proof_data,
-            archive_proof_data,
+            block_header,
         );
 
         // 3. Mint to PUBLIC balance (instead of private)
@@ -275,7 +275,7 @@ pub contract ExampleMigrationApp {
         //
         full_proof_data: [FullNoteProofData<UintNote>; 1],
         //
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
         //
         notes_owner: AztecAddress,
         //
@@ -304,7 +304,7 @@ pub contract ExampleMigrationApp {
             old_app,
             full_proof_data,
             balances_expected_storage_slot,
-            archive_proof_data,
+            block_header,
             notes_owner,
             public_keys,
             partial_address,
@@ -324,24 +324,24 @@ pub contract ExampleMigrationApp {
         // assert(<T as Packable>::N == N),
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
-        some_struct_standalone_proof_data: PublicStateProofData<SomeStruct, 2>,
-        archive_proof_data: ArchiveProofData,
+        struct_single_proof_data: PublicStateProofData<SomeStruct, 2>,
+        block_header: BlockHeader,
     ) {
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
-        let some_struct_standalone = some_struct_standalone_proof_data.data;
+        let struct_single = struct_single_proof_data.data;
         migrate_public_state_mode_b(
             self.context,
             self.storage.archive_root_address.read(),
             self.storage.old_rollup_app_address.read(),
-            some_struct_standalone_proof_data,
+            struct_single_proof_data,
             // The `base_storage_slot` should reflect the `struct_single` field in the storage layout
             // of the contract on the old rollup.
             STORAGE_LAYOUT_ExampleMigrationApp.fields.struct_single.slot,
-            archive_proof_data,
+            block_header,
         );
         ExampleMigrationApp::at(self.context.this_address())
-            .init_struct_single(some_struct_standalone)
+            .init_struct_single(struct_single)
             .enqueue(self.context);
     }
 
@@ -352,7 +352,7 @@ pub contract ExampleMigrationApp {
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         struct_in_map_proof_data: PublicStateProofData<SomeStruct, 2>,
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
         map_key: Field,
     ) {
         // in this example we use struct to show that we can migrate any public state, not just balances.
@@ -366,7 +366,7 @@ pub contract ExampleMigrationApp {
             // The `expected_storage_slot` should reflect the `struct_map` field in the storage layout
             // of the contract on the old rollup.
             STORAGE_LAYOUT_ExampleMigrationApp.fields.struct_map.slot,
-            archive_proof_data,
+            block_header,
             [map_key],
         );
         ExampleMigrationApp::at(self.context.this_address())
@@ -381,7 +381,7 @@ pub contract ExampleMigrationApp {
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         owned_struct_map_proof_data: PublicStateProofData<SomeStruct, 2>,
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
         old_owner: AztecAddress,
         signature: MigrationSignature,
         key_note: KeyNoteProofData,
@@ -397,7 +397,7 @@ pub contract ExampleMigrationApp {
             // The `expected_storage_slot` should reflect the `owned_struct_map` field in the storage layout
             // of the contract on the old rollup.
             STORAGE_LAYOUT_ExampleMigrationApp.fields.owned_struct_map.slot,
-            archive_proof_data,
+            block_header,
             [old_owner],
             old_owner,
             signature,
@@ -415,7 +415,7 @@ pub contract ExampleMigrationApp {
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         owned_struct_nested_map_proof_data: PublicStateProofData<SomeStruct, 2>,
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
         old_owner: AztecAddress,
         signature: MigrationSignature,
         key_note: KeyNoteProofData,
@@ -432,7 +432,7 @@ pub contract ExampleMigrationApp {
             // The `expected_storage_slot` should reflect the `owned_struct_nested_map` field in the storage layout
             // of the contract on the old rollup.
             STORAGE_LAYOUT_ExampleMigrationApp.fields.owned_struct_nested_map.slot,
-            archive_proof_data,
+            block_header,
             [map_key, old_owner.to_field()],
             old_owner,
             signature,

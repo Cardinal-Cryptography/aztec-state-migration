@@ -16,7 +16,11 @@ export {
 } from "./keys.js";
 
 // Proofs
-export { buildNoteProof, buildArchiveProof } from "./proofs.js";
+export {
+  buildNoteProof,
+  buildArchiveProof,
+  buildBlockHeader,
+} from "./proofs.js";
 
 // Bridge
 export {

@@ -5,7 +5,7 @@ import { deploy } from "./deploy.js";
 import {
   deployAppPair,
   deployArchiveRegistry,
-  bridgeArchiveRoot,
+  bridgeBlock,
   deployAndFundAccount,
   assertEq,
 } from "./test-utils.js";
@@ -104,7 +104,7 @@ async function main() {
   // Step 5: Bridge archive root
   // ============================================================
   console.log("Step 5. Bridging archive root...");
-  const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
+  const { l1Result, provenBlockNumber, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
   );
@@ -133,7 +133,11 @@ async function main() {
       txHash: lockTx.txHash,
     });
   console.log(`   Found ${migrationDataEvents.length} MigrationDataEvent(s)`);
-  assertEq(migrationDataEvents.length, lockNotes.length, "Mismatch between MigrationDataEvents and MigrationNotes count");
+  assertEq(
+    migrationDataEvents.length,
+    lockNotes.length,
+    "Mismatch between MigrationDataEvents and MigrationNotes count",
+  );
 
   // Build proofs via wallet, combining note proofs with event data
   const migrationNoteProofs = await oldUserWallet.buildMigrationNoteProofs(
@@ -148,7 +152,7 @@ async function main() {
   );
   const signature = await signMigrationModeA(
     oldAccount.migrationKeySigner,
-    archiveProof.archive_block_header.global_variables.version,
+    blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     lockNotes,
     newUserManager.address,
@@ -168,7 +172,7 @@ async function main() {
       mpk.toNoirStruct(),
       signature,
       migrationNoteProofs,
-      archiveProof,
+      blockHeader,
     )
     .send({ from: newUserManager.address })
     .wait();
@@ -177,7 +181,11 @@ async function main() {
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
-  assertEq(newBalanceAfter, LOCK_AMOUNT, "Migrated balance on NEW rollup does not match locked amount");
+  assertEq(
+    newBalanceAfter,
+    LOCK_AMOUNT,
+    "Migrated balance on NEW rollup does not match locked amount",
+  );
 
   console.log("\n   Cross-rollup migration fully successful!");
 
@@ -241,8 +249,8 @@ async function main() {
   const {
     l1Result: l1ResultPublic,
     provenBlockNumber: publicProvenBlockNumber,
-    archiveProof: publicArchiveProof,
-  } = await bridgeArchiveRoot(env, newArchiveRegistry);
+    blockHeader: publicBlockHeader,
+  } = await bridgeBlock(env, newArchiveRegistry);
   console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}`);
   console.log(`   Archive root: ${l1ResultPublic.provenArchiveRoot}\n`);
 
@@ -294,7 +302,7 @@ async function main() {
   // Sign via standalone function
   const publicSignature = await signMigrationModeA(
     oldAccount.migrationKeySigner,
-    publicArchiveProof.archive_block_header.global_variables.version,
+    publicBlockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     [publicLockNote],
     newUserManager.address,
@@ -319,7 +327,7 @@ async function main() {
       mpk.toNoirStruct(),
       publicSignature,
       publicMigrationNoteProofs,
-      publicArchiveProof,
+      publicBlockHeader,
     )
     .send({ from: newUserManager.address })
     .wait();
@@ -330,7 +338,11 @@ async function main() {
   console.log(
     `   Public balance on NEW rollup after: ${newPublicBalanceAfter}`,
   );
-  assertEq(newPublicBalanceAfter, PUBLIC_LOCK_AMOUNT, "Migrated public balance on NEW rollup does not match locked amount");
+  assertEq(
+    newPublicBalanceAfter,
+    PUBLIC_LOCK_AMOUNT,
+    "Migrated public balance on NEW rollup does not match locked amount",
+  );
   console.log("   Public balance migration fully successful!");
 
   // ============================================================

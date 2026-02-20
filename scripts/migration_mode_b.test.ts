@@ -5,7 +5,7 @@ import {
   deployAppPair,
   deployArchiveRegistry,
   deployKeyRegistry,
-  bridgeArchiveRoot,
+  bridgeBlock,
   deployAndFundAccount,
   assertEq,
 } from "./test-utils.js";
@@ -134,18 +134,20 @@ async function main() {
   // ============================================================
   console.log("Step 5-7. Bridging archive root and setting snapshot height...");
 
-  const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
+  const { provenBlockNumber, archiveProof, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
   );
-  console.log(
-    `   Bridge complete. Proven block: ${l1Result.provenBlockNumber}`,
-  );
-  console.log(`   Archive root: ${l1Result.provenArchiveRoot}`);
+  console.log(`   Bridge complete. Proven block: ${provenBlockNumber}`);
 
   // Set snapshot height for Mode B
-  await newArchiveRegistry.methods
-    .set_snapshot_height(l1Result.provenBlockNumber)
+  const setSnapshotTx = await newArchiveRegistry.methods
+    .set_snapshot_height(
+      provenBlockNumber,
+      blockHeader,
+      provenBlockNumber,
+      archiveProof.archive_sibling_path,
+    )
     .send({ from: newDeployerManager.address })
     .wait();
 
@@ -238,7 +240,7 @@ async function main() {
   );
   const signature = await signMigrationModeB(
     oldAccount.migrationKeySigner,
-    archiveProof.archive_block_header.global_variables.version,
+    blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     balanceNotes,
     newUserManager.address,
@@ -267,7 +269,7 @@ async function main() {
       migrateAmount,
       signature,
       [noteProof],
-      archiveProof,
+      blockHeader,
       oldUserManager.address,
       publicKeys.toNoirStruct(),
       partialAddress,
@@ -281,7 +283,11 @@ async function main() {
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
-  assertEq(newBalanceAfter, migrateAmount, "Migrated balance on NEW rollup does not match expected amount");
+  assertEq(
+    newBalanceAfter,
+    migrateAmount,
+    "Migrated balance on NEW rollup does not match expected amount",
+  );
 
   console.log(
     "\n   Mode B migration successful! Balance matches migrated amount.",
@@ -309,7 +315,7 @@ async function main() {
 
   const nullifiedNoteSig = await signMigrationModeB(
     oldAccount.migrationKeySigner,
-    archiveProof.archive_block_header.global_variables.version,
+    blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     [nullifiedNote],
     newUserManager.address,
@@ -324,7 +330,7 @@ async function main() {
         amount,
         nullifiedNoteSig,
         [nullifiedNoteProof],
-        archiveProof,
+        blockHeader,
         oldUserManager.address,
         publicKeys.toNoirStruct(),
         partialAddress,
@@ -367,7 +373,7 @@ async function main() {
   console.log("  NEW Rollup (L2):");
   console.log(`    - MigrationArchiveRegistry: ${newArchiveRegistry.address}`);
   console.log(`    - ExampleMigrationApp: ${newApp.address}`);
-  console.log(`\nSnapshot height: ${l1Result.provenBlockNumber}`);
+  console.log(`\nSnapshot height: ${provenBlockNumber}`);
   console.log(`Migrated amount: ${migrateAmount}`);
   console.log("\nBalances:");
   console.log(`  OLD rollup: ${oldBalance}`);

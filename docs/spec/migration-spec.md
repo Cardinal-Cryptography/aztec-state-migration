@@ -9,7 +9,7 @@ title: Migration Specification
 
 This spec describes migration for Aztec-native tokens. Throughout the document, **TokenV1** refers to the original token contract on the old rollup, and **TokenV2** refers to its counterpart on the new rollup.
 
-Burn-to-migrate pattern for Aztec rollup upgrades. Users lock/burn balances on old rollup (Mode A) or prove a safe snapshot (Mode B), then claim equivalent on new rollup using proofs against old rollup headers anchored by archive roots relayed via L1.
+Burn-to-migrate pattern for Aztec rollup upgrades. Users lock/burn balances on old rollup (Mode A) or prove a safe snapshot (Mode B), then claim equivalent on new rollup using proofs against old rollup block hashes derived from archive roots relayed via L1.
 
 ## Scope
 
@@ -29,7 +29,7 @@ Burn-to-migrate pattern for Aztec rollup upgrades. Users lock/burn balances on o
 1. **Burns/locks are permanent.** No unlock.
 2. **TokenV2 deploys INACTIVE.** Governance calls `activate_mode_a()` OR `activate_mode_b()` once. Mode is immutable because Mode A and Mode B use different claim ids/nullifiers.
 3. **TokenV2 has immutable config:** `old_rollup_id`, `TokenV1_address`, `root_registry_address` (new rollup), `migration_key_registry_address` (old rollup, for Mode B), `dest_rollup_id` (this rollup), `dest_token` (= TokenV2_address).
-4. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **RootRegistry** contract, readable by all migrating apps.
+4. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **RootRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
 5. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation—coordinating such a change close to mainnet launch is risky. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
 
 ## Architecture
@@ -38,12 +38,13 @@ Burn-to-migrate pattern for Aztec rollup upgrades. Users lock/burn balances on o
 Old Rollup L2          L1 Portal              New Rollup L2
 ┌────────────┐      ┌──────────────┐      ┌──────────────┐
 │  TokenV1   │      │   relays     │─────▶│ RootRegistry │
-│  lock_*()  │      │ archive_root │ inbox│  (shared)    │
-├────────────┤      └──────────────┘      └──────┬───────┘
-│ MigrationKey│                                  │ reads
-│  Registry  │                            ┌──────▼───────┐
-│  (Mode B)  │                            │   TokenV2    │
-└────────────┘                            │  claim_*()   │
+│  lock_*()  │      │ archive_root │ inbox│ stores block  │
+├────────────┤      └──────────────┘      │   hashes     │
+│ MigrationKey│                           └──────┬───────┘
+│  Registry  │                                   │ reads
+│  (Mode B)  │                            ┌──────▼───────┐
+└────────────┘                            │   TokenV2    │
+                                          │  claim_*()   │
                                           └──────────────┘
 
 ```
@@ -58,20 +59,21 @@ The portal message content is:
 (old_rollup_id, h, archive_root)
 ```
 
-**RootRegistry** is a singleton contract on the new rollup, shared by all migrating apps—each app reads trusted roots from this single instance rather than managing its own. `register_root(old_rollup_id, h, archive_root, message_leaf_index, secret)` MUST:
+**RootRegistry** is a singleton contract on the new rollup, shared by all migrating apps—each app reads verified block hashes from this single instance rather than managing its own. `register_block(archive_root, block_number, secret, message_leaf_index, block_header, archive_sibling_path)` MUST:
 
-- compute `content_hash = H(old_rollup_id, h, archive_root)` using a shared, canonical encoding (see Open Questions),
-- consume the corresponding Inbox message with `consume_l1_to_l2_message(content_hash, secret, portal_address, message_leaf_index)`, and
-- validate that `portal_address` is the expected portal for `old_rollup_id` (configured in RootRegistry).
+- consume the corresponding Inbox message with content `H(old_rollup_id, archive_root, block_number)`,
+- compute `block_hash = hash(block_header)`,
+- verify `root_from_sibling_path(block_hash, block_number, archive_sibling_path) == archive_root` (proving the block header is a leaf in the archive tree), and
+- store the verified `block_hash` keyed by `block_number`.
 
 **Inbox message consumption** requires a `secret` because L1 messages commit to a `secretHash`, and L2 consumption reveals the preimage. For permissionless root syncing, the portal uses a public/deterministic secret (for example `0`). Reusing the same secret across many messages is safe because the message leaf index is part of consumption.
 
-**Storage:** RootRegistry stores `(old_rollup_id, h) → archive_root` for all registered roots. Any migrating app can call `get_root(old_rollup_id, h)` to retrieve a trusted archive root.
+**Storage:** RootRegistry stores `block_number → block_hash` for all registered blocks. Any migrating app can call `verify_migration_mode_a(block_number, block_hash)` or `verify_migration_mode_b(block_hash)` to check a block hash against the stored value.
 
-**App-level root policy:** Each migrating app (e.g., TokenV2) enforces its own policy on which roots it accepts:
+**App-level block hash policy:** Each migrating app (e.g., TokenV2) enforces its own policy on which block hashes it accepts:
 
-- **Mode A:** accept any root where `h >= header.height`; optionally track latest trusted height.
-- **Mode B:** accept only the root at snapshot height H.
+- **Mode A:** accept any registered block hash.
+- **Mode B:** accept only the block hash at snapshot height H (stored as `snapshot_block_hash`).
 
 # Identity & migration key registry
 
@@ -225,13 +227,13 @@ If implemented via a public `_decrement_supply(amount)`, amounts become public.
 All claims provide:
 
 - an old rollup block header `header` with roots for the relevant trees,
-- a proof `header_hash` is included under a trusted archive root, with `leaf_index == header.height`, and
+- a proof that `header.hash()` matches a verified block hash stored in RootRegistry (Mode A checks against `block_hashes[block_number]`, Mode B checks against `snapshot_block_hash`), and
 - membership / non-membership proofs against roots inside `header`.
 
 **Mode A `claim` proves:**
 
 1. `MigrationLockNote.leaf_hash` exists in the note tree (inclusion proof) under `header.note_root`.
-2. `header_hash` is included under a trusted archive root from RootRegistry (at `header.height` or later).
+2. `header.hash()` matches a verified block hash in RootRegistry for `header.height`.
 3. `dest_rollup_id == TokenV2.dest_rollup_id` and `dest_token == TokenV2_address` from the lock note preimage.
 4. Signature verifies for `mpk` matching `mpk_hash` in the lock note.
 
@@ -263,8 +265,10 @@ All claims provide:
 
 | Function | Params | Returns |
 | --- | --- | --- |
-| `register_root` | `old_rollup_id, height, archive_root, message_leaf_index, secret` | `void` |
-| `get_root` | `old_rollup_id, height` | `archive_root` |
+| `register_block` | `archive_root, block_number, secret, message_leaf_index, block_header, archive_sibling_path` | `void` |
+| `set_snapshot_height` | `height, snapshot_block_header, reference_block_number, reference_block_header, archive_sibling_path` | `void` |
+| `verify_migration_mode_a` | `block_number, block_hash` | `void` |
+| `verify_migration_mode_b` | `block_hash` | `void` |
 
 ### TokenV2 (New Rollup)
 
@@ -285,7 +289,7 @@ Mode B: poseidon2(MIGRATION_DOMAIN, B, original_leaf_hash, TokenV2_address, dest
 
 ## TODO
 
-1. Finalize portal message encoding / hashing for `(old_rollup_id, height, archive_root)` (canonical library shared by L1 portal and L2 RootRegistry).
+1. Finalize portal message encoding / hashing for `(old_rollup_id, archive_root, block_number)` (canonical library shared by L1 portal and L2 RootRegistry).
 2. Evaluate salt-based commitment for new accounts (see Future work section).
 3. Mode B public balances: add public data tree proof path.
 4. Supply cap: for per-user migrated amounts, explore whether it’s possible to do some simple batching.
