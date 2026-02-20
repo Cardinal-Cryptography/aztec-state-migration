@@ -12,7 +12,7 @@ pub use aztec::protocol_types::constants::{
 #[aztec_contract]
 pub contract MigrationArchiveRegistry {
     use aztec::{
-        macros::{functions::{external, initializer}, storage::storage},
+        macros::{functions::{external, initializer, internal}, storage::storage},
         protocol_types::{
             abis::block_header::BlockHeader,
             address::{AztecAddress, EthAddress},
@@ -74,30 +74,7 @@ pub contract MigrationArchiveRegistry {
         secret: Field,
         leaf_index: Field,
     ) {
-        let old_rollup_version = self.storage.old_rollup_version.read();
-        // Content: poseidon2(oldVersion, archiveRoot, provenBlockNumber)
-        let content = poseidon2_hash([
-            old_rollup_version,
-            archive_root,
-            proven_block_number as Field,
-        ]);
-
-        // Consume L1-to-L2 message
-        self.context.consume_l1_to_l2_message(
-            content,
-            secret,
-            self.storage.l1_migrator.read(),
-            leaf_index,
-        );
-
-        // Store trusted archive root
-        self.storage.archive_roots.at(proven_block_number).write(archive_root);
-
-        // Update latest if newer
-        let current_latest = self.storage.latest_proven_block.read();
-        if proven_block_number as u64 > current_latest as u64 {
-            self.storage.latest_proven_block.write(proven_block_number);
-        }
+        self.internal._consume_l1_message(archive_root, proven_block_number, secret, leaf_index);
     }
 
     // ============================================================
@@ -115,24 +92,82 @@ pub contract MigrationArchiveRegistry {
         block_header: BlockHeader,
         archive_sibling_path: [Field; ARCHIVE_HEIGHT],
     ) {
-        // Read trusted archive root (must have been consumed via consume_l1_to_l2_message)
         let archive_root = self.storage.archive_roots.at(proven_block_number).read();
         assert(archive_root != 0, "Archive root not consumed for this proven block");
+        self.internal._verify_and_store_block_hash(
+            archive_root,
+            proven_block_number,
+            block_header,
+            archive_sibling_path,
+        );
+    }
 
-        // Compute block hash and verify it's in the archive tree
+    /// Convenience: consume L1 message and register a block in one call.
+    #[external("public")]
+    fn consume_l1_to_l2_message_and_register_block(
+        archive_root: Field,
+        proven_block_number: u32,
+        secret: Field,
+        leaf_index: Field,
+        block_header: BlockHeader,
+        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+    ) {
+        self.internal._consume_l1_message(archive_root, proven_block_number, secret, leaf_index);
+        self.internal._verify_and_store_block_hash(
+            archive_root,
+            proven_block_number,
+            block_header,
+            archive_sibling_path,
+        );
+    }
+
+    // ============================================================
+    // Internal helpers
+    // ============================================================
+
+    #[internal("public")]
+    fn _consume_l1_message(
+        archive_root: Field,
+        proven_block_number: u32,
+        secret: Field,
+        leaf_index: Field,
+    ) {
+        let old_rollup_version = self.storage.old_rollup_version.read();
+        let content = poseidon2_hash([
+            old_rollup_version,
+            archive_root,
+            proven_block_number as Field,
+        ]);
+        self.context.consume_l1_to_l2_message(
+            content,
+            secret,
+            self.storage.l1_migrator.read(),
+            leaf_index,
+        );
+        self.storage.archive_roots.at(proven_block_number).write(archive_root);
+
+        let current_latest = self.storage.latest_proven_block.read();
+        if proven_block_number as u64 > current_latest as u64 {
+            self.storage.latest_proven_block.write(proven_block_number);
+        }
+    }
+
+    #[internal("public")]
+    fn _verify_and_store_block_hash(
+        archive_root: Field,
+        proven_block_number: u32,
+        block_header: BlockHeader,
+        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+    ) {
         let block_number = block_header.global_variables.block_number;
         let block_hash = block_header.hash();
         let computed_archive_root =
             root_from_sibling_path(block_hash, block_number.to_field(), archive_sibling_path);
         assert(computed_archive_root == archive_root, "Block header not in archive tree");
-
-        // The block must be within the proven range
         assert(
             block_number as u64 <= proven_block_number as u64,
             "Block number exceeds proven checkpoint",
         );
-
-        // Store block hash
         self.storage.block_hashes.at(block_number as u32).write(block_hash);
     }
 
