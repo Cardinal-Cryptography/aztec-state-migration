@@ -91,6 +91,7 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     migration_archive_registry: AztecAddress,
     mpk: Point,
     signature: MigrationSignature,
+    recipient: AztecAddress,
     old_app: AztecAddress,
     note_proof_data: [MigrationNoteProofData<T>; N],
     block_header: BlockHeader,
@@ -119,7 +120,6 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     // ============================================================
     let notes_hash = poseidon2_hash(note_hashes);
     let old_rollup = block_header.global_variables.version;
-    let recipient = context.msg_sender().unwrap();
     let new_app_address = context.this_address();
 
     signature.verify_migration_signature::<CLAIM_DOMAIN_A>(

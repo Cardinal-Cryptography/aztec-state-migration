@@ -54,6 +54,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
     signature: MigrationSignature,
+    recipient: AztecAddress,
     old_app: AztecAddress,
     full_proof_data: [FullNoteProofData<Note>; N],
     expected_storage_slot: Field,
@@ -114,7 +115,6 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let notes_hash = poseidon2_hash(notes_hashes);
     let old_rollup = block_header.global_variables.version;
     let current_rollup = context.version();
-    let recipient = context.msg_sender().unwrap();
     let new_app = context.this_address();
 
     signature.verify_migration_signature::<CLAIM_DOMAIN_B>(
@@ -263,6 +263,7 @@ pub fn migrate_public_map_owned_state_mode_b<K: ToField, T: Packable, let N: u32
     map_keys: [K; N],
     old_owner: AztecAddress,
     signature: MigrationSignature,
+    recipient: AztecAddress,
     key_note: KeyNoteProofData,
 ) {
     // ============================================================
@@ -284,7 +285,6 @@ pub fn migrate_public_map_owned_state_mode_b<K: ToField, T: Packable, let N: u32
     let public_state_hash: Field = public_state_proof_data.public_state_hash();
     let old_rollup = block_header.global_variables.version;
     let current_rollup = context.version();
-    let recipient = context.msg_sender().unwrap();
     let new_app = context.this_address();
 
     signature.verify_migration_signature::<CLAIM_DOMAIN_B_PUBLIC>(

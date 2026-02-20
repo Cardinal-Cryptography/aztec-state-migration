@@ -205,6 +205,7 @@ pub contract ExampleMigrationApp {
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
+        let recipient = self.context.msg_sender().unwrap();
         let old_app = self.storage.old_rollup_app_address.read();
 
         migrate_notes_mode_a(
@@ -212,6 +213,7 @@ pub contract ExampleMigrationApp {
             self.storage.archive_root_address.read(),
             mpk,
             signature,
+            recipient,
             old_app,
             note_proof_data,
             block_header,
@@ -240,12 +242,14 @@ pub contract ExampleMigrationApp {
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
         // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
+        let recipient = self.context.msg_sender().unwrap();
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
             self.context,
             self.storage.archive_root_address.read(),
             mpk,
             signature,
+            recipient,
             old_app,
             note_proof_data,
             block_header,
@@ -286,6 +290,7 @@ pub contract ExampleMigrationApp {
         //
         nsk: Scalar,
     ) {
+        let recipient = self.context.msg_sender().unwrap();
         let old_app = self.storage.old_rollup_app_address.read();
         // The `expected_storage_slot` should reflect the `balances` field in the storage layout
         // of the contract on the old rollup. Here we just use the same storage layout as this contract
@@ -301,6 +306,7 @@ pub contract ExampleMigrationApp {
             self.context,
             self.storage.archive_root_address.read(),
             signature,
+            recipient,
             old_app,
             full_proof_data,
             balances_expected_storage_slot,
@@ -313,9 +319,7 @@ pub contract ExampleMigrationApp {
         );
 
         // 2. Mint the migrated tokens to the user on the new rollup
-        self.storage.balances.at(self.context.msg_sender().unwrap()).add(amount).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
-        );
+        self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
     }
 
     #[external("private")]
@@ -386,6 +390,7 @@ pub contract ExampleMigrationApp {
         signature: MigrationSignature,
         key_note: KeyNoteProofData,
     ) {
+        let recipient = self.context.msg_sender().unwrap();
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
         let owned_struct = owned_struct_map_proof_data.data;
@@ -401,10 +406,11 @@ pub contract ExampleMigrationApp {
             [old_owner],
             old_owner,
             signature,
+            recipient,
             key_note,
         );
         ExampleMigrationApp::at(self.context.this_address())
-            ._set_owned_struct_map(self.context.msg_sender().unwrap(), owned_struct)
+            ._set_owned_struct_map(recipient, owned_struct)
             .enqueue(self.context);
     }
 
@@ -421,6 +427,7 @@ pub contract ExampleMigrationApp {
         key_note: KeyNoteProofData,
         map_key: Field,
     ) {
+        let recipient = self.context.msg_sender().unwrap();
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
         let owned_struct = owned_struct_nested_map_proof_data.data;
@@ -436,10 +443,11 @@ pub contract ExampleMigrationApp {
             [map_key, old_owner.to_field()],
             old_owner,
             signature,
+            recipient,
             key_note,
         );
         ExampleMigrationApp::at(self.context.this_address())
-            ._set_owned_struct_nested_map(self.context.msg_sender().unwrap(), map_key, owned_struct)
+            ._set_owned_struct_nested_map(recipient, map_key, owned_struct)
             .enqueue(self.context);
     }
 
