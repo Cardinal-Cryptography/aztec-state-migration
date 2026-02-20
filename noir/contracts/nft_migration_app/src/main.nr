@@ -18,12 +18,13 @@ pub contract NftMigrationApp {
             constants::MAX_NOTES_PER_PAGE, note_getter_options::NoteGetterOptions,
             note_interface::NoteProperties, note_viewer_options::NoteViewerOptions,
         },
-        protocol_types::{address::AztecAddress, public_keys::PublicKeys},
+        protocol_types::{
+            abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys,
+        },
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
         utils::comparison::Comparator,
     };
     use migration::{
-        ArchiveProofData,
         constants::CLAIM_DOMAIN_B_PUBLIC,
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
@@ -173,7 +174,7 @@ pub contract NftMigrationApp {
         mpk: Point,
         signature: MigrationSignature,
         note_proof_data: MigrationNoteProofData<Field>,
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
     ) {
         assert(note_proof_data.data == token_id, "Migration data mismatch");
 
@@ -185,7 +186,7 @@ pub contract NftMigrationApp {
             signature,
             old_app,
             [note_proof_data],
-            archive_proof_data,
+            block_header,
         );
 
         let recipient = self.context.msg_sender().unwrap();
@@ -205,7 +206,7 @@ pub contract NftMigrationApp {
         mpk: Point,
         signature: MigrationSignature,
         note_proof_data: MigrationNoteProofData<Field>,
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
     ) {
         assert(note_proof_data.data == token_id, "Migration data mismatch");
 
@@ -217,7 +218,7 @@ pub contract NftMigrationApp {
             signature,
             old_app,
             [note_proof_data],
-            archive_proof_data,
+            block_header,
         );
 
         let recipient = self.context.msg_sender().unwrap();
@@ -237,7 +238,7 @@ pub contract NftMigrationApp {
         token_id: Field,
         signature: MigrationSignature,
         full_proof_data: FullNoteProofData<NFTNote>,
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
         notes_owner: AztecAddress,
         public_keys: PublicKeys,
         partial_address: Field,
@@ -257,7 +258,7 @@ pub contract NftMigrationApp {
             old_app,
             [full_proof_data],
             expected_storage_slot,
-            archive_proof_data,
+            block_header,
             notes_owner,
             public_keys,
             partial_address,
@@ -281,7 +282,7 @@ pub contract NftMigrationApp {
     #[external("private")]
     fn migrate_public_owner_mode_b(
         proof_data: PublicStateProofData<AztecAddress, 1>,
-        archive_proof_data: ArchiveProofData,
+        block_header: BlockHeader,
         token_id: Field,
         signature: MigrationSignature,
         key_note: KeyNoteProofData,
@@ -299,14 +300,14 @@ pub contract NftMigrationApp {
             old_app,
             proof_data,
             STORAGE_LAYOUT_NftMigrationApp.fields.public_owners.slot,
-            archive_proof_data,
+            block_header,
             token_id,
         );
 
         // 2. Verify key note belongs to the proven owner
         let proven_owner = proof_data.data;
         let note_hash_tree_root =
-            archive_proof_data.archive_block_header.state.partial.note_hash_tree.root;
+            block_header.state.partial.note_hash_tree.root;
         let _ = key_note.verify_key_note_inclusion(
             self.context,
             archive_registry,
@@ -316,7 +317,7 @@ pub contract NftMigrationApp {
 
         // 3. Verify signature over recipient (prevents front-running)
         let public_state_hash = proof_data.public_state_hash();
-        let old_rollup = archive_proof_data.archive_block_header.global_variables.version;
+        let old_rollup = block_header.global_variables.version;
         let current_rollup = self.context.version();
         let recipient = self.context.msg_sender().unwrap();
         let new_app = self.context.this_address();
