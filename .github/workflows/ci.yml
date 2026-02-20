@@ -41,11 +41,6 @@ jobs:
         run: yarn sol:compile
       - uses: actions/upload-artifact@v4
         with:
-          name: noir-target
-          path: noir/target/
-          retention-days: 1
-      - uses: actions/upload-artifact@v4
-        with:
           name: solidity-build
           path: |
             solidity/target/
@@ -54,9 +49,10 @@ jobs:
           retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
-          name: noir-contracts
+          name: ts-contract-artifacts
           path: |
             ts/migration-lib/noir-contracts/
+            ts/migration-lib/artifacts/
           retention-days: 1
 
   format-and-lint:
@@ -77,8 +73,8 @@ jobs:
       - run: corepack enable && yarn install
       - uses: actions/download-artifact@v4
         with:
-          name: noir-target
-          path: noir/target/
+          name: ts-contract-artifacts
+          path: ts/migration-lib/
       - run: yarn fmt:check
 
   test-e2e:
@@ -99,16 +95,12 @@ jobs:
       - run: corepack enable && yarn install
       - uses: actions/download-artifact@v4
         with:
-          name: noir-target
-          path: noir/target/
-      - uses: actions/download-artifact@v4
-        with:
           name: solidity-build
           path: solidity/
       - uses: actions/download-artifact@v4
         with:
-          name: noir-contracts
-          path: ts/migration-lib/noir-contracts/
+          name: ts-contract-artifacts
+          path: ts/migration-lib/
       - name: Start dual-rollup infrastructure
         run: yarn test:setup
       - name: Test - Migration Key Registry
