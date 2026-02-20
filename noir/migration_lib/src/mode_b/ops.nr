@@ -317,8 +317,8 @@ pub fn migrate_public_map_owned_state_mode_b<K: ToField, T: Packable, let N: u32
 }
 
 fn derive_map_storage_slot<K: ToField, let N: u32>(slot: Field, map_keys: [K; N]) -> Field {
-    let mut derived_slot = poseidon2_hash([slot, map_keys[0].to_field()]);
-    for i in 1..N {
+    let mut derived_slot = slot;
+    for i in 0..N {
         derived_slot = poseidon2_hash([derived_slot, map_keys[i].to_field()]);
     }
     derived_slot

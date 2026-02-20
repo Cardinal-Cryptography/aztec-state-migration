@@ -200,8 +200,8 @@ async function deriveStorageSlotInMap(
     toField: () => Fr;
   }[],
 ): Promise<Fr> {
-  let derived_slot = await poseidon2Hash([baseSlot, mapKeys[0].toField()]);
-  for (let i = 1; i < mapKeys.length; i++) {
+  let derived_slot = baseSlot;
+  for (let i = 0; i < mapKeys.length; i++) {
     derived_slot = await poseidon2Hash([derived_slot, mapKeys[i].toField()]);
   }
   return derived_slot;
