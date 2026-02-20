@@ -118,3 +118,23 @@ export async function buildArchiveProof(
     archive_sibling_path: archiveSiblingPath.toFields(),
   };
 }
+
+/**
+ * Build a Noir-encoded block header for migration calls.
+ * Unlike {@link buildArchiveProof}, this does NOT include the archive sibling path
+ * since migration circuits no longer need it.
+ *
+ * @param node - Aztec node client to query the block header.
+ * @param blockNumber - The block number to get the header for.
+ * @returns Noir-encoded block header.
+ */
+export async function buildBlockHeader(
+  node: AztecNode,
+  blockNumber: BlockNumber,
+) {
+  const blockHeader = await node.getBlockHeader(blockNumber);
+  if (!blockHeader) {
+    throw new Error(`Could not get block header for block ${blockNumber}`);
+  }
+  return blockHeaderToNoir(blockHeader);
+}

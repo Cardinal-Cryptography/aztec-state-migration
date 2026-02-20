@@ -8,7 +8,7 @@ import {
   deployAppPair,
   deployArchiveRegistry,
   deployKeyRegistry,
-  bridgeArchiveRoot,
+  bridgeBlock,
   deployAndFundAccount,
 } from "./test-utils.js";
 import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
@@ -148,16 +148,18 @@ async function main() {
   // ============================================================
   console.log("5. Bridging archive root and setting snapshot height...");
 
-  const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
-    env,
-    newArchiveRegistry,
-    registerTx.blockNumber!,
-  );
+  const { l1Result, provenBlockNumber, archiveProof, blockHeader } =
+    await bridgeBlock(env, newArchiveRegistry, registerTx.blockNumber!);
   console.log(`   Proven block: ${l1Result.provenBlockNumber}`);
   console.log(`   Archive root: ${l1Result.provenArchiveRoot}`);
 
   await newArchiveRegistry.methods
-    .set_snapshot_height(l1Result.provenBlockNumber)
+    .set_snapshot_height(
+      l1Result.provenBlockNumber,
+      blockHeader,
+      l1Result.provenBlockNumber,
+      archiveProof.archive_sibling_path,
+    )
     .send({ from: newDeployerManager.address })
     .wait();
   console.log(`   Snapshot height set: ${l1Result.provenBlockNumber}\n`);
@@ -222,7 +224,7 @@ async function main() {
           data: SOME_STRUCT,
           slot_proof_data: publicDataSlotProofs,
         },
-        archiveProof,
+        blockHeader,
       )
       .send({ from: newUserManager.address })
       .wait();

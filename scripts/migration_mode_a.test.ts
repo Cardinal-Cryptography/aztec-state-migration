@@ -5,10 +5,10 @@ import { deploy } from "./deploy.js";
 import {
   deployAppPair,
   deployArchiveRegistry,
-  bridgeArchiveRoot,
+  bridgeBlock,
   deployAndFundAccount,
 } from "./test-utils.js";
-import {
+import type {
   MigrationNote,
   MigrationNoteProofData,
 } from "../ts/migration-lib/types.js";
@@ -107,7 +107,7 @@ async function main() {
   // Steps 8-12: Bridge archive root
   // ============================================================
   console.log("8-12. Bridging archive root...");
-  const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
+  const { l1Result, provenBlockNumber, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
     lockTx.blockNumber!,
@@ -156,7 +156,7 @@ async function main() {
   );
   const signature = await signMigrationModeA(
     oldAccount.migrationKeySigner,
-    archiveProof.archive_block_header.global_variables.version,
+    blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     lockNotes,
     newUserManager.address,
@@ -178,7 +178,7 @@ async function main() {
         mpk.toNoirStruct(),
         signature,
         migrationNoteProofs,
-        archiveProof,
+        blockHeader,
       )
       .send({ from: newUserManager.address })
       .wait();
@@ -267,8 +267,8 @@ async function main() {
   const {
     l1Result: l1ResultPublic,
     provenBlockNumber: publicProvenBlockNumber,
-    archiveProof: publicArchiveProof,
-  } = await bridgeArchiveRoot(env, newArchiveRegistry, lockTx.blockNumber!);
+    blockHeader: publicBlockHeader,
+  } = await bridgeBlock(env, newArchiveRegistry, lockTx.blockNumber!);
   console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}`);
   console.log(`   Archive root: ${l1ResultPublic.provenArchiveRoot}\n`);
 
@@ -320,7 +320,7 @@ async function main() {
   // Sign via standalone function
   const publicSignature = await signMigrationModeA(
     oldAccount.migrationKeySigner,
-    publicArchiveProof.archive_block_header.global_variables.version,
+    publicBlockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     [publicLockNote],
     newUserManager.address,
@@ -346,7 +346,7 @@ async function main() {
         mpk.toNoirStruct(),
         publicSignature,
         publicMigrationNoteProofs,
-        publicArchiveProof,
+        publicBlockHeader,
       )
       .send({ from: newUserManager.address })
       .wait();
