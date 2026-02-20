@@ -71,7 +71,7 @@ impl<T: Packable, let N: u32> PublicStateProofData<T, N> {
         public_state_tree_root: Field,
     ) {
         let data_fields = self.data.pack();
-        assert(
+        std::static_assert(
             <T as Packable>::N == N,
             "Proof data length must match the number of fields in the struct",
         );

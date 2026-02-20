@@ -24,9 +24,7 @@ export interface MigrationAccount extends Account {
    * @param msg - The message bytes to sign.
    * @returns The migration signature.
    */
-  migrationKeySigner: (
-    msg: Uint8Array<ArrayBufferLike>,
-  ) => Promise<MigrationSignature>;
+  migrationKeySigner: (msg: Uint8Array) => Promise<MigrationSignature>;
 
   /**
    * Compute the masked nullifier secret key for cross-rollup note ownership transfer.
@@ -103,9 +101,7 @@ export class BaseMigrationAccount
    * @param msg - The message bytes to sign.
    * @returns The migration signature.
    */
-  migrationKeySigner = async (
-    msg: Uint8Array<ArrayBufferLike>,
-  ): Promise<MigrationSignature> => {
+  migrationKeySigner = async (msg: Uint8Array): Promise<MigrationSignature> => {
     const schnorr = new Schnorr();
     return MigrationSignature.fromSchnorrSignature(
       await schnorr.constructSignature(msg, this.masterMigrationSecretKey),
@@ -162,9 +158,7 @@ export class SignerlessMigrationAccount
     );
   }
 
-  async migrationKeySigner(
-    msg: Uint8Array<ArrayBufferLike>,
-  ): Promise<MigrationSignature> {
+  async migrationKeySigner(msg: Uint8Array): Promise<MigrationSignature> {
     throw new Error(
       "SignerlessMigrationAccount: Method migrationKeySigner not implemented.",
     );

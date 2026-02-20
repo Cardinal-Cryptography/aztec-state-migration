@@ -26,5 +26,7 @@ export const CLAIM_DOMAIN_A = MIGRATION_NOTE_SLOT;
 export const CLAIM_DOMAIN_B =
   0x18ca708ad6dca829b497a77f901adeefeb108751ceae07b68c22499a1da0e40en;
 
+export const CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef;
+
 /** Zero-based index of the `migration_data` field inside a `MigrationNote`. */
 export const MIGRATION_DATA_FIELD_INDEX = 5;

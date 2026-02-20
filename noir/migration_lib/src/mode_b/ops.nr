@@ -229,20 +229,20 @@ pub fn migrate_public_state_mode_b<T: Packable>(
         .enqueue(context);
 }
 
-pub fn migrate_public_map_state_mode_b<T: Packable, K: ToField>(
+pub fn migrate_public_map_state_mode_b<K: ToField, T: Packable, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
     old_app: AztecAddress,
     public_state_proof_data: PublicStateProofData<T, <T as Packable>::N>,
     base_storage_slot: Field,
     block_header: BlockHeader,
-    map_key: K,
+    map_keys: [K; N],
 ) {
     // ============================================================
     // 1. Derive the storage slot for the map entry and verify public data existed
     //    in the public data tree for that slot
     // ============================================================
-    let derived_storage_slot = poseidon2_hash([base_storage_slot, map_key.to_field()]);
+    let derived_storage_slot = derive_map_storage_slot(base_storage_slot, map_keys);
     migrate_public_state_mode_b(
         context,
         migration_archive_registry,
@@ -253,15 +253,16 @@ pub fn migrate_public_map_state_mode_b<T: Packable, K: ToField>(
     );
 }
 
-pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
+pub fn migrate_public_map_owned_state_mode_b<K: ToField, T: Packable, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
-    signature: MigrationSignature,
     old_app: AztecAddress,
     public_state_proof_data: PublicStateProofData<T, <T as Packable>::N>,
     base_storage_slot: Field,
     block_header: BlockHeader,
+    map_keys: [K; N],
     old_owner: AztecAddress,
+    signature: MigrationSignature,
     key_note: KeyNoteProofData,
 ) {
     // ============================================================
@@ -274,7 +275,7 @@ pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
         public_state_proof_data,
         base_storage_slot,
         block_header,
-        old_owner.to_field(),
+        map_keys,
     );
 
     // ============================================================
@@ -306,4 +307,13 @@ pub fn migrate_public_map_owned_state_mode_b<T: Packable>(
         old_owner,
         note_hash_tree_root,
     );
+}
+
+fn derive_map_storage_slot<K: ToField, let N: u32>(slot: Field, map_keys: [K; N]) -> Field {
+    std::static_assert(N > 0, "map_keys must have at least one key");
+    let mut derived_slot = slot;
+    for i in 0..N {
+        derived_slot = poseidon2_hash([derived_slot, map_keys[i].to_field()]);
+    }
+    derived_slot
 }

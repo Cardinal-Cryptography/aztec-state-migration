@@ -14,7 +14,7 @@
     "sol:fmt": "cd solidity && forge fmt",
     "sol:fmt:check": "cd solidity && forge fmt --check",
     "noir:compile": "cd noir && aztec compile",
-    "noir:codegen": "cd noir && aztec codegen ./target -o ./target/artifacts",
+    "noir:codegen": "cd ts/migration-lib && mkdir -p noir-contracts artifacts && cp ../../noir/target/*.json artifacts && aztec codegen ./artifacts -o ./noir-contracts",
     "noir:fmt": "cd noir && aztec fmt",
     "noir:fmt:check": "cd noir && aztec fmt --check",
     "ts:build": "tsc",

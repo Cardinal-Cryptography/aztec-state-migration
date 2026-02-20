@@ -1,9 +1,8 @@
 import { TestWallet } from "@aztec/test-wallet/server";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
-import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
+import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
-import type { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { generatePublicKey } from "@aztec/aztec.js/keys";
 import { Point } from "@aztec/foundation/curves/grumpkin";
 

@@ -4,6 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
+    "isolatedModules": true,
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
@@ -11,6 +12,6 @@
     "rootDir": ".",
     "declaration": true
   },
-  "include": ["noir/target/artifacts/**/*", "scripts/**/*.ts", "ts/**/*.ts"],
+  "include": ["scripts/**/*.ts", "ts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

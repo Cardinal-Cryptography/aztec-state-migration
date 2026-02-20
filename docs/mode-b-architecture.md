@@ -16,23 +16,24 @@ Mode B enables token migration when users have **not** pre-locked their notes on
 1. A balance note existed in the old rollup's note hash tree at a fixed snapshot height H
 2. That note was not nullified (spent) at height H
 3. The user registered a migration key before H
-4. The user knows the corresponding migration secret key
+4. The user knows the corresponding migration secret key and nullifier secret key
 
-## Contract Architecture
+Mode B also supports **public state migration** — proving that specific public storage values existed in the old rollup's public data tree at height H.
 
-### Why a Separate MigratorModeB Contract
+## Library Architecture
 
-Mode A uses a single `Migrator` contract that handles both locking (on old rollup) and claiming (on new rollup). Mode B introduces a separate `MigratorModeB` contract rather than extending the existing Migrator for several reasons:
+Migration logic is implemented as a **library** (`migration_lib`) rather than separate contracts. App contracts call library functions directly:
 
-- **Different trust model.** Mode A verifies a purpose-built `MigrationNote` that the Migrator itself created. Mode B verifies *existing* application notes (`UintNote`) and key registration notes (`MigrationKeyNote`) created by other contracts. The storage requirements differ: Mode B needs `old_app_address` and `old_key_registry` for hash siloing, while Mode A needs `old_rollup_migrator`.
-- **Snapshot height.** Mode B introduces a global `snapshot_height` that anchors all proofs to a single block. Mode A has no equivalent — users can prove against any registered archive root.
-- **Separation of concerns.** Mode A and Mode B have fundamentally different activation conditions. Mode A is always available; Mode B is only activated during emergencies. Keeping them separate makes each contract easier to audit and reason about.
+- `migrate_notes_mode_b` — for private note migration
+- `migrate_public_state_mode_b` — for standalone public state
+- `migrate_public_map_state_mode_b` — for map-based public state
+- `migrate_public_map_owned_state_mode_b` — for owned map-based public state (requires signature)
 
-### ExampleMigrationApp as the Token Layer
-
-Both modes use the same `ExampleMigrationApp` contract as the token-layer entry point. It calls into the appropriate Migrator contract for proof verification, then mints tokens on success. This keeps the token state (balances) in one place regardless of which migration path was used.
+This approach keeps token state (balances) in one place regardless of which migration path was used. The library handles proof verification, signature checking, and nullifier emission, while the app contract handles minting and state updates.
 
 ## Proof Chain
+
+### Private Note Migration
 
 Mode B's private function verifies a chain of Merkle proofs connecting user notes back to a trusted block hash:
 
@@ -49,17 +50,34 @@ MigrationKeyNote hash ──Merkle proof──> note_hash_tree_root             
 
 Simultaneously, for each note, a **nullifier non-inclusion proof** is checked against the same block header's nullifier tree root.
 
+### Public State Migration
+
+For public state, the proof chain is simpler:
+
+```
+packed_field[i] ──public data tree proof──> public_data_tree_root ──(embedded in)──> BlockHeader
+                                                                                         │
+                                                                 BlockHeader.hash() ──(== block_hash)──> snapshot_block_hash
+```
+
+For map-based storage, the storage slot is first derived by iterating `poseidon2_hash([slot, key])` for each map key.
+
 ### Block Hash Trust Anchor
 
-The archive root is bridged from L1 via `register_block`, which consumes an L1-to-L2 message whose content is `poseidon2(old_rollup_version, archive_root, proven_block_number)`. At registration time, `register_block` also takes the block header and an archive sibling path, verifies that `root_from_sibling_path(block_header.hash(), block_number, sibling_path) == archive_root`, and stores the verified `block_hash` (not the archive root). This moves the archive Merkle proof verification from every migration circuit to the one-time registration step.
+Block registration is a two-step process on the `MigrationArchiveRegistry`:
 
-The L1 Migrator contract reads the old rollup's `provenCheckpointNumber` and sends it to the new rollup via the inbox. This L1 component is unchanged.
+1. **`consume_l1_to_l2_message`** — consumes the L1->L2 message (whose content is `poseidon2(old_rollup_version, archive_root, proven_block_number)`) and stores the trusted `archive_root` keyed by `proven_block_number`.
+2. **`register_block`** — reads the stored archive root, takes a block header and archive sibling path, verifies `root_from_sibling_path(block_header.hash(), block_number, sibling_path) == archive_root`, and stores the verified `block_hash`.
+
+This moves the archive Merkle proof verification from every migration circuit to the one-time registration step. Migration circuits only need to compute `block_header.hash()` and enqueue a public call to `verify_migration_mode_b(block_hash)`.
+
+The L1 Migrator contract reads the old rollup's `provenCheckpointNumber` and sends it to the new rollup via the inbox.
 
 ### Block Header Binding
 
-The private function verifies that the provided `BlockHeader` has `global_variables.block_number == snapshot_height`. The block header hash is then passed to a public function (`complete_migration_mode_b`) that checks it against the stored `snapshot_block_hash`.
+The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a public function (`verify_migration_mode_b`) that checks it against the stored `snapshot_block_hash`.
 
-This private→public split is necessary because the block hashes are stored in public state. The private function computes the block hash and the public function checks it, connected via the enqueue mechanism.
+This private->public split is necessary because the block hashes are stored in public state. The private function computes the block hash and the public function checks it, connected via the enqueue mechanism.
 
 ## Note Hash Computation
 
@@ -78,7 +96,7 @@ The two-step structure exists because UintNote uses `#[partial_note(quote { self
 
 ### MigrationKeyNote (Owner-Bound Hash)
 
-The MigrationKeyNote hash was modified from its original form to include the owner:
+The MigrationKeyNote hash includes the owner:
 
 ```
 note_hash = poseidon2([mpk_hash, owner, storage_slot, randomness], GENERATOR_INDEX__NOTE_HASH)
@@ -86,9 +104,9 @@ siloed = compute_siloed_note_hash(old_key_registry_address, note_hash)
 unique = compute_unique_note_hash(nonce, siloed)
 ```
 
-**Why include owner in the hash:** Without owner binding, any party who knows the note preimage (e.g., from observing note delivery messages) could claim any user's balance by providing that user's key registration note hash. Including the owner means the MigratorModeB circuit proves that *this specific address* registered *this specific mpk_hash*, and since the balance note is also bound to an owner, the two are linked through the shared `balance_note_owner` parameter used in both hash computations.
+**Why include owner in the hash:** Without owner binding, any party who knows the note preimage (e.g., from observing note delivery messages) could claim any user's balance by providing that user's key registration note hash. Including the owner means the migration circuit proves that *this specific address* registered *this specific mpk*, and since the balance note is also bound to an owner, the two are linked through the shared `notes_owner` parameter used in both hash computations.
 
-This was a deliberate breaking change from the initial MigrationKeyNote implementation. The `#[custom_note]` macro was used specifically because standard note types ignore the owner parameter in `compute_note_hash`.
+The `#[custom_note]` macro was used specifically because standard note types ignore the owner parameter in `compute_note_hash`.
 
 ## Nullifier Non-Inclusion (Low-Leaf Indexed Tree Pattern)
 
@@ -106,53 +124,73 @@ The field comparisons use `full_field_less_than` and `full_field_greater_than` f
 
 ## Authentication Model
 
-### Current (PoC): Hash-Based
+### Schnorr Signatures
+
+The circuit uses `schnorr::verify_signature(mpk, signature, msg)` with a domain-separated message:
 
 ```
-mpk_hash = poseidon2([msk])
+notes_hash = poseidon2([note_hash_1, ..., note_hash_N])
+msg = poseidon2(CLAIM_DOMAIN_B, old_rollup, current_rollup, notes_hash, recipient, new_app)
+sig = schnorr_sign(msk, msg)   // off-chain
+schnorr_verify(sig, mpk, msg)  // in-circuit
 ```
 
-The user proves knowledge of `msk` by deriving `mpk_hash` and showing it matches the value stored in their MigrationKeyNote. This is simple but weak — anyone who learns `msk` can claim.
+The message binds the claim to a specific recipient and app contract, preventing front-running. `msk` stays entirely off-chain — only used for signing. The `mpk` is obtained from the `MigrationKeyNote` proven in the same circuit.
 
-### Production: Schnorr Signatures
+For public state migration with ownership, a separate domain `CLAIM_DOMAIN_B_PUBLIC` is used, and `notes_hash` is replaced by `public_state_hash` (the Poseidon2 hash of the packed public state fields).
 
-Production should use Schnorr signatures over a domain-separated message that binds the claim to specific parameters:
+### Address Verification and Nullifier Derivation
 
-```
-msg = poseidon2(CLAIM_DOMAIN, "B", old_rollup_id, dest_rollup_id, leaf_hash, recipient, token_address)
-sig = schnorr_sign(msk, msg)
-```
+The circuit computes both `inner_nullifier` and `siloed_nullifier` in-circuit from `nsk_app` (derived from the user's master nullifier secret key `nsk`). Address verification proves `nsk` matches the note owner by:
 
-The circuit would verify `sig` under the full Grumpkin point `mpk` (not just its hash). This prevents replay attacks and binds the claim to a specific recipient and token contract.
+1. Deriving `npk_m` from `nsk` via EC scalar multiplication (`fixed_base_scalar_mul`).
+2. Replacing `npk_m` in the provided `public_keys` with the derived value.
+3. Computing `AztecAddress::compute(public_keys, partial_address)` and asserting it equals `notes_owner`.
 
-## Siloed Nullifier as Unchecked Witness
-
-The `siloed_nullifier` values for both the balance note and key registration note are accepted as unchecked witnesses from PXE. This is the most significant security compromise in the PoC.
-
-**Why it cannot be recomputed in-circuit:** Computing a siloed nullifier requires `nsk_app` (the app-scoped nullifier secret key). On the new rollup, `request_nsk_app()` is scoped to the *current* contract address, not the old rollup's contract address. There is no way to request the `nsk_app` for a contract that doesn't exist on the current rollup.
-
-**The attack vector:** An attacker who knows `msk` but not the nullifier secret key (`nsk`) could fabricate a fake nullifier. Since the fake nullifier genuinely is not in the nullifier tree, the non-inclusion proof would pass — allowing claims on already-spent notes.
-
-**Production mitigation:** The user would provide `nsk_app` as an additional witness. The circuit would verify:
-1. `inner_nullifier = poseidon2([note_hash, nsk_app], GENERATOR_INDEX__NOTE_NULLIFIER)`
-2. `siloed_nullifier = poseidon2([contract_address, inner_nullifier], GENERATOR_INDEX__OUTER_NULLIFIER)`
-3. That `nsk_app` derives from the note owner's nullifier public key (requires protocol-level key registry integration)
+This ensures only the true owner of the nullifier secret key can migrate their notes.
 
 ## Migration Nullifier (Double-Claim Prevention)
 
-Each Mode B migration emits a nullifier:
+Each Mode B private note migration emits a nullifier:
 
 ```
-migration_nullifier = poseidon2([unique_note_hash, msk], GENERATOR_INDEX__NOTE_NULLIFIER)
+migration_nullifier = poseidon2_with_sep([unique_note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
 ```
 
-This is pushed in the private function via `self.context.push_nullifier()`. Because nullifiers are globally unique and the new rollup's kernel enforces non-duplication, the same note cannot be migrated twice. The nullifier includes `msk` to prevent front-running — only the key holder can produce this nullifier.
+This is pushed in the private function via `context.push_nullifier()`. Because nullifiers are globally unique and the new rollup's kernel enforces non-duplication, the same note cannot be migrated twice. The nullifier uses `randomness` (not the user's secret key) to preserve privacy — observers cannot link old/new rollup identities by predicting the nullifier.
+
+For public state migration, a deterministic nullifier is used:
+
+```
+nullifier = poseidon2_with_sep([old_app, storage_slot, field_index], GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER)
+```
+
+Since public state has no randomness, the nullifier is derived from the contract address, storage slot, and field index within the struct.
 
 ## Snapshot Height
 
 Mode B uses a single global `snapshot_height` — the block number at which all proofs are anchored. This differs from Mode A, which allows proofs against any registered archive root.
 
-**Why a fixed snapshot:** In an emergency, all users should prove against the same state. A moving target would allow race conditions where notes are spent between proof generation and verification. The snapshot height is set once via `set_snapshot_height`, which verifies the snapshot block header against a registered reference block's archive tree and stores the resulting `snapshot_block_hash`.
+**Why a fixed snapshot:** In an emergency, all users should prove against the same state. A moving target would allow race conditions where notes are spent between proof generation and verification.
+
+The snapshot height is set once via `set_snapshot_height`, which:
+1. Reads the trusted archive root for `proven_block_number`.
+2. Verifies the snapshot block header is in the archive tree via Merkle proof.
+3. Stores the snapshot height and block hash using `initialize()` (write-once — subsequent calls revert).
+
+Currently there is no access control on who can call `set_snapshot_height`, but the caller cannot set an arbitrary height — it must correspond to a real block within a bridged archive. See `TODO_MODE_B.md` item 5 for production considerations.
+
+## Public State Migration
+
+Mode B supports migrating public storage values via Merkle proofs against the public data tree. The implementation provides composable functions at different levels of abstraction:
+
+1. **`migrate_public_state_mode_b`** — Base function for standalone public storage values. Verifies each packed field exists in the public data tree at the correct storage slot, emits a migration nullifier per field, and enqueues block hash verification.
+
+2. **`migrate_public_map_state_mode_b`** — For `Map<K, PublicMutable<T>>`. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash([slot, key])`, then delegates to `migrate_public_state_mode_b`.
+
+3. **`migrate_public_map_owned_state_mode_b`** — For owned map entries. Adds Schnorr signature verification (domain `CLAIM_DOMAIN_B_PUBLIC`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
+
+The TS library provides `buildPublicDataProof` and `buildPublicMapDataProof` to construct the `PublicStateProofData` from the Aztec node's public data tree witnesses.
 
 
 ## PublicImmutable for Cross-Context Configuration
@@ -163,17 +201,31 @@ Storage fields like `old_app_address`, `old_key_registry`, and `old_rollup_versi
 - They need to be readable in both private and public contexts
 - `PublicImmutable` supports private reads via `WithHash::historical_public_storage_read`, which reads from historical public storage at the anchor block — it does NOT use notes, despite the private context
 
-This means the private `migrate_mode_b` function can read deployment configuration without any note management overhead.
+This means the private migration functions can read deployment configuration without any note management overhead.
 
 ## Test Architecture
 
-The E2E test (`scripts/migration_mode_b.test.ts`) runs against two Aztec sandbox instances (ports 8080 and 8081) representing old and new rollups. The test:
+The E2E tests run against two Aztec sandbox instances (ports 8080 and 8081) representing old and new rollups.
 
-1. Deploys contracts on the old rollup and mints tokens
-2. Registers a migration key on the old rollup
-3. Bridges the archive root via L1 and registers the block hash
-4. Gathers all Merkle proofs and witnesses from the old rollup's node
-5. Calls `migrate_mode_b` on the new rollup
-6. Verifies the balance on the new rollup
+### Private note migration test (`scripts/migration_mode_b.test.ts`):
 
-Key implementation detail: the migration transaction is sent from a pre-deployed sandbox account (the deployer) rather than a freshly created account. This is because `createSchnorrAccount` only registers in PXE — it doesn't deploy the Schnorr account contract on-chain. Pre-deployed sandbox accounts already have their signing key notes available.
+1. Deploys contracts on both rollups and mints tokens on the old rollup
+2. Registers a migration key on the old rollup (`MigrationKeyRegistry`)
+3. Bridges the archive root via L1 (`bridgeBlock` — consume L1->L2 message + register block) and sets snapshot height
+4. Gathers Merkle proofs: note inclusion, nullifier non-inclusion, key note inclusion
+5. Signs the migration via Schnorr signature
+6. Calls `migrate_mode_b` on the new rollup
+7. Verifies the balance on the new rollup
+8. Tests that migrating a nullified note fails (expected failure case)
+
+### Public state migration test (`scripts/migration_public_mode_b.test.ts`):
+
+1. Deploys contracts and sets public storage values (standalone struct, map struct, owned map struct, nested owned map struct)
+2. Bridges the archive root and sets snapshot height
+3. Builds `PublicStateProofData` from the Aztec node's public data tree witnesses
+4. Calls the corresponding `migrate_to_public_*_mode_b` functions on the new rollup
+5. Verifies each migrated value on the new rollup
+
+### Account management
+
+User accounts are created via `deployAndFundAccount`, which deploys a Schnorr account contract on-chain with fee juice claimed from L1. The `MigrationTestWallet` wraps account management and provides migration-specific helpers (key derivation, note retrieval, proof building, signature generation).

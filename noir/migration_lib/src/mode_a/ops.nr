@@ -14,7 +14,7 @@ use aztec::{
         abis::block_header::BlockHeader,
         address::AztecAddress,
         hash::poseidon2_hash,
-        traits::{Hash, Packable, Serialize, ToField},
+        traits::{Hash, Packable, Serialize},
     },
 };
 use migration_archive_registry::MigrationArchiveRegistry;

@@ -29,6 +29,9 @@ yarn test:mode-b
 
 # run MigrationKeyRegistry test (single-node, only needs old rollup on :8080)
 yarn test:registry
+
+# run Mode B public state migration test (requires dual-rollup setup)
+yarn test:mode-b:public
 ```
 
 4.
