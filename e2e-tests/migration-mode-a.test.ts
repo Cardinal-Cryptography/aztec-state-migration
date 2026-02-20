@@ -1,6 +1,6 @@
-import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
+import { ExampleMigrationAppContract } from "./artifacts/ExampleMigrationApp.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeA } from "../ts/migration-lib/index.js";
+import { signMigrationModeA } from "../ts/aztec-state-migration/index.js";
 import { deploy } from "./deploy.js";
 import {
   deployAppPair,

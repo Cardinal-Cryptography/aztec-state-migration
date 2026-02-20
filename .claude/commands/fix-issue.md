@@ -14,8 +14,8 @@ Fix an issue described in local text (no GitHub).
    - noir/contracts/migrator/**
    - noir/contracts/example_app/**
    - solidity/**
-   - scripts/migration_mode_a.test.ts
-   - scripts/migration_mode_b.test.ts
+   - e2e-tests/migration-mode-a.test.ts
+   - e2e-tests/migration-mode-b.test.ts
    - docs/spec/migration-spec.md
 3) Implement smallest safe fix.
 4) Verify (fast by default):

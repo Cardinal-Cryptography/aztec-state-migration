@@ -54,6 +54,11 @@ jobs:
             ts/migration-lib/noir-contracts/
             ts/migration-lib/artifacts/
           retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-contract-artifacts
+          path: e2e-tests/artifacts/
+          retention-days: 1
 
   format-and-lint:
     name: Format & Lint
@@ -75,6 +80,10 @@ jobs:
         with:
           name: ts-contract-artifacts
           path: ts/migration-lib/
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-contract-artifacts
+          path: e2e-tests/artifacts/
       - run: yarn fmt:check
 
   test-e2e:
@@ -101,6 +110,10 @@ jobs:
         with:
           name: ts-contract-artifacts
           path: ts/migration-lib/
+      - uses: actions/download-artifact@v4
+        with:
+          name: test-contract-artifacts
+          path: e2e-tests/artifacts/
       - name: Start dual-rollup infrastructure
         run: yarn test:setup
       - name: Test - Migration Key Registry

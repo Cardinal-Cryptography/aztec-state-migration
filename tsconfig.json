@@ -12,6 +12,6 @@
     "rootDir": ".",
     "declaration": true
   },
-  "include": ["scripts/**/*.ts", "ts/**/*.ts"],
+  "include": ["e2e-tests/**/*.ts", "ts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

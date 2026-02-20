@@ -23,7 +23,7 @@ pub contract ExampleMigrationApp {
     };
     use aztec::protocol_types::abis::block_header::BlockHeader;
     use balance_set::balance_set::BalanceSet;
-    use migration::{
+    use aztec_state_migration::{
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{

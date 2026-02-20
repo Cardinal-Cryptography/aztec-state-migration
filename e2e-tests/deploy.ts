@@ -18,7 +18,7 @@ import { fileURLToPath } from "url";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import type { DeploymentResult } from "./deploy-types.js";
-import { MigrationTestWallet } from "../ts/migration-lib/index.js";
+import { MigrationTestWallet } from "../ts/aztec-state-migration/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -206,7 +206,7 @@ export async function deploy(): Promise<DeploymentResult> {
   };
 }
 
-// Allow running standalone: npx tsx scripts/deploy.ts
+// Allow running standalone: npx tsx e2e-tests/deploy.ts
 const isMain = process.argv[1]?.includes("deploy.ts");
 if (isMain) {
   deploy()

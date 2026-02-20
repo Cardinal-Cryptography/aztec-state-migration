@@ -11,13 +11,13 @@ import {
 import {
   ExampleMigrationAppContract,
   ExampleMigrationAppContractArtifact,
-} from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
-import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
+} from "./artifacts/ExampleMigrationApp.js";
+import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   buildPublicDataProof,
   buildPublicMapDataProof,
-} from "../ts/migration-lib/mode-b/proofs.js";
+} from "../ts/aztec-state-migration/mode-b/proofs.js";
 import { randomBigInt } from "@aztec/foundation/crypto/random";
 
 // Define a struct that matches the one used in the example app contract,

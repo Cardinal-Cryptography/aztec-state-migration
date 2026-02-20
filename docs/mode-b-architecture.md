@@ -22,7 +22,7 @@ Mode B also supports **public state migration** — proving that specific public
 
 ## Library Architecture
 
-Migration logic is implemented as a **library** (`migration_lib`) rather than separate contracts. App contracts call library functions directly:
+Migration logic is implemented as a **library** (`aztec-state-migration`) rather than separate contracts. App contracts call library functions directly:
 
 - `migrate_notes_mode_b` — for private note migration
 - `migrate_public_state_mode_b` — for standalone public state
@@ -207,7 +207,7 @@ This means the private migration functions can read deployment configuration wit
 
 The E2E tests run against two Aztec sandbox instances (ports 8080 and 8081) representing old and new rollups.
 
-### Private note migration test (`scripts/migration_mode_b.test.ts`):
+### Private note migration test (`e2e-tests/migration-mode-b.test.ts`):
 
 1. Deploys contracts on both rollups and mints tokens on the old rollup
 2. Registers a migration key on the old rollup (`MigrationKeyRegistry`)
@@ -218,7 +218,7 @@ The E2E tests run against two Aztec sandbox instances (ports 8080 and 8081) repr
 7. Verifies the balance on the new rollup
 8. Tests that migrating a nullified note fails (expected failure case)
 
-### Public state migration test (`scripts/migration_public_mode_b.test.ts`):
+### Public state migration test (`e2e-tests/migration_public_mode_b.test.ts`):
 
 1. Deploys contracts and sets public storage values (standalone struct, map struct, owned map struct, nested owned map struct)
 2. Bridges the archive root and sets snapshot height

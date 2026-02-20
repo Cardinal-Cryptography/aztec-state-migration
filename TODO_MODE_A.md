@@ -44,7 +44,7 @@ Public balance migration is implemented for Mode A. The flow mirrors private mig
 1. **Lock:** `lock_public_for_migration` creates a `MigrationNote` (same as private lock) and enqueues a public call to decrement the user's public balance.
 2. **Claim:** `migrate_to_public_mode_a` verifies the `MigrationNote` inclusion proof (same circuit as private claim via `migrate_notes_mode_a`) and mints to the caller's public balance on the new rollup.
 
-The E2E test (`migration_mode_a.test.ts`) covers both private and public balance migration in a single flow.
+The E2E test (`migration-mode-a.test.ts`) covers both private and public balance migration in a single flow.
 
 ## 7. old_app_address is an Unchecked Witness
 
@@ -64,7 +64,7 @@ The E2E test (`migration_mode_a.test.ts`) covers both private and public balance
 
 `deriveMasterMigrationSecretKey()` in `ts/migration-lib/keys.ts` now derives the MSK deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])`. No random generation and no explicit persistence needed — the key can be re-derived from the account secret at any time.
 
-## ~~10. Decompose migration_lib into Separate Validation Functions~~ (Done)
+## ~~10. Decompose aztec-state-migration lib into Separate Validation Functions~~ (Done)
 
 Archive proof verification is now decomposed into separate steps:
 - **Block bridging:** `consume_l1_to_l2_message` (stores trusted archive root) + `register_block` (verifies block header against archive root via Merkle proof).

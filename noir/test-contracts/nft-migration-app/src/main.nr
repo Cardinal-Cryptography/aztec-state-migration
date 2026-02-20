@@ -24,7 +24,7 @@ pub contract NftMigrationApp {
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
         utils::comparison::Comparator,
     };
-    use migration::{
+    use aztec_state_migration::{
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
