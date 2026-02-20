@@ -291,7 +291,7 @@ All claims provide:
 ```
 Mode A (private notes):  poseidon2_with_sep([note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
 Mode B (private notes):  poseidon2_with_sep([unique_note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
-Mode B (public state):   poseidon2_with_sep([old_app, storage_slot, field_index], GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER)
+Mode B (public state):   poseidon2_with_sep([old_app, storage_slot], GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER)
 ```
 
 Mode A uses the MigrationNote's own randomness (not the user's secret key) to preserve privacy — observers cannot link old/new rollup identities by predicting the nullifier.
