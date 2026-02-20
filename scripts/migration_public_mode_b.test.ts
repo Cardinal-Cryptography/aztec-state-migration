@@ -158,7 +158,6 @@ async function main() {
       l1Result.provenBlockNumber,
       blockHeader,
       l1Result.provenBlockNumber,
-      blockHeader,
       archiveProof.archive_sibling_path,
     )
     .send({ from: newDeployerManager.address })

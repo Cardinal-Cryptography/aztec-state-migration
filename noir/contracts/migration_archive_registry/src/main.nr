@@ -37,6 +37,8 @@ pub contract MigrationArchiveRegistry {
         // Precomputed hash of the snapshot header for efficient Mode B verification
         snapshot_block_hash: PublicImmutable<Field, Context>,
 
+        // Mapping: proven_block_number -> archive_root (trusted, consumed from L1)
+        archive_roots: Map<u32, PublicMutable<Field, Context>, Context>,
         // Mapping: block_number -> block_hash (hash of the block header)
         block_hashes: Map<u32, PublicMutable<Field, Context>, Context>,
         // Track the latest registered proven block
@@ -56,22 +58,21 @@ pub contract MigrationArchiveRegistry {
     }
 
     // ============================================================
-    // Block registration (permissionless)
+    // Archive root consumption (permissionless, one-time per L1 message)
     // ============================================================
 
-    /// Register a block hash derived from an archive root bridged via an L1-to-L2 message.
+    /// Consume an L1-to-L2 message carrying an archive root and store it.
     ///
-    /// Consumes the L1-to-L2 message (preventing replay), verifies the block header
-    /// is part of the archive tree, stores the block hash, and updates the latest
-    /// proven block tracker.
+    /// This is separated from `register_block` so that a single L1 message
+    /// can be used to register many blocks (any block whose hash is a leaf
+    /// in the archive). Consuming only stores the trusted archive root;
+    /// `register_block` then verifies individual blocks against it.
     #[external("public")]
-    fn register_block(
+    fn consume_l1_to_l2_message(
         archive_root: Field,
         proven_block_number: u32,
         secret: Field,
         leaf_index: Field,
-        block_header: BlockHeader,
-        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
     ) {
         let old_rollup_version = self.storage.old_rollup_version.read();
         // Content: poseidon2(oldVersion, archiveRoot, provenBlockNumber)
@@ -89,6 +90,35 @@ pub contract MigrationArchiveRegistry {
             leaf_index,
         );
 
+        // Store trusted archive root
+        self.storage.archive_roots.at(proven_block_number).write(archive_root);
+
+        // Update latest if newer
+        let current_latest = self.storage.latest_proven_block.read();
+        if proven_block_number as u64 > current_latest as u64 {
+            self.storage.latest_proven_block.write(proven_block_number);
+        }
+    }
+
+    // ============================================================
+    // Block registration (permissionless, reusable)
+    // ============================================================
+
+    /// Register a block hash by verifying the block header is part of a
+    /// previously consumed archive root.
+    ///
+    /// Does NOT consume any L1 message -- can be called repeatedly against
+    /// the same archive root for different block numbers.
+    #[external("public")]
+    fn register_block(
+        proven_block_number: u32,
+        block_header: BlockHeader,
+        archive_sibling_path: [Field; ARCHIVE_HEIGHT],
+    ) {
+        // Read trusted archive root (must have been consumed via consume_l1_to_l2_message)
+        let archive_root = self.storage.archive_roots.at(proven_block_number).read();
+        assert(archive_root != 0, "Archive root not consumed for this proven block");
+
         // Compute block hash and verify it's in the archive tree
         let block_number = block_header.global_variables.block_number;
         let block_hash = block_header.hash();
@@ -103,14 +133,7 @@ pub contract MigrationArchiveRegistry {
         );
 
         // Store block hash
-        let block_number_u32 = block_number as u32;
-        self.storage.block_hashes.at(block_number_u32).write(block_hash);
-
-        // Update latest if newer
-        let current_latest = self.storage.latest_proven_block.read();
-        if block_number_u32 as u64 > current_latest as u64 {
-            self.storage.latest_proven_block.write(block_number_u32);
-        }
+        self.storage.block_hashes.at(block_number as u32).write(block_hash);
     }
 
     // ============================================================
@@ -118,51 +141,31 @@ pub contract MigrationArchiveRegistry {
     // ============================================================
 
     /// Set the snapshot height for Mode B migration. Can only be called once.
-    /// Verifies the snapshot block header against a registered reference block.
-    ///
-    /// If `height == reference_block_number`, the snapshot block IS the registered block.
-    /// If `height < reference_block_number`, verifies the snapshot block header via
-    /// a Merkle proof against the reference block's `last_archive` root.
+    /// Verifies the snapshot block header against a stored archive root via Merkle proof.
     #[external("public")]
     fn set_snapshot_height(
         height: u32,
         snapshot_block_header: BlockHeader,
-        reference_block_number: u32,
-        reference_block_header: BlockHeader,
+        proven_block_number: u32,
         archive_sibling_path: [Field; ARCHIVE_HEIGHT],
     ) {
-        // 1. Verify reference block header is registered
-        let stored_ref_hash = self.storage.block_hashes.at(reference_block_number).read();
-        assert(stored_ref_hash != 0, "Reference block not registered");
+        // 1. Read trusted archive root
+        let archive_root = self.storage.archive_roots.at(proven_block_number).read();
+        assert(archive_root != 0, "Archive root not consumed for this proven block");
+
+        // 2. Snapshot height must be within the proven range
         assert(
-            reference_block_header.hash() == stored_ref_hash,
-            "Reference block header hash mismatch",
+            (height as u64) <= (proven_block_number as u64),
+            "Snapshot height exceeds proven checkpoint",
         );
 
-        // 2. Verify snapshot block header
+        // 3. Verify snapshot block header is in the archive tree
         let snapshot_block_hash = snapshot_block_header.hash();
-        if height == reference_block_number {
-            // Snapshot IS the registered block
-            assert(
-                snapshot_block_hash == stored_ref_hash,
-                "Snapshot header does not match registered block",
-            );
-        } else {
-            assert(
-                (height as u64) < (reference_block_number as u64),
-                "Snapshot height must be less than reference block",
-            );
-            // Verify snapshot block is in reference block's archive
-            let archive_root = reference_block_header.last_archive.root;
-            let computed_root =
-                root_from_sibling_path(snapshot_block_hash, height as Field, archive_sibling_path);
-            assert(
-                computed_root == archive_root,
-                "Snapshot block not in reference block's archive",
-            );
-        }
+        let computed_root =
+            root_from_sibling_path(snapshot_block_hash, height as Field, archive_sibling_path);
+        assert(computed_root == archive_root, "Snapshot block not in archive tree");
 
-        // 3. Store snapshot
+        // 4. Store snapshot
         self.storage.snapshot_height.initialize(height);
         self.storage.snapshot_block_hash.initialize(snapshot_block_hash);
     }

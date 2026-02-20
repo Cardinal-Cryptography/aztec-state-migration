@@ -208,13 +208,21 @@ export async function bridgeBlock(
     provenBlockNumber,
   );
 
-  // Step 4: Register block on new rollup (provides block header + sibling path for verification)
+  // Step 4a: Consume L1-to-L2 message (stores trusted archive root)
   await archiveRegistry.methods
-    .register_block(
+    .consume_l1_to_l2_message(
       l1Result.provenArchiveRoot,
       l1Result.provenBlockNumber,
       Fr.ZERO,
       new Fr(l1Result.l1ToL2LeafIndex),
+    )
+    .send({ from: new_r.deployerManager.address })
+    .wait();
+
+  // Step 4b: Register block (verifies block header against stored archive root)
+  await archiveRegistry.methods
+    .register_block(
+      l1Result.provenBlockNumber,
       archiveProof.archive_block_header,
       archiveProof.archive_sibling_path,
     )
