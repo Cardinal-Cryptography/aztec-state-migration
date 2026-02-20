@@ -25,12 +25,11 @@ pub contract NftMigrationApp {
         utils::comparison::Comparator,
     };
     use migration::{
-        constants::CLAIM_DOMAIN_B_PUBLIC,
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
             FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
-            migrate_public_map_state_mode_b, PublicStateProofData,
+            migrate_public_map_owned_state_mode_b, PublicStateProofData,
         },
         Point,
         Scalar,
@@ -287,50 +286,29 @@ pub contract NftMigrationApp {
         signature: MigrationSignature,
         key_note: KeyNoteProofData,
     ) {
-        assert(proof_data.data != AztecAddress::zero(), "Cannot migrate zero-address ownership");
+        let old_owner = proof_data.data;
+        assert(old_owner != AztecAddress::zero(), "Cannot migrate zero-address ownership");
 
         let archive_registry = self.storage.archive_root_address.read();
         let old_app = self.storage.old_rollup_app_address.read();
 
         // 1. Verify public state existed at snapshot height
         // NOTE: assumes old and new contracts have identical storage layout
-        migrate_public_map_state_mode_b(
+        migrate_public_map_owned_state_mode_b(
             self.context,
             archive_registry,
             old_app,
             proof_data,
             STORAGE_LAYOUT_NftMigrationApp.fields.public_owners.slot,
             block_header,
-            token_id,
-        );
-
-        // 2. Verify key note belongs to the proven owner
-        let proven_owner = proof_data.data;
-        let note_hash_tree_root = block_header.state.partial.note_hash_tree.root;
-        let _ = key_note.verify_key_note_inclusion(
-            self.context,
-            archive_registry,
-            proven_owner,
-            note_hash_tree_root,
-        );
-
-        // 3. Verify signature over recipient (prevents front-running)
-        let public_state_hash = proof_data.public_state_hash();
-        let old_rollup = block_header.global_variables.version;
-        let current_rollup = self.context.version();
-        let recipient = self.context.msg_sender().unwrap();
-        let new_app = self.context.this_address();
-
-        signature.verify_migration_signature::<CLAIM_DOMAIN_B_PUBLIC>(
-            old_rollup,
-            current_rollup,
-            public_state_hash,
-            recipient,
-            new_app,
-            key_note.data.mpk,
+            [token_id],
+            old_owner,
+            signature,
+            key_note,
         );
 
         // 4. Mint to authenticated recipient
+        let recipient = self.context.msg_sender().unwrap();
         NftMigrationApp::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
