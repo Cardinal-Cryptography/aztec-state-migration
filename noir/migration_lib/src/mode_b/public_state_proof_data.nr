@@ -91,7 +91,7 @@ impl<T: Packable, let N: u32> PublicStateProofData<T, N> {
         // After verifying the public state, we push a nullifier
         // to prevent double-migration of the same storage slots.
         let nullifier = poseidon2_hash_with_separator(
-            [base_storage_slot],
+            [old_app.to_field(), base_storage_slot],
             GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER,
         );
         context.push_nullifier(nullifier);
