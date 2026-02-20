@@ -62,7 +62,7 @@ The E2E test (`migration-mode-a.test.ts`) covers both private and public balance
 
 ## ~~9. MSK Persistence is Caller's Responsibility~~ (Done)
 
-`deriveMasterMigrationSecretKey()` in `ts/migration-lib/keys.ts` now derives the MSK deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])`. No random generation and no explicit persistence needed — the key can be re-derived from the account secret at any time.
+`deriveMasterMigrationSecretKey()` in `ts/aztec-state-migration/keys.ts` now derives the MSK deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])`. No random generation and no explicit persistence needed — the key can be re-derived from the account secret at any time.
 
 ## ~~10. Decompose aztec-state-migration lib into Separate Validation Functions~~ (Done)
 

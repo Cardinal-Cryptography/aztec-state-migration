@@ -8,7 +8,7 @@ When working in this repo, prioritize these areas:
 - Noir contracts: especially noir/aztec-state-migration/**, noir/contracts/** and noir/test-contracts/**
 - Solidity contracts: solidity/** (especially solidity/contracts/**)
 - TypeScript e2e-tests/tests: e2e-tests/**/*.ts
-- Typescript sdk/lib: ts/migration-lib/**
+- Typescript sdk/lib: ts/aztec-state-migration/**
 - Spec: docs/spec/migration-spec.md
 
 Default behavior:

@@ -51,8 +51,8 @@ jobs:
         with:
           name: ts-contract-artifacts
           path: |
-            ts/migration-lib/noir-contracts/
-            ts/migration-lib/artifacts/
+            ts/aztec-state-migration/noir-contracts/
+            ts/aztec-state-migration/artifacts/
           retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
@@ -79,7 +79,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ts-contract-artifacts
-          path: ts/migration-lib/
+          path: ts/aztec-state-migration/
       - uses: actions/download-artifact@v4
         with:
           name: test-contract-artifacts
@@ -109,7 +109,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: ts-contract-artifacts
-          path: ts/migration-lib/
+          path: ts/aztec-state-migration/
       - uses: actions/download-artifact@v4
         with:
           name: test-contract-artifacts
