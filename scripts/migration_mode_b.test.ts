@@ -7,6 +7,7 @@ import {
   deployKeyRegistry,
   bridgeArchiveRoot,
   deployAndFundAccount,
+  assertEq,
 } from "./test-utils.js";
 import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
 import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
@@ -280,12 +281,8 @@ async function main() {
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
+  assertEq(newBalanceAfter, migrateAmount, "Migrated balance on NEW rollup does not match expected amount");
 
-  if (BigInt(newBalanceAfter) !== migrateAmount) {
-    throw new Error(
-      `Migration completed but balance ${newBalanceAfter} does not match expected ${migrateAmount}`,
-    );
-  }
   console.log(
     "\n   Mode B migration successful! Balance matches migrated amount.",
   );

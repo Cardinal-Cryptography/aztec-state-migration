@@ -7,6 +7,7 @@ import {
   deployArchiveRegistry,
   bridgeArchiveRoot,
   deployAndFundAccount,
+  assertEq,
 } from "./test-utils.js";
 import { AbiType } from "@aztec/stdlib/abi";
 
@@ -132,11 +133,7 @@ async function main() {
       txHash: lockTx.txHash,
     });
   console.log(`   Found ${migrationDataEvents.length} MigrationDataEvent(s)`);
-  if (migrationDataEvents.length !== lockNotes.length) {
-    throw new Error(
-      `Mismatch between MigrationDataEvents ${migrationDataEvents.length} and MigrationNotes ${lockNotes.length} count`,
-    );
-  }
+  assertEq(migrationDataEvents.length, lockNotes.length, "Mismatch between MigrationDataEvents and MigrationNotes count");
 
   // Build proofs via wallet, combining note proofs with event data
   const migrationNoteProofs = await oldUserWallet.buildMigrationNoteProofs(
@@ -180,12 +177,8 @@ async function main() {
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
+  assertEq(newBalanceAfter, LOCK_AMOUNT, "Migrated balance on NEW rollup does not match locked amount");
 
-  if (BigInt(newBalanceAfter) !== LOCK_AMOUNT) {
-    throw new Error(
-      `Migration completed but balance ${newBalanceAfter} does not match expected ${LOCK_AMOUNT}`,
-    );
-  }
   console.log("\n   Cross-rollup migration fully successful!");
 
   // ============================================================
@@ -337,12 +330,7 @@ async function main() {
   console.log(
     `   Public balance on NEW rollup after: ${newPublicBalanceAfter}`,
   );
-
-  if (BigInt(newPublicBalanceAfter) !== PUBLIC_LOCK_AMOUNT) {
-    throw new Error(
-      `Migration completed but public balance ${newPublicBalanceAfter} does not match expected ${PUBLIC_LOCK_AMOUNT}`,
-    );
-  }
+  assertEq(newPublicBalanceAfter, PUBLIC_LOCK_AMOUNT, "Migrated public balance on NEW rollup does not match locked amount");
   console.log("   Public balance migration fully successful!");
 
   // ============================================================
