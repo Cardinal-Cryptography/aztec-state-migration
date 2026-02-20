@@ -1,4 +1,4 @@
-mod constants;
+pub mod constants;
 
 mod note_proof_data;
 pub use note_proof_data::NoteProofData;
