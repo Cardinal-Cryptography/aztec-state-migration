@@ -1,5 +1,4 @@
-mod constants;
-pub use constants::CLAIM_DOMAIN_B_PUBLIC;
+pub mod constants;
 
 mod note_proof_data;
 pub use note_proof_data::NoteProofData;

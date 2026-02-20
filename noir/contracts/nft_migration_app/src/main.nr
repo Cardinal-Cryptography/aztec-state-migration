@@ -27,8 +27,8 @@ pub contract NftMigrationApp {
     };
     use migration::{
         ArchiveProofData,
-        CLAIM_DOMAIN_B_PUBLIC,
         MigrationSignature,
+        constants::CLAIM_DOMAIN_B_PUBLIC,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
             FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
@@ -165,10 +165,10 @@ pub contract NftMigrationApp {
         token_id: Field,
         mpk: Point,
         signature: MigrationSignature,
-        note_proof_data: [MigrationNoteProofData<Field>; 1],
+        note_proof_data: MigrationNoteProofData<Field>,
         archive_proof_data: ArchiveProofData,
     ) {
-        assert(note_proof_data[0].data == token_id, "Migration data mismatch");
+        assert(note_proof_data.data == token_id, "Migration data mismatch");
 
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
@@ -177,7 +177,7 @@ pub contract NftMigrationApp {
             mpk,
             signature,
             old_app,
-            note_proof_data,
+            [note_proof_data],
             archive_proof_data,
         );
 
@@ -197,10 +197,10 @@ pub contract NftMigrationApp {
         token_id: Field,
         mpk: Point,
         signature: MigrationSignature,
-        note_proof_data: [MigrationNoteProofData<Field>; 1],
+        note_proof_data: MigrationNoteProofData<Field>,
         archive_proof_data: ArchiveProofData,
     ) {
-        assert(note_proof_data[0].data == token_id, "Migration data mismatch");
+        assert(note_proof_data.data == token_id, "Migration data mismatch");
 
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
@@ -209,7 +209,7 @@ pub contract NftMigrationApp {
             mpk,
             signature,
             old_app,
-            note_proof_data,
+            [note_proof_data],
             archive_proof_data,
         );
 
@@ -229,7 +229,7 @@ pub contract NftMigrationApp {
     fn migrate_nft_mode_b(
         token_id: Field,
         signature: MigrationSignature,
-        full_proof_data: [FullNoteProofData<NFTNote>; 1],
+        full_proof_data: FullNoteProofData<NFTNote>,
         archive_proof_data: ArchiveProofData,
         notes_owner: AztecAddress,
         public_keys: PublicKeys,
@@ -238,7 +238,7 @@ pub contract NftMigrationApp {
         nsk: Scalar,
     ) {
         assert(
-            full_proof_data[0].note_proof_data.data.token_id == token_id,
+            full_proof_data.note_proof_data.data.token_id == token_id,
             "Token ID mismatch",
         );
 
@@ -252,7 +252,7 @@ pub contract NftMigrationApp {
             self.storage.archive_root_address.read(),
             signature,
             old_app,
-            full_proof_data,
+            [full_proof_data],
             expected_storage_slot,
             archive_proof_data,
             notes_owner,
