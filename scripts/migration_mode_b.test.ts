@@ -17,7 +17,7 @@ async function main() {
   console.log("=== Mode B (Emergency Snapshot) Migration E2E Test ===\n");
 
   // ============================================================
-  // Deploy shared infrastructure
+  // Step 0: Deploy shared infrastructure
   // ============================================================
   const env = await deploy();
 
@@ -33,9 +33,9 @@ async function main() {
   } = env[env.newRollupVersion];
 
   // ============================================================
-  // Create user wallets (MigrationTestWallet)
+  // Step 1: Create user wallets (MigrationTestWallet)
   // ============================================================
-  console.log("   Creating user wallets...");
+  console.log("Step 1. Creating user wallets...");
 
   const oldUserManager = await deployAndFundAccount(env, oldAztecNode);
   const newUserManager = await deployAndFundAccount(env, newAztecNode);
@@ -44,9 +44,9 @@ async function main() {
   console.log(`   New User: ${newUserManager.address}`);
 
   // ============================================================
-  // Deploy L2 contracts
+  // Step 2: Deploy L2 contracts
   // ============================================================
-  console.log("4. Deploying L2 contracts...");
+  console.log("Step 2. Deploying L2 contracts...");
 
   const oldKeyRegistry = await deployKeyRegistry(env);
   console.log(`   old_key_registry: ${oldKeyRegistry.address}`);
@@ -75,9 +75,9 @@ async function main() {
   console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
 
   // ============================================================
-  // Step 6: Mint tokens to Alice on OLD rollup
+  // Step 3: Mint tokens to Alice on OLD rollup
   // ============================================================
-  console.log("6. Minting tokens to Alice on OLD rollup...");
+  console.log("Step 3. Minting tokens to Alice on OLD rollup...");
 
   const MINT_AMOUNT_1 = 500n;
   const MINT_AMOUNT_2 = 300n;
@@ -107,9 +107,9 @@ async function main() {
   console.log(`   Total balance on OLD rollup: ${oldBalance}\n`);
 
   // ============================================================
-  // Step 7: Register migration key for Alice
+  // Step 4: Register migration key for Alice
   // ============================================================
-  console.log("7. Registering migration key for Alice...");
+  console.log("Step 4. Registering migration key for Alice...");
 
   const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
 
@@ -130,9 +130,9 @@ async function main() {
   console.log(`   Verified registered mpk: ${registeredKey}\n`);
 
   // ============================================================
-  // Steps 8-10: Bridge + set snapshot height
+  // Steps 5-7: Bridge + set snapshot height
   // ============================================================
-  console.log("8-10. Bridging archive root and setting snapshot height...");
+  console.log("Step 5-7. Bridging archive root and setting snapshot height...");
 
   const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
     env,
@@ -156,9 +156,9 @@ async function main() {
   console.log(`   Stored snapshot height: ${storedSnapshot}\n`);
 
   // ============================================================
-  // Step 11: Derive account keys for Mode B
+  // Step 8: Derive account keys for Mode B
   // ============================================================
-  console.log("11. Deriving account keys...");
+  console.log("Step 8. Deriving account keys...");
 
   const publicKeys = oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
@@ -178,9 +178,9 @@ async function main() {
   console.log(`   Partial address: ${partialAddress}\n`);
 
   // ============================================================
-  // Step 12: Build proofs and sign
+  // Step 9: Build proofs and sign
   // ============================================================
-  console.log("12. Building proofs and signing...");
+  console.log("Step 9. Building proofs and signing...");
 
   const keyRegistrySlot =
     oldKeyRegistry.artifact.storageLayout["registered_keys"].slot;
@@ -249,9 +249,9 @@ async function main() {
   console.log(`   Migration args prepared.\n`);
 
   // ============================================================
-  // Step 13: Call migrate_mode_b on NEW rollup
+  // Step 10: Call migrate_mode_b on NEW rollup
   // ============================================================
-  console.log("13. Calling migrate_mode_b on NEW rollup...");
+  console.log("Step 10. Calling migrate_mode_b on NEW rollup...");
 
   // The ExampleMigrationApp currently only supports migrating one note at a time.
   const noteProof = fullProofs[0];
@@ -263,45 +263,40 @@ async function main() {
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
 
-  try {
-    await newAppUser.methods
-      .migrate_mode_b(
-        migrateAmount,
-        signature,
-        [noteProof],
-        archiveProof,
-        oldUserManager.address,
-        publicKeys.toNoirStruct(),
-        partialAddress,
-        keyNoteProof,
-        { hi: nsk.hi, lo: nsk.lo },
-      )
-      .send({ from: newUserManager.address })
-      .wait();
+  await newAppUser.methods
+    .migrate_mode_b(
+      migrateAmount,
+      signature,
+      [noteProof],
+      archiveProof,
+      oldUserManager.address,
+      publicKeys.toNoirStruct(),
+      partialAddress,
+      keyNoteProof,
+      { hi: nsk.hi, lo: nsk.lo },
+    )
+    .send({ from: newUserManager.address })
+    .wait();
 
-    const newBalanceAfter = await newAppUser.methods
-      .get_balance(newUserManager.address)
-      .simulate({ from: newUserManager.address });
-    console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
+  const newBalanceAfter = await newAppUser.methods
+    .get_balance(newUserManager.address)
+    .simulate({ from: newUserManager.address });
+  console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
 
-    if (BigInt(newBalanceAfter) < migrateAmount) {
-      throw new Error(
-        `Migration completed but balance ${newBalanceAfter} does not match expected ${migrateAmount}`,
-      );
-    }
-    console.log(
-      "\n   Mode B migration successful! Balance matches migrated amount.",
+  if (BigInt(newBalanceAfter) !== migrateAmount) {
+    throw new Error(
+      `Migration completed but balance ${newBalanceAfter} does not match expected ${migrateAmount}`,
     );
-  } catch (e) {
-    const err = e as Error;
-    throw new Error(`migrate_mode_b failed: ${err.message}`);
   }
+  console.log(
+    "\n   Mode B migration successful! Balance matches migrated amount.",
+  );
 
   // ============================================================
-  // Step 13: Call migrate_mode_b on NEW rollup with nullified note (should fail)
+  // Step 11: Call migrate_mode_b on NEW rollup with nullified note (should fail)
   // ============================================================
   console.log(
-    "14. Calling migrate_mode_b on NEW rollup with nullified note (should fail)...",
+    "Step 11. Calling migrate_mode_b on NEW rollup with nullified note (should fail)...",
   );
 
   if (balanceNotesNullified.length === 0) {
@@ -317,7 +312,7 @@ async function main() {
     (note) => UintNote.fromNote(note),
   );
 
-  const nullifedNoteSig = await signMigrationModeB(
+  const nullifiedNoteSig = await signMigrationModeB(
     oldAccount.migrationKeySigner,
     archiveProof.archive_block_header.global_variables.version,
     new Fr(env.newRollupVersion),
@@ -332,7 +327,7 @@ async function main() {
     let res = await newAppUser.methods
       .migrate_mode_b(
         amount,
-        nullifedNoteSig,
+        nullifiedNoteSig,
         [nullifiedNoteProof],
         archiveProof,
         oldUserManager.address,
@@ -347,26 +342,27 @@ async function main() {
       throw new Error(
         "Expected migration of nullified note to fail, but it succeeded",
       );
+    } else {
+      if (!res.error.includes("Note nullifier non-inclusion")) {
+        throw new Error(
+          `Migration failed as expected, but with unexpected error: ${res.error}`,
+        );
+      }
     }
-    console.log("   Expected failure: tx reverted");
   } catch (e) {
     const err = e as Error;
-    if (err.message.includes("Note nullifier non-inclusion")) {
-      console.log("   Expected failure: Note is not active");
-    } else {
+    if (!err.message.includes("Note nullifier non-inclusion")) {
       throw new Error(
         `Unexpected error during nullified note test: ${err.message}`,
       );
     }
   }
+  console.log("   Expected failure: Note is not active");
   // ============================================================
 
   // ============================================================
   // Summary
   // ============================================================
-  const newBalanceAfter = await newAppUser.methods
-    .get_balance(newUserManager.address)
-    .simulate({ from: newUserManager.address });
 
   console.log("\n=== Mode B Migration Test Summary ===\n");
   console.log("Contracts deployed:");

@@ -20,7 +20,7 @@ async function main() {
   console.log("=== Cross-Rollup Migration E2E Test (Mode A) ===\n");
 
   // ============================================================
-  // Deploy shared infrastructure
+  // Step 0: Deploy shared infrastructure
   // ============================================================
   const env = await deploy();
 
@@ -30,9 +30,9 @@ async function main() {
     env[env.newRollupVersion];
 
   // ============================================================
-  // Create user wallets (MigrationTestWallet)
+  // Step 1: Create user wallets (MigrationTestWallet)
   // ============================================================
-  console.log("   Creating user wallets...");
+  console.log("Step 1. Creating user wallets...");
 
   const oldUserManager = await deployAndFundAccount(env, oldAztecNode);
   const newUserManager = await deployAndFundAccount(env, newAztecNode);
@@ -41,12 +41,13 @@ async function main() {
   console.log(`   New User: ${newUserManager.address}\n`);
 
   // ============================================================
-  // Deploy L2 contracts
+  // Step 2: Deploy L2 contracts
   // ============================================================
+  console.log("Step 2. Deploying L2 contracts...");
+
   const newArchiveRegistry = await deployArchiveRegistry(env);
   console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
 
-  console.log("4. Deploying L2 contracts...");
   const { oldApp, newApp } = await deployAppPair(
     env,
     newArchiveRegistry.address,
@@ -63,9 +64,9 @@ async function main() {
   console.log(`   new_example_app: ${newApp.address}`);
 
   // ============================================================
-  // Step 6: Mint tokens on OLD rollup
+  // Step 3: Mint tokens on OLD rollup
   // ============================================================
-  console.log("6. Minting tokens on OLD rollup...");
+  console.log("Step 3. Minting tokens on OLD rollup...");
   const MINT_AMOUNT = 1000n;
   await oldAppUser.methods
     .mint(oldUserManager.address, MINT_AMOUNT)
@@ -77,9 +78,9 @@ async function main() {
   console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}\n`);
 
   // ============================================================
-  // Step 7: Lock tokens for migration on OLD rollup
+  // Step 4: Lock tokens for migration on OLD rollup
   // ============================================================
-  console.log("7. Locking tokens for migration...");
+  console.log("Step 4. Locking tokens for migration...");
   const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
   console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
@@ -100,9 +101,9 @@ async function main() {
   console.log(`   Balance after lock: ${oldBalanceAfterLock}\n`);
 
   // ============================================================
-  // Steps 8-12: Bridge archive root
+  // Step 5: Bridge archive root
   // ============================================================
-  console.log("8-12. Bridging archive root...");
+  console.log("Step 5. Bridging archive root...");
   const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
     env,
     newArchiveRegistry,
@@ -111,9 +112,9 @@ async function main() {
   console.log(`   Archive root: ${l1Result.provenArchiveRoot}\n`);
 
   // ============================================================
-  // Steps 13-14: Prepare migration args and call migrate on NEW rollup
+  // Steps 6-7: Prepare migration args and call migrate on NEW rollup
   // ============================================================
-  console.log("13. Preparing migration args...");
+  console.log("Step 6. Preparing migration args...");
 
   // Get lock notes via wallet
   const lockNotes = await oldUserWallet.getMigrationNotes({
@@ -157,52 +158,42 @@ async function main() {
     newUserManager.address,
     newApp.address,
   );
-  console.log("   Migration args prepared.\n");
 
-  console.log("14. Calling migrate on NEW rollup...");
+  console.log("Step 7. Calling migrate on NEW rollup...");
 
   const newBalanceBefore = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before migrate: ${newBalanceBefore}`);
 
-  try {
-    const migrateTx = await newAppUser.methods
-      .migrate_mode_a(
-        LOCK_AMOUNT,
-        mpk.toNoirStruct(),
-        signature,
-        migrationNoteProofs,
-        archiveProof,
-      )
-      .send({ from: newUserManager.address })
-      .wait();
-    console.log(`   Migrate tx: ${migrateTx.txHash}`);
-
-    const newBalanceAfter = await newAppUser.methods
-      .get_balance(newUserManager.address)
-      .simulate({ from: newUserManager.address });
-    console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
-
-    if (BigInt(newBalanceAfter) !== LOCK_AMOUNT) {
-      throw new Error(
-        `Migration completed but balance ${newBalanceAfter} does not match expected ${LOCK_AMOUNT}`,
-      );
-    }
-    console.log("\n   Cross-rollup migration fully successful!");
-  } catch (e) {
-    throw new Error(`migrate_mode_a failed: ${(e as Error).message}`);
-  }
+  const migrateTx = await newAppUser.methods
+    .migrate_mode_a(
+      LOCK_AMOUNT,
+      mpk.toNoirStruct(),
+      signature,
+      migrationNoteProofs,
+      archiveProof,
+    )
+    .send({ from: newUserManager.address })
+    .wait();
 
   const newBalanceAfter = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
+  console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
+
+  if (BigInt(newBalanceAfter) !== LOCK_AMOUNT) {
+    throw new Error(
+      `Migration completed but balance ${newBalanceAfter} does not match expected ${LOCK_AMOUNT}`,
+    );
+  }
+  console.log("\n   Cross-rollup migration fully successful!");
 
   // ============================================================
-  // Step 15: Mint PUBLIC tokens on OLD rollup
+  // Step 8: Mint PUBLIC tokens on OLD rollup
   // ============================================================
   console.log("\n=== Test Scenario 2: Public Balance Migration ===\n");
-  console.log("15. Minting PUBLIC tokens on OLD rollup...");
+  console.log("Step 8. Minting PUBLIC tokens on OLD rollup...");
 
   const PUBLIC_MINT_AMOUNT = 1000n;
   await oldAppUser.methods
@@ -221,13 +212,11 @@ async function main() {
   );
 
   // ============================================================
-  // Step 16: Lock PUBLIC tokens for migration on OLD rollup
+  // Step 9: Lock PUBLIC tokens for migration on OLD rollup
   // ============================================================
-  console.log("16. Locking PUBLIC tokens for migration on OLD rollup...");
+  console.log("Step 9. Locking PUBLIC tokens for migration on OLD rollup...");
 
   const PUBLIC_LOCK_AMOUNT = 500n;
-  const msk2 = new Fr(67890n); // Different MSK for this migration
-  console.log(`   Owner MSK: ${msk2}`);
   console.log(`   Locking ${PUBLIC_LOCK_AMOUNT} public tokens...`);
   console.log(`   Destination rollup: ${env.newRollupVersion}`);
 
@@ -255,9 +244,9 @@ async function main() {
   );
 
   // ============================================================
-  // Step 18: Bridge new archive root if needed
+  // Step 10: Bridge new archive root if needed
   // ============================================================
-  console.log("18. Bridging archive root for public lock note...");
+  console.log("Step 10. Bridging archive root for public lock note...");
 
   const {
     l1Result: l1ResultPublic,
@@ -268,10 +257,10 @@ async function main() {
   console.log(`   Archive root: ${l1ResultPublic.provenArchiveRoot}\n`);
 
   // ============================================================
-  // Step 20: Get public lock note and merkle proofs
+  // Step 11: Get public lock note and merkle proofs
   // ============================================================
   console.log(
-    "20. Computing public lock note hash and getting merkle proofs...",
+    "Step 11. Computing public lock note hash and getting merkle proofs...",
   );
 
   // Get the actual lock note from PXE
@@ -323,9 +312,9 @@ async function main() {
   );
 
   // ============================================================
-  // Step 21: Call migrate_to_public_mode_a on NEW rollup
+  // Step 12: Call migrate_to_public_mode_a on NEW rollup
   // ============================================================
-  console.log("21. Calling migrate_to_public_mode_a on NEW rollup...");
+  console.log("Step 12. Calling migrate_to_public_mode_a on NEW rollup...");
 
   const newPublicBalanceBefore = await newAppUser.methods
     .get_public_balance(newUserManager.address)
@@ -334,40 +323,32 @@ async function main() {
     `   Public balance on NEW rollup before: ${newPublicBalanceBefore}`,
   );
 
-  try {
-    const migratePublicTx = await newAppUser.methods
-      .migrate_to_public_mode_a(
-        PUBLIC_LOCK_AMOUNT,
-        mpk.toNoirStruct(),
-        publicSignature,
-        publicMigrationNoteProofs,
-        publicArchiveProof,
-      )
-      .send({ from: newUserManager.address })
-      .wait();
+  const migratePublicTx = await newAppUser.methods
+    .migrate_to_public_mode_a(
+      PUBLIC_LOCK_AMOUNT,
+      mpk.toNoirStruct(),
+      publicSignature,
+      publicMigrationNoteProofs,
+      publicArchiveProof,
+    )
+    .send({ from: newUserManager.address })
+    .wait();
 
-    console.log(`   Migrate to public tx: ${migratePublicTx.txHash}`);
-
-    const newPublicBalanceAfterMigrate = await newAppUser.methods
-      .get_public_balance(newUserManager.address)
-      .simulate({ from: newUserManager.address });
-    console.log(
-      `   Public balance on NEW rollup after: ${newPublicBalanceAfterMigrate}`,
-    );
-
-    if (BigInt(newPublicBalanceAfterMigrate) !== PUBLIC_LOCK_AMOUNT) {
-      throw new Error(
-        `Migration completed but public balance ${newPublicBalanceAfterMigrate} does not match expected ${PUBLIC_LOCK_AMOUNT}`,
-      );
-    }
-    console.log("   Public balance migration fully successful!");
-  } catch (e) {
-    throw new Error(`migrate_to_public_mode_a failed: ${(e as Error).message}`);
-  }
+  console.log(`   Migrate to public tx: ${migratePublicTx.txHash}`);
 
   const newPublicBalanceAfter = await newAppUser.methods
     .get_public_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
+  console.log(
+    `   Public balance on NEW rollup after: ${newPublicBalanceAfter}`,
+  );
+
+  if (BigInt(newPublicBalanceAfter) !== PUBLIC_LOCK_AMOUNT) {
+    throw new Error(
+      `Migration completed but public balance ${newPublicBalanceAfter} does not match expected ${PUBLIC_LOCK_AMOUNT}`,
+    );
+  }
+  console.log("   Public balance migration fully successful!");
 
   // ============================================================
   // Summary

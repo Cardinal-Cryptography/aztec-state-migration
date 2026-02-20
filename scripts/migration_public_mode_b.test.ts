@@ -51,7 +51,7 @@ async function main() {
   console.log("=== Mode B Public State Migration E2E Test ===\n");
 
   // ============================================================
-  // Deploy shared infrastructure
+  // Step 0: Deploy shared infrastructure
   // ============================================================
   const env = await deploy();
 
@@ -64,9 +64,9 @@ async function main() {
   } = env[env.newRollupVersion];
 
   // ============================================================
-  // Create user wallets
+  // Step 1: Create user wallets
   // ============================================================
-  console.log("1. Creating user wallets...");
+  console.log("Step 1. Creating user wallets...");
 
   const oldUserManager = await deployAndFundAccount(env, oldAztecNode);
   const oldUser2Manager = await deployAndFundAccount(env, oldAztecNode);
@@ -79,9 +79,9 @@ async function main() {
   console.log(`   New User2: ${newUser2Manager.address}\n`);
 
   // ============================================================
-  // Deploy L2 contracts
+  // Step 2: Deploy L2 contracts
   // ============================================================
-  console.log("2. Deploying L2 contracts...");
+  console.log("Step 2. Deploying L2 contracts...");
 
   const oldKeyRegistry = await deployKeyRegistry(env);
   const newArchiveRegistry = await deployArchiveRegistry(
@@ -97,9 +97,9 @@ async function main() {
   const newAppUser = ExampleMigrationAppContract.at(newApp, newUserWallet);
 
   // ============================================================
-  // Register migration key
+  // Step 3: Register migration key
   // ============================================================
-  console.log("3. Registering migration key...");
+  console.log("Step 3. Registering migration key...");
 
   const oldUserKeyRegistry = MigrationKeyRegistryContract.at(
     oldKeyRegistry.address,
@@ -119,9 +119,9 @@ async function main() {
     .wait();
 
   // ============================================================
-  // Set Public Storage on OLD rollup
+  // Step 4: Set Public Storage on OLD rollup
   // ============================================================
-  console.log("4. Setting public storage on OLD rollup...");
+  console.log("Step 4. Setting public storage on OLD rollup...");
 
   // Set single struct
   const STRUCT_SINGLE = await randomSomeStruct();
@@ -178,9 +178,9 @@ async function main() {
   assertEq(structResult, OWNED_STRUCT_NESTED_MAP, "Owned struct nested map");
 
   // ============================================================
-  // Bridge archive root + set snapshot height
+  // Step 5: Bridge archive root + set snapshot height
   // ============================================================
-  console.log("5. Bridging archive root and setting snapshot height...");
+  console.log("Step 5. Bridging archive root and setting snapshot height...");
 
   const { provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
     env,
@@ -194,9 +194,9 @@ async function main() {
     .wait();
 
   // ============================================================
-  // Get public data tree witnesses for SomeStruct (2 fields)
+  // Step 6: Get public data tree witnesses for SomeStruct (2 fields)
   // ============================================================
-  console.log("8. Getting public data tree witnesses...");
+  console.log("Step 6. Getting public data tree witnesses...");
 
   let slot = oldAppDeployer.artifact.storageLayout["struct_single"].slot;
   const structSingleProof = await buildPublicDataProof(
@@ -242,10 +242,10 @@ async function main() {
   );
 
   // ============================================================
-  // Migration on NEW rollup
+  // Steps 7-10: Migration on NEW rollup
   // ============================================================
 
-  console.log("10. Migration Single Struct on NEW rollup...");
+  console.log("Step 7. Migration Single Struct on NEW rollup...");
   await newAppUser.methods
     .migrate_to_public_struct_mode_b(structSingleProof, archiveProof)
     .send({ from: newUserManager.address })
@@ -257,7 +257,7 @@ async function main() {
   assertEq(structResult, STRUCT_SINGLE, "Migrated struct single");
   console.log("Single struct migration successful!");
 
-  console.log("11. Migration Struct Map on NEW rollup...");
+  console.log("Step 8. Migration Struct Map on NEW rollup...");
   await newAppUser.methods
     .migrate_to_public_struct_map_mode_b(
       structMapProof,
@@ -273,7 +273,7 @@ async function main() {
   assertEq(structResult, STRUCT_MAP, "Migrated struct map");
   console.log("Struct map migration successful!");
 
-  console.log("12. Migration Owned Struct Map on NEW rollup...");
+  console.log("Step 9. Migration Owned Struct Map on NEW rollup...");
   const keyNoteProof = await oldUserWallet.buildKeyNoteProofData(
     oldKeyRegistry.address,
     OWNED_STRUCT_MAP_OWNER,
@@ -309,7 +309,7 @@ async function main() {
   assertEq(structResult, OWNED_STRUCT_MAP, "Migrated owned struct map");
   console.log("Owned struct map migration successful!");
 
-  console.log("13. Migration Owned Struct Nested Map on NEW rollup...");
+  console.log("Step 10. Migration Owned Struct Nested Map on NEW rollup...");
   const keyNoteProof2 = await oldUserWallet.buildKeyNoteProofData(
     oldKeyRegistry.address,
     OWNED_STRUCT_NESTED_MAP_OWNER,
