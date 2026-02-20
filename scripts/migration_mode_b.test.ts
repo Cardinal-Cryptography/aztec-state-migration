@@ -118,11 +118,10 @@ async function main() {
     oldUserWallet,
   );
 
-  const registerTx = await oldUserKeyRegistry.methods
+  await oldUserKeyRegistry.methods
     .register(mpk.toNoirStruct())
     .send({ from: oldUserManager.address })
     .wait();
-  console.log(`   Register tx: ${registerTx.txHash}`);
 
   const registeredKey = await oldUserKeyRegistry.methods
     .get(oldUserManager.address)
@@ -144,11 +143,10 @@ async function main() {
   console.log(`   Archive root: ${l1Result.provenArchiveRoot}`);
 
   // Set snapshot height for Mode B
-  const setSnapshotTx = await newArchiveRegistry.methods
+  await newArchiveRegistry.methods
     .set_snapshot_height(l1Result.provenBlockNumber)
     .send({ from: newDeployerManager.address })
     .wait();
-  console.log(`   Set snapshot height tx: ${setSnapshotTx.txHash}`);
 
   const storedSnapshot = await newArchiveRegistry.methods
     .get_snapshot_height()

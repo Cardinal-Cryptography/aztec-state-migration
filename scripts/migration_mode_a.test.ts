@@ -93,7 +93,6 @@ async function main() {
     )
     .send({ from: oldUserManager.address })
     .wait();
-  console.log(`   Lock tx: ${lockTx.txHash}`);
 
   const oldBalanceAfterLock = await oldAppUser.methods
     .get_balance(oldUserManager.address)
@@ -166,7 +165,7 @@ async function main() {
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before migrate: ${newBalanceBefore}`);
 
-  const migrateTx = await newAppUser.methods
+  await newAppUser.methods
     .migrate_mode_a(
       LOCK_AMOUNT,
       mpk.toNoirStruct(),
@@ -230,8 +229,6 @@ async function main() {
     )
     .send({ from: oldUserManager.address })
     .wait();
-
-  console.log(`   Lock public tx: ${lockPublicTx.txHash}`);
 
   const oldPublicBalanceAfterLock = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
@@ -323,7 +320,7 @@ async function main() {
     `   Public balance on NEW rollup before: ${newPublicBalanceBefore}`,
   );
 
-  const migratePublicTx = await newAppUser.methods
+  await newAppUser.methods
     .migrate_to_public_mode_a(
       PUBLIC_LOCK_AMOUNT,
       mpk.toNoirStruct(),
@@ -333,8 +330,6 @@ async function main() {
     )
     .send({ from: newUserManager.address })
     .wait();
-
-  console.log(`   Migrate to public tx: ${migratePublicTx.txHash}`);
 
   const newPublicBalanceAfter = await newAppUser.methods
     .get_public_balance(newUserManager.address)
