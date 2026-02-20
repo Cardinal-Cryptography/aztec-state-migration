@@ -1,6 +1,6 @@
 # Mode A PoC - Known Limitations & Future Work
 
-## 1. ~~Schnorr-Based Authentication~~ (Done)
+## ~~1. Schnorr-Based Authentication~~ (Done)
 
 - Nullifier uses note `randomness` instead of `msk`, fixing the dummy nullifier problem.
 - `msk` removed from `MigrationArgs` — the circuit receives `mpk` directly.
@@ -38,6 +38,14 @@ On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves the
 
 **Production:** Should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup. Without this, a bug or compromised archive root could allow unlimited minting.
 
+## ~~5. Public Balance Migration~~ (Done)
+
+Public balance migration is implemented for Mode A. The flow mirrors private migration:
+1. **Lock:** `lock_public_for_migration` creates a `MigrationNote` (same as private lock) and enqueues a public call to decrement the user's public balance.
+2. **Claim:** `migrate_to_public_mode_a` verifies the `MigrationNote` inclusion proof (same circuit as private claim via `migrate_notes_mode_a`) and mints to the caller's public balance on the new rollup.
+
+The E2E test (`migration_mode_a.test.ts`) covers both private and public balance migration in a single flow.
+
 ## 7. old_app_address is an Unchecked Witness
 
 **Current:** On the new rollup, `old_app_address` is read from ExampleApp's `PublicImmutable` storage (set at deployment). The migration circuit trusts this value when siloing the reconstructed note hash.
@@ -56,8 +64,11 @@ On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves the
 
 `deriveMasterMigrationSecretKey()` in `ts/migration-lib/keys.ts` now derives the MSK deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])`. No random generation and no explicit persistence needed — the key can be re-derived from the account secret at any time.
 
-## 10. Decompose migration_lib into Separate Validation Functions
+## ~~10. Decompose migration_lib into Separate Validation Functions~~ (Done)
 
-**Current:** `migrate_notes_mode_a` is a monolithic function that performs archive proof validation and note migration in a single call.
+Archive proof verification is now decomposed into separate steps:
+- **Block bridging:** `consume_l1_to_l2_message` (stores trusted archive root) + `register_block` (verifies block header against archive root via Merkle proof).
+- **Migration verification:** `migrate_notes_mode_a` receives a `BlockHeader` (not a full archive proof), computes the block hash, and enqueues a public call to `verify_migration_mode_a(block_number, block_hash)`.
+- **Note verification** is isolated in `migrate_note()` (inclusion proof + nullifier emission).
 
-**Production:** Expose separate functions for archive proof validation. This allows app contracts to compose only the pieces they need and makes the library more reusable across different migration strategies.
+The library exposes `lock_migration_notes` and `migrate_notes_mode_a` as composable functions. Proof data types (`MigrationNoteProofData`, `NoteProofData`) are separate modules. App contracts compose only the pieces they need.
