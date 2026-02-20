@@ -310,6 +310,7 @@ pub fn migrate_public_map_owned_state_mode_b<K: ToField, T: Packable, let N: u32
 }
 
 fn derive_map_storage_slot<K: ToField, let N: u32>(slot: Field, map_keys: [K; N]) -> Field {
+    std::static_assert(N > 0, "map_keys must have at least one key");
     let mut derived_slot = slot;
     for i in 0..N {
         derived_slot = poseidon2_hash([derived_slot, map_keys[i].to_field()]);

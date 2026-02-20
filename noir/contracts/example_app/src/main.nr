@@ -321,7 +321,7 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn migrate_to_public_struct_mode_b(
         // the number of occupied slots (2) is asserted in the migration function:
-        // assert(<T as Packable>::N == N),
+        // std::static_assert(<T as Packable>::N == N),
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         struct_single_proof_data: PublicStateProofData<SomeStruct, 2>,
@@ -348,7 +348,7 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn migrate_to_public_struct_map_mode_b(
         // the number of occupied slots (2) is asserted in the migration function:
-        // assert(<T as Packable>::N == N),
+        // std::static_assert(<T as Packable>::N == N),
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         struct_in_map_proof_data: PublicStateProofData<SomeStruct, 2>,
@@ -377,7 +377,7 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn migrate_to_public_owned_struct_map_mode_b(
         // the number of occupied slots (2) is asserted in the migration function:
-        // assert(<T as Packable>::N == N),
+        // std::static_assert(<T as Packable>::N == N),
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         owned_struct_map_proof_data: PublicStateProofData<SomeStruct, 2>,
@@ -411,7 +411,7 @@ pub contract ExampleMigrationApp {
     #[external("private")]
     fn migrate_to_public_owned_struct_nested_map_mode_b(
         // the number of occupied slots (2) is asserted in the migration function:
-        // assert(<T as Packable>::N == N),
+        // std::static_assert(<T as Packable>::N == N),
         // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
         // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         owned_struct_nested_map_proof_data: PublicStateProofData<SomeStruct, 2>,
