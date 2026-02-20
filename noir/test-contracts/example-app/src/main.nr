@@ -22,7 +22,6 @@ pub contract ExampleMigrationApp {
         },
     };
     use aztec::protocol_types::abis::block_header::BlockHeader;
-    use balance_set::balance_set::BalanceSet;
     use aztec_state_migration::{
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
@@ -34,6 +33,7 @@ pub contract ExampleMigrationApp {
         Point,
         Scalar,
     };
+    use balance_set::balance_set::BalanceSet;
     use uint_note::uint_note::UintNote;
 
     // Only Packable needed for Migration
