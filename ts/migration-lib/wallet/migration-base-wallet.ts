@@ -5,34 +5,32 @@ import { MIGRATION_NOTE_SLOT } from "../constants.js";
 import { AztecNode } from "@aztec/aztec.js/node";
 import {
   ArchiveProofData,
-  FullProofData,
   MigrationSignature,
   NoteProofData,
-  NonNullificationProofData,
-  MigrationNoteProofData,
 } from "../types.js";
+import {
+  FullProofData,
+  NonNullificationProofData,
+  KeyNote,
+} from "../mode-b/types.js";
+import { MigrationNoteProofData } from "../mode-a/types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { PXE } from "@aztec/pxe/server";
-import {
-  buildArchiveProof,
-  buildMigrationNoteProof,
-  buildNoteProof,
-  buildNullifierProof,
-} from "../proofs.js";
+import { buildArchiveProof, buildNoteProof } from "../proofs.js";
+import { buildNullifierProof } from "../mode-b/proofs.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationAccount } from "./migration-account.js";
 import {
   signMigrationModeA as signModeA,
   signMigrationModeB as signModeB,
+  signPublicStateMigrationModeB as signPubStateModeB,
 } from "../keys.js";
 import { PublicKeys } from "@aztec/stdlib/keys";
 import { PrivateEvent, PrivateEventFilter } from "@aztec/aztec.js/wallet";
-import {
-  AbiType,
-  EventMetadataDefinition,
-  EventSelector,
-} from "@aztec/stdlib/abi";
+import { AbiType, EventSelector } from "@aztec/stdlib/abi";
+import { MigrationKeyRegistryContractArtifact } from "../noir-contracts/MigrationKeyRegistry.js";
+import { buildMigrationNoteProof } from "../mode-a/proofs.js";
 
 /**
  * Abstract wallet that adds migration-specific helpers (signing, proof building,
@@ -124,6 +122,26 @@ export abstract class BaseMigrationWallet extends BaseWallet {
       oldRollupVersion,
       newRollupVersion,
       notes,
+      recipient,
+      newAppAddress,
+    );
+  }
+
+  async signPublicStateMigrationModeB(
+    signer: MigrationAccount,
+    recipient: AztecAddress,
+    oldRollupVersion: Fr,
+    newRollupVersion: Fr,
+    newAppAddress: AztecAddress,
+    data: any,
+    dataAbiType: AbiType,
+  ): Promise<MigrationSignature> {
+    return signPubStateModeB(
+      signer.migrationKeySigner,
+      oldRollupVersion,
+      newRollupVersion,
+      data,
+      dataAbiType,
       recipient,
       newAppAddress,
     );
@@ -280,5 +298,37 @@ export abstract class BaseMigrationWallet extends BaseWallet {
       note_proof_data: noteProof,
       non_nullification_proof_data: nullifierProofs[i],
     }));
+  }
+
+  /**
+   * Build a note-hash inclusion proof for a key note.
+   *
+   * @param keyRegistry - Address of the key registry contract.
+   * @param owner - Owner of the key note.
+   * @param blockNumber - Block number at which to prove inclusion.
+   * @returns Proof data containing the decoded key note, storage slot, randomness, nonce, and sibling path.
+   */
+  async buildKeyNoteProofData(
+    keyRegistry: AztecAddress,
+    owner: AztecAddress,
+    blockNumber: BlockNumber,
+  ): Promise<NoteProofData<KeyNote>> {
+    const keyNotes = await this.pxe.getNotes({
+      owner: owner,
+      contractAddress: keyRegistry,
+      storageSlot:
+        MigrationKeyRegistryContractArtifact.storageLayout.registered_keys.slot,
+    });
+    if (keyNotes.length === 0) {
+      throw new Error("No key notes found");
+    } else if (keyNotes.length > 1) {
+      throw new Error("Multiple key notes found, expected exactly one");
+    }
+    return await buildNoteProof(
+      this.aztecNode,
+      blockNumber,
+      keyNotes[0],
+      (note) => KeyNote.fromNote(note),
+    );
   }
 }

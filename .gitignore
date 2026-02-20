@@ -16,10 +16,12 @@ broadcast
 *deployment.json
 
 node_modules
+dist
 dependencies
 target
 codegenCache.json
 cache
+ts/migration-lib/noir-contracts
 
 # Claude Code per-user settings (do not commit)
 .claude/settings*.json

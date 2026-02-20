@@ -1,4 +1,4 @@
-import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
+import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { signMigrationModeA } from "../ts/migration-lib/index.js";
 import { deploy } from "./deploy.js";
@@ -8,10 +8,6 @@ import {
   bridgeArchiveRoot,
   deployAndFundAccount,
 } from "./test-utils.js";
-import {
-  MigrationNote,
-  MigrationNoteProofData,
-} from "../ts/migration-lib/types.js";
 import { AbiType } from "@aztec/stdlib/abi";
 
 /** ABI type for decoding the MigrationDataEvent payload.
@@ -110,7 +106,6 @@ async function main() {
   const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
     env,
     newArchiveRegistry,
-    lockTx.blockNumber!,
   );
   console.log(`   Proven block: ${l1Result.provenBlockNumber}`);
   console.log(`   Archive root: ${l1Result.provenArchiveRoot}\n`);
@@ -268,7 +263,7 @@ async function main() {
     l1Result: l1ResultPublic,
     provenBlockNumber: publicProvenBlockNumber,
     archiveProof: publicArchiveProof,
-  } = await bridgeArchiveRoot(env, newArchiveRegistry, lockTx.blockNumber!);
+  } = await bridgeArchiveRoot(env, newArchiveRegistry);
   console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}`);
   console.log(`   Archive root: ${l1ResultPublic.provenArchiveRoot}\n`);
 

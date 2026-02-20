@@ -12,6 +12,7 @@ export {
   deriveMasterMigrationSecretKey,
   signMigrationModeA,
   signMigrationModeB,
+  signPublicStateMigrationModeB,
 } from "./keys.js";
 
 // Proofs
@@ -36,7 +37,6 @@ export type { PollOptions } from "./polling.js";
 
 // Types
 export type {
-  MigrationNoteProofData,
   NoteProofData,
   ArchiveProofData,
   L1MigrationResult,

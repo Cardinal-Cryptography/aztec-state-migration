@@ -1,6 +1,6 @@
-import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
-import { MigrationArchiveRegistryContract } from "../noir/target/artifacts/MigrationArchiveRegistry.js";
-import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
+import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
+import { MigrationArchiveRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationArchiveRegistry.js";
+import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { EthAddress } from "@aztec/foundation/eth-address";
@@ -28,6 +28,22 @@ import {
 } from "@aztec/aztec.js/ethereum";
 import { GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
+
+export function assertEq(actual: any, expected: any, msg: string) {
+  const fmt = (v: any) =>
+    typeof v === "object"
+      ? JSON.stringify(
+          v,
+          (_k, val) => (typeof val === "bigint" ? val.toString() : val),
+          2,
+        )
+      : String(v);
+  if (actual !== expected && fmt(actual) !== fmt(expected)) {
+    throw new Error(
+      `Mismatch: ${msg}\n  Expected: ${fmt(expected)}\n  Actual:   ${fmt(actual)}`,
+    );
+  }
+}
 
 // ============================================================
 // Types and interfaces
@@ -165,21 +181,17 @@ export interface BridgeResult {
  */
 export async function bridgeArchiveRoot(
   env: DeploymentResult,
-  archiveRegistry: ReturnType<
-    typeof MigrationArchiveRegistryContract.at
-  > extends infer T
-    ? T
-    : never,
-  blockNumber: number,
+  archiveRegistry: MigrationArchiveRegistryContract,
 ): Promise<BridgeResult> {
   const old_r = env[env.oldRollupVersion];
   const new_r = env[env.newRollupVersion];
+  const blockNumber = await old_r.aztecNode.getBlockNumber();
   // Step 1: Wait for block proof
   await waitForBlockProof(old_r.aztecNode, blockNumber, {
     onPoll: async () => {
       await produceBlock(env, new_r.aztecNode);
     },
-    intervalMs: 10,
+    intervalMs: 100,
   });
 
   // Step 2: L1 migrateArchiveRoot

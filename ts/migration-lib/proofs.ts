@@ -3,14 +3,7 @@ import { BlockNumber } from "@aztec/foundation/branded-types";
 import { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import type { AztecNode } from "@aztec/aztec.js/node";
 import type { Note, NoteDao } from "@aztec/stdlib/note";
-import {
-  type NoteProofData,
-  type ArchiveProofData,
-  type NonNullificationProofData,
-  MigrationNoteProofData,
-  MigrationNote,
-} from "./types.js";
-import { PrivateEvent } from "@aztec/aztec.js/wallet";
+import { type NoteProofData, type ArchiveProofData } from "./types.js";
 
 /**
  * Build a {@link NoteProofData} for a single note (note-hash inclusion proof).
@@ -35,58 +28,6 @@ export async function buildNoteProof<NoteLike>(
     nonce: noteDao.noteNonce,
     leaf_index: new Fr(leafIndex),
     sibling_path: siblingPath.toFields(),
-  };
-}
-
-export async function buildMigrationNoteProof<T>(
-  node: AztecNode,
-  blockNumber: BlockNumber,
-  noteDao: NoteDao,
-  migration_data_event: PrivateEvent<T>,
-): Promise<MigrationNoteProofData<T>> {
-  const noteProof = await buildNoteProof(
-    node,
-    blockNumber,
-    noteDao,
-    MigrationNote.fromNote,
-  );
-  return {
-    ...noteProof,
-    data: migration_data_event.event,
-  };
-}
-
-/**
- * Build a {@link NonNullificationProofData} proving that a note has **not** been nullified.
- * Queries the low-nullifier membership witness from the nullifier tree.
- *
- * @param node - Aztec node client to query the nullifier tree.
- * @param blockNumber - Block number at which to prove non-inclusion.
- * @param noteDao - The note DAO whose siloed nullifier is checked.
- * @returns Low-nullifier witness data for the Noir non-inclusion check.
- */
-export async function buildNullifierProof(
-  node: AztecNode,
-  blockNumber: BlockNumber,
-  noteDao: NoteDao,
-): Promise<NonNullificationProofData> {
-  const lowNullifierWitness = await node.getLowNullifierMembershipWitness(
-    blockNumber,
-    noteDao.siloedNullifier,
-  );
-  if (!lowNullifierWitness) {
-    throw new Error("Could not get low nullifier witness for note");
-  }
-  return {
-    low_nullifier_value: new Fr(lowNullifierWitness.leafPreimage.getKey()),
-    low_nullifier_next_value: new Fr(
-      lowNullifierWitness.leafPreimage.getNextKey(),
-    ),
-    low_nullifier_next_index: new Fr(
-      lowNullifierWitness.leafPreimage.getNextIndex(),
-    ),
-    low_nullifier_leaf_index: new Fr(lowNullifierWitness.index),
-    low_nullifier_sibling_path: lowNullifierWitness.siblingPath.toFields(),
   };
 }
 

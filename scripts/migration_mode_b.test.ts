@@ -8,9 +8,10 @@ import {
   bridgeArchiveRoot,
   deployAndFundAccount,
 } from "./test-utils.js";
-import { ExampleMigrationAppContract } from "../noir/target/artifacts/ExampleMigrationApp.js";
-import { MigrationKeyRegistryContract } from "../noir/target/artifacts/MigrationKeyRegistry.js";
-import { KeyNote, UintNote } from "../ts/migration-lib/types.js";
+import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
+import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
+import { KeyNote } from "../ts/migration-lib/mode-b/types.js";
+import { UintNote } from "../ts/migration-lib/common-notes.js";
 import { NoteStatus } from "@aztec/stdlib/note";
 
 async function main() {
@@ -137,7 +138,6 @@ async function main() {
   const { l1Result, provenBlockNumber, archiveProof } = await bridgeArchiveRoot(
     env,
     newArchiveRegistry,
-    registerTx.blockNumber!,
   );
   console.log(
     `   Bridge complete. Proven block: ${l1Result.provenBlockNumber}`,
@@ -222,16 +222,17 @@ async function main() {
   const balanceNotes = balanceNotesActive.slice(0, 1);
 
   // Build proofs via wallet
-  const [fullProofs, keyNoteProof] = await Promise.all([
-    oldUserWallet.buildFullNoteProofs(provenBlockNumber, balanceNotes, (note) =>
-      UintNote.fromNote(note),
-    ),
-    oldUserWallet
-      .buildNoteProofs(provenBlockNumber, [keyNotes[0]], (note) =>
-        KeyNote.fromNote(note),
-      )
-      .then((p) => p[0]),
-  ]);
+  const fullProofs = await oldUserWallet.buildFullNoteProofs(
+    provenBlockNumber,
+    balanceNotes,
+    (note) => UintNote.fromNote(note),
+  );
+
+  const keyNoteProof = await oldUserWallet.buildKeyNoteProofData(
+    oldKeyRegistry.address,
+    oldUserManager.address,
+    provenBlockNumber,
+  );
 
   // Sign via standalone function
   const oldAccount = await oldUserWallet.getMigrationAccount(
