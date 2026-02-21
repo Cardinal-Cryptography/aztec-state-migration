@@ -15,7 +15,7 @@ Aztec Network version upgrades deploy entirely new rollup instances rather than 
 
 This project implements two migration modes, both anchored by L1 archive roots that the old rollup's proven state makes available on Ethereum. **Mode A** (cooperative, lock-and-claim) is the routine path: users lock balances on the old rollup and claim equivalents on the new rollup by proving lock-note inclusion against a bridged archive root.
 
-**Mode B** (emergency snapshot) is the fallback: if the old rollup becomes uncooperative, users prove their state existed at a specific snapshot height H without requiring any old-rollup transactions. Both modes use a dedicated migration keypair and Schnorr signatures to authorize claims. This prevents front-running and ensures only the rightful owner can migrate.
+**Mode B** (emergency snapshot) is the fallback: if the old rollup becomes unavailable, users prove their state existed at a specific snapshot height H without requiring any old-rollup transactions. Both modes use a dedicated migration keypair and Schnorr signatures to authorize claims. This prevents front-running and ensures only the rightful owner can migrate.
 
 ## Scope
 

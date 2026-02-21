@@ -7,7 +7,7 @@ title: Threat Model
 
 # Threat Model
 
-Trust assumptions, threat scenarios, mitigations, and known PoC limitations for the dual-rollup migration system. Written for auditors and security engineers reviewing the protocol.
+Trust assumptions, threat scenarios, mitigations, and known PoC limitations for the dual-rollup migration system.
 
 ## Trust Assumptions
 
@@ -87,7 +87,7 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **Snapshot height governance has no access control beyond write-once (critical).** The first caller to `set_snapshot_height` wins. An incorrect snapshot height permanently bricks Mode B for affected users. Production must restrict this to governance.
 
-- **`ExampleMigrationApp` has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. This is an intentional PoC simplification -- production apps must restrict minting to verified migration proofs only.
+- **`ExampleMigrationApp` has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. Production apps must restrict minting to verified migration proofs only.
 
 - **In-memory key storage.** The TS client stores migration keys in memory. Production should use secure storage (hardware wallet, encrypted keystore).
 

@@ -104,7 +104,7 @@ If the public balance decrement fails (insufficient balance), the entire transac
 1. Calls `migrate_notes_mode_a` (same library function as private claim).
 2. Enqueues a public call to `_increment_public_balance(recipient, amount)`.
 
-> **Design note:** `ExampleMigrationApp.migrate_mode_a` and `migrate_to_public_mode_a` take an explicit `amount` parameter that is asserted to equal `note_proof_data[0].data`. This serves as a defensive check -- the caller explicitly states the expected amount, and the contract verifies it matches the proof data.
+> **Implementation note:** `ExampleMigrationApp.migrate_mode_a` and `migrate_to_public_mode_a` take an explicit `amount` parameter that is asserted to equal `note_proof_data[0].data`. This is a known redundancy -- the `amount` duplicates data already present in the proof. The code marks it with `FIXME` (`example_app/main.nr:203, 239`) and it may be removed in a future iteration.
 
 ## Authentication
 
@@ -167,7 +167,7 @@ The following limitations apply to the current proof-of-concept implementation a
 
 3. **L1 relay is permissionless.** Anyone can call `Migrator.sol`'s `migrateArchiveRoot()` to bridge an archive root snapshot. An attacker could spam calls to fill L1-to-L2 message trees or increase costs. Consider rate limiting or requiring a small bond.
 
-4. **No access control on `mint()` / `burn()`.** `ExampleMigrationApp` has no access control on `mint()` and `burn()` functions. This is an intentional PoC simplification -- a production token contract would restrict minting to authorized callers (e.g., migration-only minting).
+4. **No access control on `mint()` / `burn()`.** `ExampleMigrationApp` has no access control on `mint()` and `burn()` functions. A production token contract would restrict minting to authorized callers (e.g., migration-only minting).
 
 ## See Also
 

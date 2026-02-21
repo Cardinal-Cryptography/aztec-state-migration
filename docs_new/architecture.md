@@ -134,7 +134,7 @@ A convenience function `consume_l1_to_l2_message_and_register_block` combines st
 
 ## Cross-Context Configuration
 
-Storage fields such as `old_rollup_app_address` (in `ExampleMigrationApp`), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state. This is because:
+Storage fields such as `old_rollup_app_address` (in `ExampleMigrationApp`), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state because:
 
 - They are set at deployment time (not known at compile time)
 - They must be readable in both private and public execution contexts

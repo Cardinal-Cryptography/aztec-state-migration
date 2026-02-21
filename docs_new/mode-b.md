@@ -157,7 +157,7 @@ The circuit computes both `inner_nullifier` and `siloed_nullifier` in-circuit fr
 2. Replacing `npk_m` in the provided `public_keys` with the derived value.
 3. Computing `AztecAddress::compute(public_keys, partial_address)` and asserting it equals `notes_owner`.
 
-This ensures only the true owner of the nullifier secret key can migrate their notes.
+Only the true owner of the nullifier secret key can migrate their notes.
 
 ## Migration Nullifier (Double-Claim Prevention)
 
@@ -237,7 +237,7 @@ The `MigrationArchiveRegistry` on the new rollup stores this address (set at dep
 
 ## PublicImmutable for Cross-Context Configuration
 
-Storage fields like `old_rollup_app_address` (in `ExampleMigrationApp`), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state. This is because:
+Storage fields like `old_rollup_app_address` (in `ExampleMigrationApp`), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state because:
 
 - They need to be set at deployment time (not known at compile time)
 - They need to be readable in both private and public contexts
@@ -252,7 +252,7 @@ The following limitations apply to the current proof-of-concept implementation a
 - **No supply cap enforcement.** The new rollup's `ExampleMigrationApp` mints freely on successful migration. Production should enforce a `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
 - **Snapshot height governance has no access control** beyond write-once (`initialize()`). See [Snapshot Height](#snapshot-height) for production considerations.
 - **Identical storage layout assumed** between old and new rollup contracts for public state migration. If the storage layout changes, slot indices will not match.
-- **`ExampleMigrationApp` simplifications:** No access control on `mint()`/`burn()`, no `#[only_self]` on public struct init functions. These are intentional PoC simplifications.
+- **`ExampleMigrationApp` simplifications:** No access control on `mint()`/`burn()`, no `#[only_self]` on public struct init functions. Production apps must add access control.
 
 ## Test Architecture
 

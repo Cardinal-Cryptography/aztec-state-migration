@@ -15,7 +15,7 @@ The migration system is organized into three tiers:
 2. **Application tier: App contracts** (e.g. `ExampleMigrationApp`) -- Wrappers that call library functions and handle app-specific state (minting, balance updates).
 3. **Client SDK tier: TS `migration-lib`** -- Client-side proof building, key derivation, transaction construction.
 
-Integrators typically work at the Application and Client SDK tiers: writing an app contract that calls into `migration_lib`, and using the TS client library to build proofs and submit transactions. This guide covers the Client SDK tier and the proof data types that bridge Noir and TypeScript.
+Integrators typically work at the Application and Client SDK tiers: writing an app contract that calls into `migration_lib`, and using the TS client library to build proofs and submit transactions. The focus here is the Client SDK tier and the proof data types that bridge Noir and TypeScript.
 
 ## Minimal Flow at a Glance
 
@@ -40,9 +40,9 @@ Integrators typically work at the Application and Client SDK tiers: writing an a
 
 Details for each function follow below.
 
-## Why Migration Keys?
+## Migration Key Rationale
 
-Migration uses a dedicated keypair (`msk`/`mpk`) rather than the account's existing signing keys. This is because:
+Migration uses a dedicated keypair (`msk`/`mpk`) rather than the account's existing signing keys for three reasons:
 
 1. **Account contract independence.** Migration claims must not depend on the old rollup's account contract executing correctly -- the old rollup may have been upgraded precisely because of bugs in those contracts. A separate keypair avoids this dependency.
 2. **Cross-rollup proof compatibility.** The migration circuit needs to verify a signature against a key that is provably bound to the note owner. Standard Aztec account keys are not committed in a form that is easily provable across rollups.
@@ -173,7 +173,7 @@ The wallet classes handle proof construction and note management:
 - `getMigrationDataEvents(abiType, eventFilter)` -- Retrieve encrypted migration data events from Mode A lock transactions.
 - `buildMigrationNoteProofs(blockNumber, migrationNotes, migrationDataEvents)` -- Build note proofs for Mode A claim transactions, pairing each note with its corresponding event data.
 
-These methods combine multiple lower-level proof-building functions into workflow-oriented APIs. Integrators should prefer these over calling `buildNoteProof`, `buildNullifierProof`, etc. directly.
+These methods combine multiple lower-level proof-building functions into higher-level wrapper methods. Integrators should prefer these over calling `buildNoteProof`, `buildNullifierProof`, etc. directly.
 
 ## Key Derivation
 

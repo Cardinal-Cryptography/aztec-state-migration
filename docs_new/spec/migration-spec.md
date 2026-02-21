@@ -31,7 +31,7 @@ The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users
 1. **Burns/locks are permanent.** No unlock.
 2. **TokenV2 has deployment-time config:** `old_rollup_app_address`, `archive_root_address` (both `PublicImmutable` fields on the app contract). Despite the name, `archive_root_address` stores the address of the `MigrationArchiveRegistry` contract on the new rollup, not an archive root hash. Rollup version identifiers are read dynamically: `old_rollup` from `block_header.global_variables.version` and `current_rollup` from `context.version()`. The `MigrationArchiveRegistry` (a separate shared contract on the new rollup) stores `old_key_registry` (old rollup key registry address, for Mode B key note siloing) and `old_rollup_version` (for L1 message verification).
 3. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
-4. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation -- coordinating such a change close to mainnet launch is risky. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
+4. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
 
 ## Architecture
 
@@ -132,7 +132,7 @@ Mode A and Mode B use different sources for the migration public key.
 
 In Mode A the user creates a MigrationNote on the old rollup. The note preimage includes the full `mpk` (Grumpkin point), so the migration circuit can verify the signature directly against the `mpk` embedded in the proven note.
 
-This means Mode A does not require any separate identity registry.
+Mode A does not require a separate identity registry.
 
 #### Mode B: `mpk` must be committed before snapshot height H
 
