@@ -18,7 +18,7 @@ The flow has two phases:
 
 Both private notes and public balances use the same lock-and-claim mechanism. The `MigrationNote` is identical in both cases; only the app-level operations that precede the lock and follow the claim differ.
 
-**Prerequisite:** The old and new app contracts must have identical storage layouts for the migration fields. A layout mismatch causes silent proof failures.
+**Prerequisite:** The old and new app contracts must agree on the `MigrationNote` format and the migration storage slot constant (`MIGRATION_MODE_A_STORAGE_SLOT`). Mode A migration notes are committed under a fixed migration slot and do not depend on the app's general public storage layout. (Identical storage layouts are required for Mode B public state migration, not Mode A.)
 
 ## Lock Flow (Library Level)
 
@@ -62,7 +62,7 @@ The `#[event]` macro does not support generic structs, so `MigrationDataEvent` i
 
 On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves decrypted events. Events are matched to lock transactions by `txHash`.
 
-> **TODO:** Consider including a note-identifying hash in the event (e.g., `migration_note_hash`) so wallet clients can match events to notes without relying on `txHash` filtering. The full note hash requires randomness from `create_note`, which is not easily accessible at event emission time. *(Source: `migration_data_event.nr:13`)*
+> **Known limitation:** Events do not include a note-identifying hash (e.g., `migration_note_hash`), so wallet clients match events to notes via `txHash` filtering. The full note hash requires randomness from `create_note`, which is not available at event emission time. *(Source: `migration_data_event.nr:13`)*
 
 ## Claim Flow (Library Level)
 
@@ -104,7 +104,7 @@ If the public balance decrement fails (insufficient balance), the entire transac
 1. Calls `migrate_notes_mode_a` (same library function as private claim).
 2. Enqueues a public call to `_increment_public_balance(recipient, amount)`.
 
-> **TODO (FIXME):** `ExampleMigrationApp.migrate_mode_a` and `migrate_to_public_mode_a` have a redundant `amount` argument that duplicates `note_proof_data[0].data`. The `amount` parameter is asserted to equal `note_proof_data[0].data` but serves no purpose beyond this check. *(Source: `example_app/main.nr:203,239`)*
+> **Design note:** `ExampleMigrationApp.migrate_mode_a` and `migrate_to_public_mode_a` take an explicit `amount` parameter that is asserted to equal `note_proof_data[0].data`. This serves as a defensive check -- the caller explicitly states the expected amount, and the contract verifies it matches the proof data.
 
 ## Authentication
 
@@ -119,7 +119,7 @@ msg = poseidon2_hash([CLAIM_DOMAIN_A, old_rollup, current_rollup, notes_hash, re
 **Verification** (`signature.nr`, function `verify_migration_signature`):
 
 ```
-schnorr_verify(signature.bytes, mpk, msg.to_be_bytes::<32>())
+schnorr::verify_signature(mpk, signature.bytes, msg.to_be_bytes::<32>())
 ```
 
 **Message fields:**
@@ -135,7 +135,7 @@ schnorr_verify(signature.bytes, mpk, msg.to_be_bytes::<32>())
 
 **Key derivation:** The migration secret key (MSK) is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])` (`ts/migration-lib/keys.ts`, export `deriveMasterMigrationSecretKey`). The MSK stays entirely off-chain -- it is used only for deriving `mpk` and signing. The circuit receives `mpk` directly.
 
-> **TODO:** `CLAIM_DOMAIN_A` currently reuses `MIGRATION_MODE_A_STORAGE_SLOT`. A distinct domain separator should be assigned. *(Source: `constants.nr:5`)*
+> **Production requirement:** `CLAIM_DOMAIN_A` currently reuses `MIGRATION_MODE_A_STORAGE_SLOT`. A distinct domain separator should be assigned before production deployment. *(Source: `constants.nr:6`)*
 
 ## Nullifier Derivation
 
@@ -147,7 +147,7 @@ Mode A uses the `MigrationNote`'s randomness (not the user's secret key) to deri
 nullifier = poseidon2_hash_with_separator([note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
 ```
 
-Where `note_hash` is the note hash of the `MigrationNote` being claimed, and `randomness` is the `MigrationNote`'s randomness (passed as `wrapped_randomness.inner`). The nullifier is subsequently siloed by the contract address by the kernel before being committed to the nullifier tree.
+Where `note_hash` is the note hash of the `MigrationNote` being claimed, and `randomness` is the `MigrationNote`'s randomness (passed as `wrapped_randomness.inner`). The kernel subsequently silos the nullifier by contract address before committing it to the nullifier tree.
 
 ## Batching
 
@@ -163,17 +163,15 @@ The following limitations apply to the current proof-of-concept implementation a
 
 1. **No supply cap enforcement.** The new rollup's `ExampleMigrationApp` mints freely on each successful migration. A production deployment should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup.
 
-2. **`old_app_address` is an unchecked witness.** The address is read from `ExampleMigrationApp`'s `PublicImmutable` storage (set at deployment). If set incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [threat model](threat-model.md) for details.
+2. **`old_rollup_app_address` is a deployment-time configuration.** The address is read from `ExampleMigrationApp`'s `PublicImmutable` storage (set at deployment). If configured incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [threat model](threat-model.md) for details.
 
 3. **L1 relay is permissionless.** Anyone can call `Migrator.sol`'s `migrateArchiveRoot()` to bridge an archive root snapshot. An attacker could spam calls to fill L1-to-L2 message trees or increase costs. Consider rate limiting or requiring a small bond.
 
 4. **No access control on `mint()` / `burn()`.** `ExampleMigrationApp` has no access control on `mint()` and `burn()` functions. This is an intentional PoC simplification -- a production token contract would restrict minting to authorized callers (e.g., migration-only minting).
 
-## Related Documents
+## See Also
 
-- [Home](index.md) -- Entry point and documentation map
-- [Migration Specification](spec/migration-spec.md) -- Protocol specification including nullifier formulas and API tables
-- [Architecture](architecture.md) -- System overview, component catalog, L1-L2 bridge flow
-- [Mode B -- Emergency Snapshot](mode-b.md) -- Alternative migration path when old rollup is unavailable
+- [Migration Specification](spec/migration-spec.md) -- Nullifier formulas, API tables, proof requirements
+- [Mode B](mode-b.md) -- Alternative migration path when old rollup is unavailable
 - [Integration Guide](integration-guide.md) -- TS SDK usage, wallet classes, proof data types
-- [Threat Model](threat-model.md) -- Trust assumptions, PoC limitations, security TODOs
+- [Threat Model](threat-model.md) -- Trust assumptions and PoC limitations

@@ -7,8 +7,6 @@ title: Operations
 
 # Operations
 
-This document covers compilation, testing, formatting, and troubleshooting for the dual-rollup migration project.
-
 ## Prerequisites
 
 - **Node.js** >= 22.0.0
@@ -45,13 +43,9 @@ The Solidity and Noir components follow separate Aztec release tracks. This vers
 |---------|-------------|
 | `yarn fmt` | Format all code (Noir, Solidity, TypeScript) |
 | `yarn fmt:check` | Check formatting without modifying files (CI use) |
-| `yarn noir:fmt` | Format Noir code (`aztec fmt`) |
-| `yarn noir:fmt:check` | Check Noir formatting |
-| `yarn sol:fmt` | Format Solidity code (`forge fmt`) |
-| `yarn sol:fmt:check` | Check Solidity formatting |
-| `yarn ts:fmt` | Format TypeScript code (`prettier --write`) |
-| `yarn ts:fmt:check` | Check TypeScript formatting |
 | `yarn ts:build` | Compile TypeScript (`tsc`) |
+
+Per-language formatting commands are available for debugging: `yarn noir:fmt`, `yarn sol:fmt`, `yarn ts:fmt` (and their `:check` variants).
 
 ## Unit Tests
 
@@ -174,12 +168,8 @@ Note: The TS library (`bridge.ts`) only wraps `migrateArchiveRoot`. Integrators 
 
 **Nargo compilation errors.** Noir is version-sensitive. Ensure the Aztec CLI version matches `v3.0.0-devnet.6-patch.1`. Run `aztec --version` to verify.
 
-## Related Documents
+## See Also
 
-- [Index](index.md) -- Project entry point and documentation map
 - [Architecture](architecture.md) -- System overview and component relationships
 - [Migration Specification](spec/migration-spec.md) -- Protocol specification
-- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
-- [Mode B](mode-b.md) -- Emergency snapshot migration flow
 - [Integration Guide](integration-guide.md) -- TS SDK, proof types, developer workflow
-- [Threat Model](threat-model.md) -- Trust assumptions and PoC limitations

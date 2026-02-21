@@ -7,7 +7,7 @@ title: Threat Model
 
 # Threat Model
 
-This document describes trust assumptions, threat scenarios, mitigations, and known PoC limitations for the dual-rollup migration system. It is written for auditors and security engineers reviewing the protocol.
+Trust assumptions, threat scenarios, mitigations, and known PoC limitations for the dual-rollup migration system. Written for auditors and security engineers reviewing the protocol.
 
 ## Trust Assumptions
 
@@ -71,9 +71,9 @@ Each domain produces a different message hash, so a signature valid under one do
 
 **Threat:** An attacker calls `set_snapshot_height` on `MigrationArchiveRegistry` to select an unfavorable block, either excluding valid key registrations or including attacker-favorable state.
 
-**Mitigation:** `set_snapshot_height` uses `PrivateImmutable` with `initialize()`, enforcing write-once semantics -- once set, it cannot be changed. The function also verifies the snapshot block header against a stored archive root via Merkle proof, so the caller cannot set an arbitrary height.
+**Mitigation:** `set_snapshot_height` uses `PublicImmutable` with `initialize()`, enforcing write-once semantics -- once set, it cannot be changed. The function also verifies the snapshot block header against a stored archive root via Merkle proof, so the caller cannot set an arbitrary height.
 
-**Residual risk:** There is no access control on who can call `set_snapshot_height` first. In production, this should be restricted to governance or a trusted admin role.
+**Critical PoC gap:** There is no access control on who can call `set_snapshot_height` first. An attacker who calls it before governance can permanently brick Mode B for users whose key registrations haven't been committed yet. Production deployments must restrict this to governance or a trusted admin role.
 
 ## PoC Limitations (NOT FOR PRODUCTION)
 
@@ -81,11 +81,11 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **No supply cap enforcement.** The new rollup's `ExampleMigrationApp` mints freely on each successful migration. A compromised archive root or bug could allow unlimited minting. Production should enforce a `mintable_supply` cap matching the total locked/snapshot supply.
 
-- **`old_app_address` is an unchecked witness.** The migration circuit trusts the `old_app_address` from the new app's `PublicImmutable` storage. If set incorrectly at deployment, migrations silently fail (archive root mismatch). Production should verify this address via an on-chain registry.
+- **`old_rollup_app_address` is a deployment-time configuration.** The migration circuit reads `old_rollup_app_address` from the new app's `PublicImmutable` storage. This is not an unchecked witness -- it is constrained by the rollup's public state tree. However, if configured incorrectly at deployment, migrations will silently fail (archive root mismatch). Production should verify this address via an on-chain registry.
 
 - **L1 `migrateArchiveRoot` is permissionless.** Anyone can call `Migrator.sol` to bridge archive roots, consuming L1-to-L2 message slots. An attacker could spam calls to fill message trees or increase costs. Consider rate limiting or requiring a bond.
 
-- **Snapshot height governance has no access control beyond write-once.** The first caller to `set_snapshot_height` wins. Production should restrict this to governance.
+- **Snapshot height governance has no access control beyond write-once (critical).** The first caller to `set_snapshot_height` wins. An incorrect snapshot height permanently bricks Mode B for affected users. Production must restrict this to governance.
 
 - **`ExampleMigrationApp` has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. This is an intentional PoC simplification -- production apps must restrict minting to verified migration proofs only.
 
@@ -93,21 +93,19 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently. See `NOTE` comments in `nft_migration_app` for details.
 
-- **On-curve assertion reverts silently.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with no descriptive error.
+- **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `migration_lib/src/mode_a/ops.nr`, line 52).
 
-> **TODO:** Placeholder domain separators (`CLAIM_DOMAIN_A = MIGRATION_MODE_A_STORAGE_SLOT`, `CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef`, `GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER = 0x12345678`) must be replaced with properly derived values before production. *(Source: `constants.nr:5,12,15`)*
+> **Production requirement:** Placeholder domain separators (`CLAIM_DOMAIN_A = MIGRATION_MODE_A_STORAGE_SLOT`, `CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef`, `GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER = 0x12345678`) must be replaced with properly derived values before production. *(Source: `constants.nr:6,13,16`)*
 
 ## Spec Open Items
 
-> **TODO:** Evaluate salt-based commitment for new accounts. *(Source: `migration-spec.md:307`)*
+> **Future work:** Evaluate salt-based commitment for new accounts. *(Source: `migration-spec.md:307`)*
 
-> **TODO:** Supply cap per-user batching. *(Source: `migration-spec.md:309`)*
+> **Future work:** Supply cap per-user batching. *(Source: `migration-spec.md:309`)*
 
-## Related Documents
+## See Also
 
-- [Documentation Index](index.md)
-- [Migration Specification](spec/migration-spec.md)
-- [Architecture Overview](architecture.md)
-- [Mode A: Cooperative Migration](mode-a.md)
-- [Mode B: Emergency Snapshot](mode-b.md)
-- [Integration Guide](integration-guide.md)
+- [Migration Specification](spec/migration-spec.md) -- Nullifier formulas and API tables
+- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
+- [Mode B](mode-b.md) -- Emergency snapshot migration flow
+- [Architecture](architecture.md) -- System overview, component catalog, L1-L2 bridge flow

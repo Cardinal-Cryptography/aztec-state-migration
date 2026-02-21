@@ -9,13 +9,46 @@ title: Integration Guide
 
 ## Overview
 
-The migration system is organized into three layers:
+The migration system is organized into three tiers:
 
-1. **Noir `migration_lib`** -- Core verification logic: proof verification, nullifier emission, signature checking. This is a library, not a contract.
-2. **App contracts** (e.g. `ExampleMigrationApp`) -- Wrappers that call library functions and handle app-specific state (minting, balance updates).
-3. **TS `migration-lib`** -- Client-side proof building, key derivation, transaction construction.
+1. **Library tier: Noir `migration_lib`** -- Core verification logic: proof verification, nullifier emission, signature checking. This is a library, not a contract.
+2. **Application tier: App contracts** (e.g. `ExampleMigrationApp`) -- Wrappers that call library functions and handle app-specific state (minting, balance updates).
+3. **Client SDK tier: TS `migration-lib`** -- Client-side proof building, key derivation, transaction construction.
 
-Integrators typically work at layers 2 and 3: writing an app contract that calls into `migration_lib`, and using the TS client library to build proofs and submit transactions. This guide covers the TS client layer and the proof data types that bridge Noir and TypeScript.
+Integrators typically work at the Application and Client SDK tiers: writing an app contract that calls into `migration_lib`, and using the TS client library to build proofs and submit transactions. This guide covers the Client SDK tier and the proof data types that bridge Noir and TypeScript.
+
+## Minimal Flow at a Glance
+
+**Mode A** (cooperative lock-and-claim):
+
+1. `deriveMasterMigrationSecretKey(secretKey)` -- derive the migration key
+2. `oldApp.lock_migration_notes_mode_a(amount, destRollup, mpk)` -- lock on old rollup
+3. `bridgeBlock(...)` -- bridge archive root via L1 to new rollup
+4. `wallet.buildMigrationNoteProofs(blockNumber, lockNotes, events)` -- build proofs
+5. `signMigrationModeA(signer, oldVersion, newVersion, notes, recipient, newApp)` -- sign
+6. `newApp.migrate_mode_a(amount, mpk, signature, proofs, blockHeader)` -- claim on new rollup
+
+**Mode B** (emergency snapshot, private notes):
+
+1. `deriveMasterMigrationSecretKey(secretKey)` -- derive the migration key
+2. `keyRegistry.register(mpk)` -- register key on old rollup (before snapshot)
+3. `bridgeBlock(...)` + `archiveRegistry.set_snapshot_height(...)` -- bridge archive root and set snapshot height
+4. `wallet.buildFullNoteProofs(blockNumber, notes, UintNote.fromNote)` -- build inclusion + non-nullification proofs
+5. `wallet.buildKeyNoteProofData(keyRegistry, owner, blockNumber)` -- build key proof
+6. `signMigrationModeB(signer, oldVersion, newVersion, notes, recipient, newApp)` -- sign
+7. `newApp.migrate_mode_b(amount, signature, proofs, blockHeader, owner, publicKeys, partialAddress, keyProof, nsk)` -- claim on new rollup
+
+Details for each function follow below.
+
+## Why Migration Keys?
+
+Migration uses a dedicated keypair (`msk`/`mpk`) rather than the account's existing signing keys. This is because:
+
+1. **Account contract independence.** Migration claims must not depend on the old rollup's account contract executing correctly -- the old rollup may have been upgraded precisely because of bugs in those contracts. A separate keypair avoids this dependency.
+2. **Cross-rollup proof compatibility.** The migration circuit needs to verify a signature against a key that is provably bound to the note owner. Standard Aztec account keys are not committed in a form that is easily provable across rollups.
+3. **Scoped risk.** If the migration key is compromised, only migration claims are at risk -- not the user's general account security. See [threat model](threat-model.md#migration-key-compromise) for the full analysis.
+
+The `msk` is derived deterministically from the account's secret key, so no additional key management is needed. See [Key Derivation](#key-derivation) for details.
 
 ## Proof Data Types
 
@@ -77,7 +110,7 @@ The Mode A (cooperative lock-and-claim) client flow follows this sequence:
 
 **Retrieving encrypted events:** `BaseMigrationWallet.getMigrationDataEvents(abiType, eventFilter)` retrieves encrypted `MigrationDataEvent` data emitted during the lock step. The method filters on the `MigrationDataEvent` event selector and decodes the event payload using the provided ABI type.
 
-> **TODO (FIXME):** `getMigrationNotes()` currently returns ALL migration notes including already-migrated ones. Filtering for un-migrated notes should be added. *(Source: `migration-base-wallet.ts:179`)*
+> **Known behavior:** `getMigrationNotes()` returns all migration notes including already-migrated ones. Filtering by nullifier status requires cross-rollup queries (nullifiers are on the new rollup, notes on the old), which is non-trivial. Integrators should filter on the client side.
 
 ## TS Client Data Flow -- Mode B (Private)
 
@@ -126,10 +159,6 @@ The account classes handle signing and key access:
 - **`BaseMigrationAccount`** (class, extends `BaseAccount`) -- Default implementation that derives and stores all migration keys in memory. Use `BaseMigrationAccount.create(account, secret)` to construct. Suitable for testing; production wallets should protect key material.
 - **`SignerlessMigrationAccount`** (class, extends `SignerlessAccount`) -- Placeholder for fee-less transactions using `AztecAddress.ZERO`. All signing methods throw. Used for public-only operations that do not require authentication.
 
-> **TODO:** `BaseMigrationAccount.getMask()` returns `Fq.ZERO` (masking is not functional). The mask is intended to be a Poseidon2-based derivation but is currently stubbed out. *(Source: `migration-account.ts:132-140`)*
-
-> **TODO:** `SignerlessMigrationAccount.getEnryptedNskApp()` has a typo in the method name (`Enrypted` instead of `Encrypted`). *(Source: `migration-account.ts:167`)*
-
 ### Wallet Hierarchy (State and Proof Building)
 
 The wallet classes handle proof construction and note management:
@@ -160,7 +189,7 @@ The migration public key (MPK) is the corresponding Grumpkin curve point.
 - `MSK_M_GEN = 2137` -- Domain separator for MSK derivation.
 - `NSK_MASK_DOMAIN = 1670` (vestigial -- defined in `constants.ts` but only referenced in a commented-out line at `migration-account.ts:137`; related to the non-functional `getMask()` documented above).
 
-> **TODO:** TS constants should be generated from the same source as Noir constants to prevent drift. Currently the TS file (`constants.ts`) and the Noir file (`constants.nr`) are maintained independently with no cross-validation. *(Source: `constants.ts:1`)*
+> **Known limitation:** TS constants (`constants.ts`) and Noir constants (`constants.nr`) are maintained independently with no cross-validation. Changes to domain separators or storage slots must be synchronized manually.
 
 ## Import Patterns
 
@@ -230,22 +259,31 @@ The Solidity function `migrateArchiveRootAtBlock(uint256 oldVersion, uint256 blo
 
 `register()` (in `MigrationKeyRegistry`) and `lock_migration_notes()` (in `migration_lib/mode_a/ops.nr`) include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. If an invalid key is provided, the transaction will revert with `"mpk not on Grumpkin curve"`. Ensure the migration public key is a valid Grumpkin point before calling these functions.
 
-### MIGRATION_DATA_FIELD_INDEX Discrepancy
+### MIGRATION_DATA_FIELD_INDEX
 
-`MIGRATION_DATA_FIELD_INDEX = 5` is defined in `ts/migration-lib/constants.ts:32`. The JSDoc says "Zero-based index of the `migration_data` field inside a `MigrationNote`" but the value `5` corresponds to `storage_slot` in the `MigrationNote.compute_note_hash()` preimage ordering:
+`MIGRATION_DATA_FIELD_INDEX = 5` is defined in `ts/migration-lib/constants.ts:32`. This refers to the index of `migration_data_hash` in the **serialized** `note.items` array produced by `#[derive(Serialize)]`, where `EmbeddedCurvePoint` (`mpk`) expands into three fields (`x`, `y`, `is_infinite`):
 
 ```
+Serialized note.items:
+[note_creator, mpk.x, mpk.y, mpk.is_infinite, destination_rollup, migration_data_hash]
+ index 0       1      2       3                 4                   5
+```
+
+This is a different layout from the `compute_note_hash()` preimage, which omits `is_infinite` and appends `storage_slot` and `randomness`:
+
+```
+Hash preimage:
 [note_creator, mpk.x, mpk.y, destination_rollup, migration_data_hash, storage_slot, randomness]
  index 0       1      2       3                   4                    5             6
 ```
 
-The constant `migration_data_hash` is at index 4, not 5. This constant is not used in active code and may be vestigial or may refer to a different field layout than the hash preimage.
+The constant value `5` is correct for the serialized array. It is not currently used in active code but is available for integrators who need to access `migration_data_hash` from a raw `note.items` array.
 
 ## Deployment Checklist
 
 Before running a migration, the following deployment steps are required:
 
-1. **Set `old_app_address`:** Configure the old rollup's app contract address in the new rollup's app contract. This is an unchecked witness -- incorrect deployment results in silent failure (see [threat model](threat-model.md)).
+1. **Set `old_rollup_app_address`:** Configure the old rollup's app contract address in the new rollup's app contract via the constructor. Incorrect configuration results in silent migration failures (see [threat model](threat-model.md)).
 
 2. **Deploy `MigrationArchiveRegistry`:** The constructor requires:
    - `l1_migrator: EthAddress` -- Address of the `Migrator.sol` contract on L1.
@@ -254,11 +292,9 @@ Before running a migration, the following deployment steps are required:
 
 3. **Bridge first archive root:** Call `migrateArchiveRootOnL1(...)` to bridge the old rollup's proven archive root to the new rollup via L1. Then wait for the L1-to-L2 message to sync (`waitForL1ToL2Message`). The new rollup's `MigrationArchiveRegistry` must have a registered block before any migration transactions can succeed.
 
-## Related Documents
+## See Also
 
-- [Documentation Index](index.md) -- Entry point and documentation map
-- [Migration Spec](spec/migration-spec.md) -- Protocol specification including proof data type field details
-- [Architecture](architecture.md) -- System overview, deployment topology, three-layer composition
-- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flows
-- [Mode B](mode-b.md) -- Emergency snapshot migration flows (private and public)
-- [Threat Model](threat-model.md) -- Trust assumptions, PoC limitations, security TODOs
+- [Migration Specification](spec/migration-spec.md) -- Proof data type field details, API tables
+- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
+- [Mode B](mode-b.md) -- Emergency snapshot migration flow (private and public)
+- [Operations](operations.md) -- Testing, setup, troubleshooting
