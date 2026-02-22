@@ -21,8 +21,9 @@ dependencies
 target
 codegenCache.json
 cache
-ts/migration-lib/noir-contracts
-ts/migration-lib/artifacts
+ts/aztec-state-migration/noir-contracts
+ts/aztec-state-migration/artifacts
+e2e-tests/artifacts
 
 # Claude Code per-user settings (do not commit)
 .claude/settings*.json

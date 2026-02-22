@@ -45,7 +45,7 @@ Public state migration is fully implemented for Mode B with four composable func
 
 **Production:** Make `registered_keys` entries immutable once set — a key registration should be a one-time operation that cannot be overwritten. No need for keynote nullifier non-inclusion proof.
 
-## ~~8. Decompose migration_lib into Separate Validation Functions~~ (Done)
+## ~~8. Decompose aztec-state-migration lib into Separate Validation Functions~~ (Done)
 
 The Mode B library is now well-decomposed:
 

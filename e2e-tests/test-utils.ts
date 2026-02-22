@@ -1,6 +1,6 @@
-import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
-import { MigrationArchiveRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationArchiveRegistry.js";
-import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
+import { ExampleMigrationAppContract } from "./artifacts/ExampleMigrationApp.js";
+import { MigrationArchiveRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationArchiveRegistry.js";
+import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { EthAddress } from "@aztec/foundation/eth-address";
@@ -10,12 +10,12 @@ import {
   migrateArchiveRootOnL1,
   waitForL1ToL2Message,
   buildArchiveProof,
-} from "../ts/migration-lib/index.js";
+} from "../ts/aztec-state-migration/index.js";
 import type {
   ArchiveProofData,
   L1MigrationResult,
-} from "../ts/migration-lib/index.js";
-import type { blockHeaderToNoir } from "../ts/migration-lib/noir-helpers/block-header.js";
+} from "../ts/aztec-state-migration/index.js";
+import type { blockHeaderToNoir } from "../ts/aztec-state-migration/noir-helpers/block-header.js";
 import type { DeploymentResult } from "./deploy-types.js";
 import { TestWallet } from "@aztec/test-wallet/server";
 import { WaitOpts } from "@aztec/aztec.js/contracts";

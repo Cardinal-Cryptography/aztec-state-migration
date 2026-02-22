@@ -1,3 +1,10 @@
 [workspace]
-members = ["migration_lib", "contracts/example_app", "contracts/nft_migration_app", "contracts/migration_archive_registry", "contracts/migration_key_registry", "tests"]
+members = [
+    "aztec-state-migration",
+    "contracts/migration-archive-registry",
+    "contracts/migration-key-registry",
+    "test-contracts/example-app",
+    "test-contracts/nft-migration-app",
+    "tests",
+]
 exclude = ["tests"]

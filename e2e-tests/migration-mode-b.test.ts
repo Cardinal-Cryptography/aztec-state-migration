@@ -1,5 +1,5 @@
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeB } from "../ts/migration-lib/index.js";
+import { signMigrationModeB } from "../ts/aztec-state-migration/index.js";
 import { deploy } from "./deploy.js";
 import {
   deployAppPair,
@@ -9,9 +9,9 @@ import {
   deployAndFundAccount,
   assertEq,
 } from "./test-utils.js";
-import { ExampleMigrationAppContract } from "../ts/migration-lib/noir-contracts/ExampleMigrationApp.js";
-import { MigrationKeyRegistryContract } from "../ts/migration-lib/noir-contracts/MigrationKeyRegistry.js";
-import { UintNote } from "../ts/migration-lib/common-notes.js";
+import { ExampleMigrationAppContract } from "./artifacts/ExampleMigrationApp.js";
+import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
+import { UintNote } from "../ts/aztec-state-migration/common-notes.js";
 import { NoteStatus } from "@aztec/stdlib/note";
 
 async function main() {
