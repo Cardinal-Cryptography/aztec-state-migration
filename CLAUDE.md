@@ -30,21 +30,16 @@
 ### Purpose
 This repo implements a **dual-rollup migration** using cryptographic proofs anchored by L1.
 
-### Spec and architecture files (standard layout)
-We keep docs in `docs/` using a layout that can be reused across projects.
+### Documentation files
+All docs live in `docs/` and are served via GitHub Pages (Jekyll + Cayman theme).
 
-**Spec (migration design including Mode A / Mode B)**
-- `docs/spec/migration-spec.md`  ← high level specification
-
-**Architecture**
-- `docs/arch/overview.md`        ← dual-rollup architecture summary
-- `docs/arch/flows.md`           ← step-by-step flows (Mode A / Mode B)
-- `docs/arch/threat-model.md`    ← trust assumptions + threat model
-
-**Operational docs**
-- `docs/ops/testing.md`          ← how to run tests locally and in CI
-- `docs/ops/deploy.md`           ← if deploy exists in this repo
-- `docs/ops/troubleshooting.md`  ← common local network issues
+- `docs/spec/migration-spec.md`   ← protocol specification (Mode A / Mode B)
+- `docs/architecture.md`          ← deployment topology, component catalog
+- `docs/mode-a.md`                ← cooperative lock-and-claim flow
+- `docs/mode-b.md`                ← emergency snapshot migration flow
+- `docs/integration-guide.md`     ← TS SDK, wallet classes, proof data types
+- `docs/threat-model.md`          ← trust assumptions + threat model
+- `docs/operations.md`            ← testing, setup, troubleshooting
 
 **Rules**
 1) Any time you need "how Aztec works" or "standard library details," check the local `node_modules/@aztec/` implementation first.
@@ -88,7 +83,7 @@ Use `yarn check:full` when changes affect:
 1) When you change migration logic, run the E2E test flow unless it is impossible (then explain exactly why).
 2) If you change ports, endpoints, or scripts, update:
    - `README.md`
-   - `docs/ops/testing.md`
+   - `docs/operations.md`
 
 ## A4) “No guessing” rule for Aztec standard library and helpers
 - If the task references “standard library,” “aztec-nr,” or a helper function:
@@ -148,10 +143,10 @@ These skills are read-only by design and should not run long tests automatically
 **Update docs when code changes affect documented behavior.**
 
 ### Required docs updates (when applicable)
-- Setup/start changed → update `README.md` and `docs/ops/testing.md`
-- Contract interface changed (public functions, events, externally visible behavior) → update `docs/arch/flows.md` and/or a contract reference doc
-- Test approach changed → update `docs/ops/testing.md`
-- Security/trust assumptions changed → update `docs/arch/threat-model.md`
+- Setup/start changed → update `README.md` and `docs/operations.md`
+- Contract interface changed (public functions, events, externally visible behavior) → update `docs/mode-a.md`, `docs/mode-b.md`, and/or `docs/architecture.md`
+- Test approach changed → update `docs/operations.md`
+- Security/trust assumptions changed → update `docs/threat-model.md`
 
 ### Doc style rules
 - Prefer short sections, lists, and exact commands.
@@ -162,7 +157,7 @@ These skills are read-only by design and should not run long tests automatically
 - Keep changes minimal and easy to review.
 - Never change an external interface (public/external function signatures, events) without updating docs.
 - Add or update tests that cover the Solidity behavior change.
-- Document Solidity-facing interfaces in `docs/solidity/overview.md` (create if missing).
+- Document Solidity-facing interfaces in `docs/architecture.md` (Migrator section).
 
 ## B7) End-of-turn checklist (must be satisfied before you stop)
 1) Tests
