@@ -37,11 +37,11 @@ All migrating app contracts on the new rollup share a single `MigrationArchiveRe
 
 ## Component Catalog
 
-### `migration_lib` (Noir library)
+### `aztec_state_migration` (Noir library)
 
 A Noir library (not a contract) providing core migration verification logic. App contracts call its functions directly.
 
-Module structure (`noir/migration_lib/src/`):
+Module structure (`noir/aztec-state-migration/src/`):
 
 | Module | Contents |
 |--------|----------|
@@ -49,7 +49,7 @@ Module structure (`noir/migration_lib/src/`):
 | `mode_b/ops` | `migrate_notes_mode_b`, `migrate_public_state_mode_b`, `migrate_public_map_state_mode_b`, `migrate_public_map_owned_state_mode_b` |
 | `note_proof_data` | `NoteProofData<T>` (shared by both modes) |
 | `signature` | `MigrationSignature` (Schnorr signature wrapper) |
-| `constants` | Domain separators, generator indices |
+| `constants` | Domain separators (`DOM_SEP__*`) |
 
 ### `MigrationArchiveRegistry` (Noir contract, new rollup)
 
@@ -79,21 +79,21 @@ Permissionless L1 contract (`solidity/contracts/Migrator.sol`) that bridges old 
 Migration logic is organized in three tiers -- Library, Application, and Client SDK -- each with a distinct responsibility:
 
 ```
-Client SDK tier: TS migration-lib        Client-side proof building, key derivation,
-  (ts/migration-lib/)                     transaction construction, wallet helpers
+Client SDK tier: TS aztec-state-migration        Client-side proof building, key derivation,
+  (ts/aztec-state-migration/)                     transaction construction, wallet helpers
 
 Application tier: App contracts           Wrappers that call library functions, handle
-  (noir/contracts/example_app/)           app-specific state (minting, balance updates)
+  (noir/test-contracts/example-app/)           app-specific state (minting, balance updates)
 
-Library tier: Noir migration_lib          Core verification logic: proof verification,
-  (noir/migration_lib/)                   nullifier emission, signature checking
+Library tier: Noir aztec_state_migration          Core verification logic: proof verification,
+  (noir/aztec-state-migration/)                   nullifier emission, signature checking
 ```
 
-**Library tier (Noir `migration_lib`)** verifies Merkle proofs, checks Schnorr signatures, emits migration nullifiers, and enqueues block hash verification. It is app-agnostic.
+**Library tier (Noir `aztec_state_migration`)** verifies Merkle proofs, checks Schnorr signatures, emits migration nullifiers, and enqueues block hash verification. It is app-agnostic.
 
 **Application tier (App contracts)** import library functions and add app-specific logic.
 
-**Client SDK tier (TS `migration-lib`)** builds proof witnesses from Aztec node data, derives migration keys from account secrets, constructs Schnorr signatures, and orchestrates transaction submission. Exports are split by mode (`mode-a/`, `mode-b/`).
+**Client SDK tier (TS `aztec-state-migration`)** builds proof witnesses from Aztec node data, derives migration keys from account secrets, constructs Schnorr signatures, and orchestrates transaction submission. Exports are split by mode (`mode-a/`, `mode-b/`).
 
 ## L1-L2 Bridge Flow
 
@@ -130,7 +130,7 @@ Storage fields such as `old_rollup_app_address` (in migrating app contracts), `o
 
 - They are set at deployment time (not known at compile time)
 - They must be readable in both private and public execution contexts
-- `PublicImmutable` supports private reads via `WithHash::historical_public_storage_read`, which reads from historical public storage at the anchor block without any note management overhead
+- In Aztec V4, `PublicImmutable` supports direct `.read()` calls in private contexts, reading from historical public storage at the anchor block without any note management overhead
 
 Private migration functions can then access deployment configuration directly, without note-based state propagation.
 

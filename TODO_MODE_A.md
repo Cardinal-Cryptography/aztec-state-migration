@@ -28,7 +28,7 @@ Apps that create multiple MigrationNotes per lock (e.g. locking distinct asset t
 
 The original data is now delivered via an encrypted `MigrationDataEvent<T>` emitted by `lock_migration_notes` alongside note creation. The event uses `emit_event_in_private` + `deliver_to` for end-to-end encryption (AES128 ECDH). The `#[event]` macro doesn't support generics, so `MigrationDataEvent` implements `EventInterface` manually with `#[derive(Serialize)]`.
 
-On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves the decrypted events, and `MigrationNoteProofData.fromProofDataAndEvent()` combines note proofs with event data. Events should be filtered by `txHash` to match them to the correct lock transaction.
+On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves the decrypted events, and `buildMigrationNoteProof(node, blockNumber, noteDao, migrationDataEvent)` combines note proofs with event data. The higher-level `MigrationBaseWallet.buildMigrationNoteProofs(blockNumber, migrationNotes, migrationDataEvents)` wraps this for batch use. Events should be filtered by `txHash` to match them to the correct lock transaction.
 
 **TODO:** Consider including a note-identifying hash in the event (e.g. `migration_note_hash`) so wallet clients can match events to notes without relying on `txHash` filtering. The full note hash requires randomness from `create_note`, which isn't easily accessible at event emission time.
 

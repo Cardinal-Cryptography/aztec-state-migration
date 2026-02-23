@@ -158,11 +158,11 @@ Even for private notes, Mode B must bind a claim to the rightful owner. Otherwis
 
 Mode B therefore requires:
 
-- The user's master nullifier secret key `nsk` as a witness -- from which `npk_m` is derived via EC scalar multiplication and the owner address is recomputed from the full public key set and partial address.
+- The user's nullifier hiding key `nhk` as a witness -- from which `npk_m` is derived via EC scalar multiplication and the owner address is recomputed from the full public key set and partial address.
 - A proof that the owner's `MigrationKeyNote` (containing `mpk`) exists in the note hash tree at height H.
 - A valid Schnorr signature under the corresponding `mpk`.
 
-This makes "knowledge of the migration secret key + nullifier secret key" the authorization condition for claiming private notes.
+This makes "knowledge of the migration secret key + nullifier hiding key" the authorization condition for claiming private notes.
 
 ### Mode B public state migration
 
@@ -202,9 +202,9 @@ Claims prove inclusion over the **exact note-tree leaf hash** inserted into the 
 **MigrationNote (Mode A lock note):**
 
 ```
-note_hash = poseidon2_hash_with_separator([note_creator, mpk.x, mpk.y, destination_rollup, migration_data_hash, storage_slot, randomness], GENERATOR_INDEX__NOTE_HASH)
-siloed    = poseidon2_hash_with_separator([old_rollup_app_address, note_hash], GENERATOR_INDEX__SILOED_NOTE_HASH)
-unique    = poseidon2_hash_with_separator([nonce, siloed], GENERATOR_INDEX__UNIQUE_NOTE_HASH)
+note_hash = poseidon2_hash_with_separator([note_creator, mpk.x, mpk.y, destination_rollup, migration_data_hash, storage_slot, randomness], DOM_SEP__NOTE_HASH)
+siloed    = compute_siloed_note_hash(old_rollup_app_address, note_hash)
+unique    = compute_unique_note_hash(nonce, siloed)
 ```
 
 **OriginalNote (Mode B):**
@@ -213,7 +213,7 @@ Membership proof is over the unique note hash inserted into TokenV1's balance sl
 
 ## Proof Data Types
 
-The migration system uses a three-tier composition (Library, Application, and Client SDK): the Noir `migration_lib` library provides core verification logic, app contracts wrap library functions with app-specific state handling, and a TypeScript `migration-lib` package provides client-side proof building. The proof data types below are defined in the Noir library and have corresponding TypeScript representations in the TS client.
+The migration system uses a three-tier composition (Library, Application, and Client SDK): the Noir `aztec_state_migration` library provides core verification logic, app contracts wrap library functions with app-specific state handling, and a TypeScript `aztec-state-migration` package provides client-side proof building. The proof data types below are defined in the Noir library and have corresponding TypeScript representations in the TS client.
 
 ### `NoteProofData<T>`
 
@@ -295,7 +295,7 @@ Defined in `mode_a/migration_note.nr`. Created by `lock_migration_notes`, consum
 
 ### `MigrationKeyNote`
 
-Defined in `migration_key_registry/migration_key_note.nr`. Used by `MigrationKeyRegistry` to store the migration public key.
+Defined in `migration-key-registry/migration_key_note.nr`. Used by `MigrationKeyRegistry` to store the migration public key.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -337,23 +337,23 @@ All claims provide:
 
 **Mode A `migrate_notes_mode_a` proves:**
 
-1. Each `MigrationNote.leaf_hash` exists in the note tree (inclusion proof against `header.note_hash_tree.root`).
+1. Each `MigrationNote.leaf_hash` exists in the note tree (inclusion proof against `header.state.partial.note_hash_tree.root`).
 2. `destination_rollup` in the note preimage matches the current rollup version.
 3. Schnorr signature verifies for `mpk` embedded in the MigrationNote.
 4. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_mode_a(block_number, block_hash)`).
 
 **Mode B `migrate_notes_mode_b` proves (private notes):**
 
-1. Address verification: `nsk` -> `npk_m` via EC scalar mul, verify `AztecAddress::compute(public_keys, partial_address) == notes_owner`.
-2. Each note's `leaf_hash` exists under `header_H.note_hash_tree.root`.
-3. Each note is not nullified at H (non-membership against `header_H.nullifier_tree.root`) using constrained nullifier derivation from `nsk_app`.
+1. Address verification: `nhk` -> `npk_m` via EC scalar mul, verify `AztecAddress::compute(public_keys, partial_address) == notes_owner`.
+2. Each note's `leaf_hash` exists under `header_H.state.partial.note_hash_tree.root`.
+3. Each note is not nullified at H (non-membership against `header_H.state.partial.nullifier_tree.root`) using constrained nullifier derivation from `nhk_app`.
 4. `MigrationKeyNote` for the owner exists in the note hash tree at H.
 5. Schnorr signature verifies for `mpk` from the key note.
 6. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_mode_b(block_hash)`).
 
 **Mode B public state migration proves:**
 
-1. Each field of the struct existed in the public data tree at the derived storage slot (Merkle inclusion against `header_H.public_data_tree.root`).
+1. Each field of the struct existed in the public data tree at the derived storage slot (Merkle inclusion against `header_H.state.partial.public_data_tree.root`).
 2. For owned state: Schnorr signature and key note inclusion (same as private notes).
 3. Block hash verification is enqueued to MigrationArchiveRegistry.
 
@@ -361,9 +361,9 @@ All claims provide:
 
 The migration API is organized in three layers:
 
-1. **Migration Library** (`migration_lib`): Core Noir functions that implement proof verification, nullifier emission, signature checking, and block hash verification. These are generic and reusable across any migrating application.
+1. **Migration Library** (`aztec_state_migration`): Core Noir functions that implement proof verification, nullifier emission, signature checking, and block hash verification. These are generic and reusable across any migrating application.
 2. **App Contracts**: Wrappers that call library functions and handle app-specific state such as minting, balance updates, and access control.
-3. **TypeScript Client** (`migration-lib`): Client-side proof building, key derivation, and transaction construction.
+3. **TypeScript Client** (`aztec-state-migration`): Client-side proof building, key derivation, and transaction construction.
 
 The tables below list library functions first, then app-level interfaces.
 
@@ -372,10 +372,10 @@ The tables below list library functions first, then app-level interfaces.
 | Function | Module | Key Params | Description |
 |----------|--------|-----------|-------------|
 | `lock_migration_notes` | `mode_a/ops` | `migration_data: [T; N], ...` | Create MigrationNotes and emit encrypted MigrationDataEvents |
-| `migrate_notes_mode_a` | `mode_a/ops` | `note_proof_data: [MigrationNoteProofData; N], block_header, signature, mpk` | Verify Mode A inclusion proofs, check Schnorr signature, emit nullifiers, enqueue block verification |
-| `migrate_notes_mode_b` | `mode_b/ops` | `full_proof_data: [FullNoteProofData; N], block_header, signature, key_note, nsk, ...` | Verify Mode B inclusion + non-nullification proofs, check Schnorr signature, verify key note |
-| `migrate_public_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot` | Verify public data tree inclusion at snapshot height, emit nullifiers |
-| `migrate_public_map_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys` | Derive map storage slot via `poseidon2_hash([slot, key])`, delegate to `migrate_public_state_mode_b` |
+| `migrate_notes_mode_a` | `mode_a/ops` | `note_proof_data: [MigrationNoteProofData; N], block_header, signature, mpk, migration_archive_registry, recipient, old_app` | Verify Mode A inclusion proofs, check Schnorr signature, emit nullifiers, enqueue block verification |
+| `migrate_notes_mode_b` | `mode_b/ops` | `full_proof_data: [FullNoteProofData; N], block_header, signature, key_note, nhk, migration_archive_registry, old_app, ...` | Verify Mode B inclusion + non-nullification proofs, check Schnorr signature, verify key note |
+| `migrate_public_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, migration_archive_registry, old_app` | Verify public data tree inclusion at snapshot height, emit nullifiers |
+| `migrate_public_map_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys, migration_archive_registry, old_app` | Derive map storage slot via `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, delegate to `migrate_public_state_mode_b` |
 | `migrate_public_map_owned_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys, signature, key_note, old_owner, recipient` | Owned map migration with Schnorr auth |
 
 > **Note:** Mode B library functions accept an `expected_storage_slot` parameter to bind the proof to a specific storage location, preventing slot substitution attacks.
@@ -424,9 +424,9 @@ The tables below list library functions first, then app-level interfaces.
 ## Migration Nullifiers
 
 ```
-Mode A (private notes):  poseidon2_hash_with_separator([note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
-Mode B (private notes):  poseidon2_hash_with_separator([unique_note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
-Mode B (public state):   poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER)
+Mode A (private notes):  poseidon2_hash_with_separator([note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
+Mode B (private notes):  poseidon2_hash_with_separator([unique_note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
+Mode B (public state):   poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], DOM_SEP__PUBLIC_MIGRATION_NULLIFIER)
 ```
 
 Mode A uses the MigrationNote's own randomness (not the user's secret key) to preserve privacy -- observers cannot link old/new rollup identities by predicting the nullifier.

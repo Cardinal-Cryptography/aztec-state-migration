@@ -22,7 +22,7 @@ Both private notes and public balances use the same lock-and-claim mechanism. Th
 
 ## Lock Flow (Library Level)
 
-The library function `lock_migration_notes` (`migration_lib/src/mode_a/ops.nr`, function `lock_migration_notes`) creates one `MigrationNote` per element in the `migration_data` array and emits a corresponding encrypted event for each.
+The library function `lock_migration_notes` (`aztec-state-migration/src/mode_a/ops.nr`, function `lock_migration_notes`) creates one `MigrationNote` per element in the `migration_data` array and emits a corresponding encrypted event for each.
 
 **Steps:**
 
@@ -34,7 +34,7 @@ The library function `lock_migration_notes` (`migration_lib/src/mode_a/ops.nr`, 
 
 ### MigrationNote
 
-`MigrationNote` (`migration_lib/src/mode_a/migration_note.nr`) uses `#[custom_note]` because ownership is determined by `mpk`, not by a standard Aztec owner address. The note hash intentionally excludes the standard `owner` parameter.
+`MigrationNote` (`aztec-state-migration/src/mode_a/migration_note.nr`) uses `#[custom_note]` because ownership is determined by `mpk`, not by a standard Aztec owner address. The note hash intentionally excludes the standard `owner` parameter.
 
 **Fields:**
 
@@ -50,13 +50,13 @@ The library function `lock_migration_notes` (`migration_lib/src/mode_a/ops.nr`, 
 ```
 note_hash = poseidon2_hash_with_separator(
     [note_creator, mpk.x, mpk.y, destination_rollup, migration_data_hash, storage_slot, randomness],
-    GENERATOR_INDEX__NOTE_HASH
+    DOM_SEP__NOTE_HASH
 )
 ```
 
 ### MigrationDataEvent
 
-`MigrationDataEvent<T>` (`migration_lib/src/mode_a/migration_data_event.nr`) delivers the original migration data (before hashing) to the recipient. Only the hash is stored in the note; the full data travels via this event so the claimer can reconstruct it on the new rollup.
+`MigrationDataEvent<T>` (`aztec-state-migration/src/mode_a/migration_data_event.nr`) delivers the original migration data (before hashing) to the recipient. Only the hash is stored in the note; the full data travels via this event so the claimer can reconstruct it on the new rollup.
 
 The `#[event]` macro does not support generic structs, so `MigrationDataEvent` implements `EventInterface` manually with `#[derive(Serialize)]`.
 
@@ -66,7 +66,7 @@ On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves dec
 
 ## Claim Flow (Library Level)
 
-The library function `migrate_notes_mode_a` (`migration_lib/src/mode_a/ops.nr`, function `migrate_notes_mode_a`) verifies locked notes and authorizes the claim on the new rollup.
+The library function `migrate_notes_mode_a` (`aztec-state-migration/src/mode_a/ops.nr`, function `migrate_notes_mode_a`) verifies locked notes and authorizes the claim on the new rollup.
 
 **Verification chain:**
 
@@ -118,7 +118,7 @@ schnorr::verify_signature(mpk, signature.bytes, msg.to_be_bytes::<32>())
 | `recipient` | Recipient address on new rollup |
 | `new_app_address` | New app contract address (`context.this_address()`) |
 
-**Key derivation:** The migration secret key (MSK) is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])` (`ts/migration-lib/keys.ts`, export `deriveMasterMigrationSecretKey`). The MSK stays entirely off-chain -- it is used only for deriving `mpk` and signing. The circuit receives `mpk` directly.
+**Key derivation:** The migration secret key (MSK) is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])` (`ts/aztec-state-migration/keys.ts`, export `deriveMasterMigrationSecretKey`). The MSK stays entirely off-chain -- it is used only for deriving `mpk` and signing. The circuit receives `mpk` directly.
 
 > **Production requirement:** `CLAIM_DOMAIN_A` currently reuses `MIGRATION_MODE_A_STORAGE_SLOT`. A distinct domain separator should be assigned before production deployment. *(Source: `constants.nr:6`)*
 
@@ -129,7 +129,7 @@ Mode A uses the `MigrationNote`'s randomness (not the user's secret key) to deri
 **Formula** (`MigrationNote::compute_nullifier` in `migration_note.nr`):
 
 ```
-nullifier = poseidon2_hash_with_separator([note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
+nullifier = poseidon2_hash_with_separator([note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
 ```
 
 Where `note_hash` is the note hash of the `MigrationNote` being claimed, and `randomness` is the `MigrationNote`'s randomness (passed as `wrapped_randomness.inner`). The kernel subsequently silos the nullifier by contract address before committing it to the nullifier tree.

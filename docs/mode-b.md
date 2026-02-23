@@ -12,13 +12,13 @@ Mode B enables token migration when users have **not** pre-locked their notes on
 1. A balance note existed in the old rollup's note hash tree at a fixed snapshot height H
 2. That note was not nullified (spent) at height H
 3. The user registered a migration key before H
-4. The user knows the corresponding migration secret key and nullifier secret key
+4. The user knows the corresponding migration secret key and nullifier hiding key
 
 Mode B also supports **public state migration** -- proving that specific public storage values existed in the old rollup's public data tree at height H.
 
 ## Library Architecture
 
-Migration logic is implemented as a **library** (`migration_lib`) rather than separate contracts. App contracts call library functions directly:
+Migration logic is implemented as a **library** (`aztec_state_migration`) rather than separate contracts. App contracts call library functions directly:
 
 - `migrate_notes_mode_b` -- for private note migration
 - `migrate_public_state_mode_b` -- for standalone public state
@@ -66,7 +66,7 @@ packed_field[i] ──public data tree proof──> public_data_tree_root ──
                                                                  BlockHeader.hash() ──(== block_hash)──> snapshot_block_hash
 ```
 
-For map-based storage, the storage slot is first derived by iterating `poseidon2_hash([slot, key])` for each map key.
+For map-based storage, the storage slot is first derived by iterating `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each map key. Public data leaf hashing uses `DOM_SEP__PUBLIC_LEAF_SLOT` for the siloed index computation.
 
 At the code level, `PublicStateProofData.migrate_public_state()` performs the full public state migration: verifying inclusion per slot and emitting the migration nullifier.
 
@@ -94,8 +94,8 @@ This private->public split is necessary because the block hashes are stored in p
 UintNote uses a two-step hash that matches the `uint-note` library exactly:
 
 ```
-partial = poseidon2_hash_with_separator([owner, storage_slot, randomness], GENERATOR_INDEX__NOTE_HASH)
-note_hash = poseidon2_hash_with_separator([partial, value], GENERATOR_INDEX__NOTE_HASH)
+partial = poseidon2_hash_with_separator([owner, storage_slot, randomness], DOM_SEP__NOTE_HASH)
+note_hash = poseidon2_hash_with_separator([partial, value], DOM_SEP__NOTE_HASH)
 siloed = compute_siloed_note_hash(old_rollup_app_address, note_hash)
 unique = compute_unique_note_hash(nonce, siloed)
 ```
@@ -107,7 +107,7 @@ The two-step structure exists because UintNote uses `#[partial_note(quote { self
 The MigrationKeyNote hash includes the owner. The `#[note]` macro uses `Packable::pack(self)`, which flattens the `mpk` (`EmbeddedCurvePoint`) into its three component fields:
 
 ```
-note_hash = poseidon2_hash_with_separator([mpk.x, mpk.y, mpk.is_infinite, owner, storage_slot, randomness], GENERATOR_INDEX__NOTE_HASH)
+note_hash = poseidon2_hash_with_separator([mpk.x, mpk.y, mpk.is_infinite, owner, storage_slot, randomness], DOM_SEP__NOTE_HASH)
 siloed = compute_siloed_note_hash(old_key_registry_address, note_hash)
 unique = compute_unique_note_hash(nonce, siloed)
 ```
@@ -151,13 +151,13 @@ For public state migration with ownership, a separate domain `CLAIM_DOMAIN_B_PUB
 
 ### Address Verification and Nullifier Derivation
 
-The circuit computes both `inner_nullifier` and `siloed_nullifier` in-circuit from `nsk_app` (derived from the user's master nullifier secret key `nsk`). Address verification proves `nsk` matches the note owner by:
+The circuit computes both `inner_nullifier` and `siloed_nullifier` in-circuit from `nhk_app` (derived from the user's nullifier hiding key `nhk`). Address verification proves `nhk` matches the note owner by:
 
-1. Deriving `npk_m` from `nsk` via EC scalar multiplication (`fixed_base_scalar_mul`).
+1. Deriving `npk_m` from `nhk` via EC scalar multiplication (`fixed_base_scalar_mul`).
 2. Replacing `npk_m` in the provided `public_keys` with the derived value.
 3. Computing `AztecAddress::compute(public_keys, partial_address)` and asserting it equals `notes_owner`.
 
-Only the true owner of the nullifier secret key can migrate their notes.
+Only the true owner of the nullifier hiding key can migrate their notes.
 
 ## Migration Nullifier (Double-Claim Prevention)
 
@@ -166,7 +166,7 @@ Only the true owner of the nullifier secret key can migrate their notes.
 Each Mode B private note migration emits a nullifier:
 
 ```
-migration_nullifier = poseidon2_hash_with_separator([unique_note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
+migration_nullifier = poseidon2_hash_with_separator([unique_note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
 ```
 
 This is pushed in the private function via `context.push_nullifier()`. Because nullifiers are globally unique and the new rollup's kernel enforces non-duplication, the same note cannot be migrated twice. The nullifier uses `randomness` (not the user's secret key) to preserve privacy -- observers cannot link old/new rollup identities by predicting the nullifier.
@@ -176,12 +176,12 @@ This is pushed in the private function via `context.push_nullifier()`. Because n
 For public state migration, a deterministic nullifier is used:
 
 ```
-nullifier = poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER)
+nullifier = poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], DOM_SEP__PUBLIC_MIGRATION_NULLIFIER)
 ```
 
 Since public state has no randomness, the nullifier is derived from the old app contract address and the base storage slot. One nullifier is emitted per `PublicStateProofData` (per storage struct), covering all consecutive field slots S through S+N-1. The `base_storage_slot` uniquely identifies the struct, so a per-field nullifier is not needed.
 
-> **Production requirement:** `GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER` is a placeholder value `0x12345678`. A properly derived value must be assigned before production deployment. *(Source: `constants.nr:16`)*
+> **Production requirement:** `DOM_SEP__PUBLIC_MIGRATION_NULLIFIER` is a placeholder value `0x12345678`. A properly derived value must be assigned before production deployment. *(Source: `constants.nr:16`)*
 
 ## Snapshot Height
 
@@ -204,11 +204,11 @@ Mode B supports migrating public storage values via Merkle proofs against the pu
 
 1. **`migrate_public_state_mode_b`** -- Base function for standalone public storage values. Verifies each packed field exists in the public data tree at the correct storage slot, emits a migration nullifier per struct, and enqueues block hash verification.
 
-2. **`migrate_public_map_state_mode_b`** -- For `Map<K, PublicMutable<T>>`. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash([slot, key])`, then delegates to `migrate_public_state_mode_b`.
+2. **`migrate_public_map_state_mode_b`** -- For `Map<K, PublicMutable<T>>`. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, then delegates to `migrate_public_state_mode_b`.
 
 3. **`migrate_public_map_owned_state_mode_b`** -- For owned map entries. Adds Schnorr signature verification (domain `CLAIM_DOMAIN_B_PUBLIC`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
 
-A shared helper `derive_map_storage_slot` derives nested map slots by iterating `poseidon2_hash([slot, key])` for each key.
+A shared helper `derive_map_storage_slot` derives nested map slots by iterating `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each key.
 
 The TS library provides `buildPublicDataProof` and `buildPublicMapDataProof` to construct the `PublicStateProofData` from the Aztec node's public data tree witnesses.
 
@@ -218,7 +218,7 @@ The TS library provides `buildPublicDataProof` and `buildPublicMapDataProof` to 
 
 ### MigrationKeyRegistry Contract
 
-The `MigrationKeyRegistry` contract (`noir/contracts/migration_key_registry/src/main.nr`) provides migration key registration on the old rollup. It uses `Owned<PrivateImmutable<MigrationKeyNote>>` for storage, where:
+The `MigrationKeyRegistry` contract (`noir/contracts/migration-key-registry/src/main.nr`) provides migration key registration on the old rollup. It uses `Owned<PrivateImmutable<MigrationKeyNote>>` for storage, where:
 
 - The `Owned` wrapper provides per-user scoping via `.at(owner)`.
 - `PrivateImmutable` with `initialize()` enforces write-once immutability. A second call to `register()` by the same user will fail because the initialization nullifier already exists.
@@ -241,7 +241,7 @@ Storage fields like `old_rollup_app_address` (in migrating app contracts), `old_
 
 - They need to be set at deployment time (not known at compile time)
 - They need to be readable in both private and public contexts
-- `PublicImmutable` supports private reads via `WithHash::historical_public_storage_read`, which reads from historical public storage at the anchor block -- it does NOT use notes, despite the private context
+- In Aztec V4, `PublicImmutable` supports direct `.read()` calls in private contexts, reading from historical public storage at the anchor block -- it does NOT use notes, despite the private context
 
 Private migration functions can read deployment configuration without note management overhead.
 

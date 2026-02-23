@@ -29,7 +29,7 @@ Trust assumptions, threat scenarios, mitigations, and known PoC limitations for 
 msg = poseidon2_hash([CLAIM_DOMAIN, old_rollup, current_rollup, notes_hash, recipient, new_app_address])
 ```
 
-A front-runner cannot change the recipient without invalidating the signature. See `migration_lib/src/signature.nr`, function `verify_migration_signature`.
+A front-runner cannot change the recipient without invalidating the signature. See `aztec-state-migration/src/signature.nr`, function `verify_migration_signature`.
 
 ### Double-claim
 
@@ -37,9 +37,9 @@ A front-runner cannot change the recipient without invalidating the signature. S
 
 **Mitigation:** Every successful migration emits a nullifier on the new rollup. Subsequent claims for the same state will fail because the nullifier already exists.
 
-- **Private notes (Mode A):** Nullifier uses the MigrationNote's `randomness`, not user secret keys. Formula: `poseidon2_hash_with_separator([note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)`.
-- **Private notes (Mode B):** Nullifier uses the unique note hash and `randomness`. Formula: `poseidon2_hash_with_separator([unique_note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)`.
-- **Public state (Mode B):** Nullifier is deterministic from the old app address and storage slot. Formula: `poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER)`. One nullifier is emitted per `PublicStateProofData` (per storage struct), covering all consecutive field slots.
+- **Private notes (Mode A):** Nullifier uses the MigrationNote's `randomness`, not user secret keys. Formula: `poseidon2_hash_with_separator([note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)`.
+- **Private notes (Mode B):** Nullifier uses the unique note hash and `randomness`. Formula: `poseidon2_hash_with_separator([unique_note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)`.
+- **Public state (Mode B):** Nullifier is deterministic from the old app address and storage slot. Formula: `poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], DOM_SEP__PUBLIC_MIGRATION_NULLIFIER)`. One nullifier is emitted per `PublicStateProofData` (per storage struct), covering all consecutive field slots.
 
 ### Replay across migration modes
 
@@ -57,7 +57,7 @@ Each domain produces a different message hash, so a signature valid under one do
 
 **Threat:** An observer correlates nullifiers emitted on the new rollup with note activity on the old rollup to link user identities across rollups.
 
-**Mitigation:** Private migration nullifiers use the note's `randomness` rather than user secret keys (`nsk`). Since `randomness` is not derivable from any public user identifier, the nullifier reveals no link between old and new rollup identities.
+**Mitigation:** Private migration nullifiers use the note's `randomness` rather than user secret keys (`nhk`). Since `randomness` is not derivable from any public user identifier, the nullifier reveals no link between old and new rollup identities.
 
 ### Migration key compromise
 
@@ -93,9 +93,9 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently. See `NOTE` comments in the NFT example contract for details.
 
-- **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `migration_lib/src/mode_a/ops.nr`, line 52).
+- **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `aztec-state-migration/src/mode_a/ops.nr`).
 
-> **Production requirement:** Placeholder domain separators (`CLAIM_DOMAIN_A = MIGRATION_MODE_A_STORAGE_SLOT`, `CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef`, `GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER = 0x12345678`) must be replaced with properly derived values before production. *(Source: `constants.nr:6,13,16`)*
+> **Production requirement:** Placeholder domain separators (`CLAIM_DOMAIN_A = MIGRATION_MODE_A_STORAGE_SLOT`, `CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef`, `DOM_SEP__PUBLIC_MIGRATION_NULLIFIER = 0x12345678`) must be replaced with properly derived values before production. *(Source: `constants.nr`)*
 
 ## Spec Open Items
 
