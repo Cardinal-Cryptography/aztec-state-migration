@@ -1,6 +1,6 @@
 use aztec::{
     note::note_interface::NoteHash,
-    protocol_types::{
+    protocol::{
         address::AztecAddress,
         constants::NOTE_HASH_TREE_HEIGHT,
         hash::{compute_siloed_note_hash, compute_unique_note_hash},

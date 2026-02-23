@@ -2,8 +2,8 @@ FROM --platform=linux/amd64 ubuntu:24.04
 SHELL ["/bin/bash", "-c"]
 
 ENV NVM_DIR=/root/.nvm
-ENV NODE_VERSION=22.15.0
-ENV AZTEC_VERSION=3.0.0-devnet.6-patch.1
+ENV NODE_VERSION=24.12.0
+ENV AZTEC_VERSION=4.0.0-devnet.2-patch.0
 
 # Install dependencies including newer libstdc++
 RUN apt update && apt install -y \
@@ -37,19 +37,8 @@ RUN curl -L https://foundry.paradigm.xyz | bash \
     && /root/.foundry/bin/foundryup
 ENV PATH="/root/.foundry/bin:${PATH}"
 
-# Install Rust and Soldeer for Solidity dependency management
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-    && /root/.cargo/bin/cargo install soldeer
-ENV PATH="/root/.cargo/bin:${PATH}"
-
-# Install Aztec CLI binaries and set default version
-RUN mkdir -p /root/.aztec \
-    && echo "${AZTEC_VERSION}" > /root/.aztec/default_version \
-    && for bin in .aztec-run aztec aztec-up; do \
-         curl -fsSL "https://install.aztec.network/${AZTEC_VERSION}/${bin}" -o "/usr/local/bin/${bin}" \
-         && chmod +x "/usr/local/bin/${bin}"; \
-       done \
-    && for bin in aztec-nargo aztec-postprocess-contract aztec-wallet; do \
-         curl -fsSL "https://install.aztec.network/${AZTEC_VERSION}/${bin}" -o "/usr/local/bin/${bin}" \
-         && chmod +x "/usr/local/bin/${bin}" || true; \
-       done
+# Install Aztec CLI via official installer (same method as CI)
+RUN curl -sL "https://install.aztec.network/${AZTEC_VERSION}/" -o /tmp/aztec-install.sh \
+    && VERSION=${AZTEC_VERSION} bash /tmp/aztec-install.sh <<< "yes" \
+    && rm /tmp/aztec-install.sh
+ENV PATH="/root/.aztec/current/bin:/root/.aztec/current/node_modules/.bin:/root/.aztec/bin:${PATH}"

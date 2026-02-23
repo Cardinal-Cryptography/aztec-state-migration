@@ -17,7 +17,7 @@ import type {
 } from "../ts/aztec-state-migration/index.js";
 import type { blockHeaderToNoir } from "../ts/aztec-state-migration/noir-helpers/block-header.js";
 import type { DeploymentResult } from "./deploy-types.js";
-import { TestWallet } from "@aztec/test-wallet/server";
+import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import { WaitOpts } from "@aztec/aztec.js/contracts";
 import { AccountManager } from "@aztec/aztec.js/wallet";
 import { AztecNode } from "@aztec/aztec.js/node";
@@ -84,14 +84,15 @@ export async function deployAppPair(
     old_r.deployerWallet,
     NoirOption.NoneAddress,
     NoirOption.NoneAddress,
-  )
-    .send({ from: old_r.deployerManager.address })
-    .deployed();
+  ).send({ from: old_r.deployerManager.address });
   const oldAppInstance = (
     await old_r.deployerWallet.getContractMetadata(oldApp.address)
-  ).contractInstance;
+  ).instance;
   old_r.migrationWallet.registerContract(oldAppInstance!, oldApp.artifact);
-  old_r.migrationWallet.registerSender(old_r.deployerManager.address);
+  old_r.migrationWallet.registerSender(
+    old_r.deployerManager.address,
+    "old_deployer",
+  );
 
   const effectiveOldAppAddress = oldAppAddress ?? oldApp.address;
 
@@ -99,15 +100,16 @@ export async function deployAppPair(
     new_r.deployerWallet,
     NoirOption.Some(newArchiveRegistryAddress),
     NoirOption.Some(effectiveOldAppAddress),
-  )
-    .send({ from: new_r.deployerManager.address })
-    .deployed();
+  ).send({ from: new_r.deployerManager.address });
 
   const newAppInstance = (
     await new_r.deployerWallet.getContractMetadata(newApp.address)
-  ).contractInstance;
+  ).instance;
   new_r.migrationWallet.registerContract(newAppInstance!, newApp.artifact);
-  new_r.migrationWallet.registerSender(new_r.deployerManager.address);
+  new_r.migrationWallet.registerSender(
+    new_r.deployerManager.address,
+    "new_deployer",
+  );
 
   return { oldApp, newApp };
 }
@@ -127,12 +129,10 @@ export async function deployArchiveRegistry(
     EthAddress.fromString(env.l1MigratorAddress),
     env.oldRollupVersion,
     keyRegistryAddress ?? AztecAddress.ZERO,
-  )
-    .send({ from: new_r.deployerManager.address })
-    .deployed();
+  ).send({ from: new_r.deployerManager.address });
   const archiveInstance = (
     await new_r.deployerWallet.getContractMetadata(registry.address)
-  ).contractInstance;
+  ).instance;
   new_r.migrationWallet.registerContract(archiveInstance!, registry.artifact);
 
   return registry;
@@ -145,13 +145,11 @@ export async function deployKeyRegistry(env: DeploymentResult) {
   const old_r = env[env.oldRollupVersion];
   const registry = await MigrationKeyRegistryContract.deploy(
     old_r.deployerWallet,
-  )
-    .send({ from: old_r.deployerManager.address })
-    .deployed();
+  ).send({ from: old_r.deployerManager.address });
 
   const keyRegistryInstance = (
     await old_r.deployerWallet.getContractMetadata(registry.address)
-  ).contractInstance;
+  ).instance;
   old_r.migrationWallet.registerContract(
     keyRegistryInstance!,
     registry.artifact,
@@ -183,6 +181,7 @@ export async function bridgeBlock(
   const old_r = env[env.oldRollupVersion];
   const new_r = env[env.newRollupVersion];
   const blockNumber = await old_r.aztecNode.getBlockNumber();
+
   // Step 1: Wait for block proof
   await waitForBlockProof(old_r.aztecNode, blockNumber, {
     onPoll: async () => {
@@ -214,11 +213,16 @@ export async function bridgeBlock(
 
   const provenBlockNumber = BlockNumber(l1Result.provenBlockNumber);
 
+  const blockHeader = await old_r.aztecNode.getBlockHeader(provenBlockNumber);
+  if (!blockHeader) {
+    throw new Error(
+      `Could not fetch block header for block ${provenBlockNumber}`,
+    );
+  }
+  const blockHash = await blockHeader.hash();
+
   // Build archive proof (block header + sibling path, needed for register_block)
-  const archiveProof = await buildArchiveProof(
-    old_r.aztecNode,
-    provenBlockNumber,
-  );
+  const archiveProof = await buildArchiveProof(old_r.aztecNode, blockHash);
 
   // Step 4a: Consume L1-to-L2 message (stores trusted archive root)
   await archiveRegistry.methods
@@ -228,8 +232,7 @@ export async function bridgeBlock(
       Fr.ZERO,
       new Fr(l1Result.l1ToL2LeafIndex),
     )
-    .send({ from: new_r.deployerManager.address })
-    .wait();
+    .send({ from: new_r.deployerManager.address });
 
   // Step 4b: Register block (verifies block header against stored archive root)
   await archiveRegistry.methods
@@ -238,8 +241,7 @@ export async function bridgeBlock(
       archiveProof.archive_block_header,
       archiveProof.archive_sibling_path,
     )
-    .send({ from: new_r.deployerManager.address })
-    .wait();
+    .send({ from: new_r.deployerManager.address });
 
   return {
     l1Result,
@@ -262,7 +264,6 @@ export async function deployAndFundAccount(
   env: DeploymentResult,
   aztecNode: AztecNode,
   accountData?: { secret?: Fr; salt?: Fr; signingKey?: Fq },
-  waitOptions?: WaitOpts,
 ): Promise<AccountManager> {
   const rollup = env[await aztecNode.getVersion()];
 
@@ -286,17 +287,15 @@ export async function deployAndFundAccount(
     intervalMs: 10,
   });
   const deployMethod = await accountManager.getDeployMethod();
-  await deployMethod
-    .send({
-      from: AztecAddress.ZERO,
-      fee: {
-        paymentMethod: new FeeJuicePaymentMethodWithClaim(
-          accountManager.address,
-          claim,
-        ),
-      },
-    })
-    .wait(waitOptions);
+  await deployMethod.send({
+    from: AztecAddress.ZERO,
+    fee: {
+      paymentMethod: new FeeJuicePaymentMethodWithClaim(
+        accountManager.address,
+        claim,
+      ),
+    },
+  });
   return accountManager;
 }
 
@@ -324,7 +323,7 @@ async function fundAccount(
 async function produceBlock(env: DeploymentResult, aztecNode: AztecNode) {
   const rollup = env[await aztecNode.getVersion()];
 
-  const wallet = await TestWallet.create(aztecNode);
+  const wallet = await EmbeddedWallet.create(aztecNode, { ephemeral: true });
   const accountsData = await getInitialTestAccountsData();
   await wallet.createSchnorrAccount(
     accountsData[0].secret,
@@ -338,6 +337,5 @@ async function produceBlock(env: DeploymentResult, aztecNode: AztecNode) {
     GrumpkinScalar.random(),
   );
   const deployMethod = await accountManager.getDeployMethod();
-  const tx = deployMethod.send({ from: rollup.deployerManager.address });
-  await tx.getTxHash();
+  await deployMethod.send({ from: rollup.deployerManager.address });
 }

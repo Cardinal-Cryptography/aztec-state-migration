@@ -7,23 +7,23 @@ import type {
   Account,
 } from "viem";
 import type { AztecNode } from "@aztec/aztec.js/node";
-import type { TestWallet } from "@aztec/test-wallet/server";
+import type { EmbeddedWallet } from "@aztec/wallets/embedded";
 import type { AccountManager } from "@aztec/aztec.js/wallet";
-import { MigrationTestBaseWallet } from "../ts/aztec-state-migration/wallet/migration-test-base-wallet.js";
+import { MigrationEmbeddedWallet } from "../ts/aztec-state-migration/wallet/migration-embedded-wallet.js";
 
 export interface DeploymentResult {
   [rollupVersion: number]: {
     // Aztec node client
     aztecNode: AztecNode;
 
-    // Wallet (TestWallet can act as any registered account)
-    deployerWallet: TestWallet;
+    // Wallet (EmbeddedWallet can act as any registered account)
+    deployerWallet: EmbeddedWallet;
 
     // Deployer account
     deployerManager: AccountManager;
 
     // Migration wallet (for signing migration proofs)
-    migrationWallet: MigrationTestBaseWallet;
+    migrationWallet: MigrationEmbeddedWallet;
 
     inboxAddress: string;
   };

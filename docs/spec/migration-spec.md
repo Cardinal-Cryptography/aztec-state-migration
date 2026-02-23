@@ -194,7 +194,7 @@ Claims prove inclusion over the **exact note-tree leaf hash** inserted into the 
 **MigrationNote (Mode A lock note):**
 
 ```
-note_hash = poseidon2_with_sep([note_creator, mpk.x, mpk.y, dest_rollup_id, migration_data_hash, storage_slot, randomness], GENERATOR_INDEX__NOTE_HASH)
+note_hash = poseidon2_with_sep([note_creator, mpk.x, mpk.y, dest_rollup_id, migration_data_hash, storage_slot, randomness], DOM_SEP__NOTE_HASH)
 siloed    = poseidon2_with_sep([TokenV1_address, note_hash], GENERATOR_INDEX__SILOED_NOTE_HASH)
 unique    = poseidon2_with_sep([nonce, siloed], GENERATOR_INDEX__UNIQUE_NOTE_HASH)
 ```
@@ -289,8 +289,8 @@ All claims provide:
 ## Migration Nullifiers
 
 ```
-Mode A (private notes):  poseidon2_with_sep([note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
-Mode B (private notes):  poseidon2_with_sep([unique_note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
+Mode A (private notes):  poseidon2_with_sep([note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
+Mode B (private notes):  poseidon2_with_sep([unique_note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
 Mode B (public state):   poseidon2_with_sep([old_app, storage_slot], GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER)
 ```
 

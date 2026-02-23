@@ -14,7 +14,7 @@
 
 ## A1) Tech stack and versions (source of truth)
 - Noir: `v1.0.0-beta.x`
-- Aztec Network: `v3.0.0-devnet.6-patch.1`
+- Aztec Network: `v4.0.0-devnet.2-patch.0`
 - Build tool: Nargo (Noir CLI + package tool)
 - TypeScript tooling: Yarn scripts (see A3)
 - Solidity: Present in this repo (exact compiler/version must be taken from repo config, not guessed)

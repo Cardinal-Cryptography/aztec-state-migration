@@ -1,6 +1,7 @@
 import type { Fr } from "@aztec/foundation/curves/bn254";
 import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import { SchnorrSignature } from "@aztec/foundation/crypto/schnorr";
+import { BlockNumber } from "@aztec/foundation/branded-types";
 
 /** Generic note inclusion proof data. */
 export interface NoteProofData<Note> {
@@ -46,7 +47,7 @@ export const MigrationSignature = {
 /** Result of calling migrateArchiveRoot on L1. */
 export interface L1MigrationResult {
   /** The proven block number from the old rollup. */
-  provenBlockNumber: number;
+  provenBlockNumber: BlockNumber;
   /** The archive root that was migrated. */
   provenArchiveRoot: Fr;
   /** Leaf index of the L1→L2 message in the Inbox tree. */

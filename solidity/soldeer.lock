@@ -1,8 +1,8 @@
 [[dependencies]]
 name = "@aztec"
-version = "v3.0.2"
+version = "v4.0.0-devnet.2-patch.0"
 git = "https://github.com/AztecProtocol/l1-contracts.git"
-rev = "d70bc68acdf4b394acd2d928b990064253b18695"
+rev = "0888c28df47b37c5f017caa6101edd9c68199586"
 
 [[dependencies]]
 name = "@openzeppelin-contracts"

@@ -1,4 +1,4 @@
-import { TestWallet } from "@aztec/test-wallet/server";
+import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import {
   createPublicClient,
@@ -18,7 +18,7 @@ import { fileURLToPath } from "url";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import type { DeploymentResult } from "./deploy-types.js";
-import { MigrationTestWallet } from "../ts/aztec-state-migration/index.js";
+import { NodeMigrationEmbeddedWallet } from "../ts/aztec-state-migration/wallet/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -93,8 +93,12 @@ export async function deploy(): Promise<DeploymentResult> {
   console.log(`   Registry: ${registryAddress}`);
 
   // Setup wallets
-  const oldDeployerWallet = await TestWallet.create(aztecOldNode);
-  const newDeployerWallet = await TestWallet.create(aztecNewNode);
+  const oldDeployerWallet = await EmbeddedWallet.create(aztecOldNode, {
+    ephemeral: true,
+  });
+  const newDeployerWallet = await EmbeddedWallet.create(aztecNewNode, {
+    ephemeral: true,
+  });
 
   // Register test accounts
   console.log("   Registering test accounts...");
@@ -176,8 +180,14 @@ export async function deploy(): Promise<DeploymentResult> {
 
   console.log("=== Infrastructure Deployment Complete ===\n");
 
-  let oldMigrationWallet = await MigrationTestWallet.create(aztecOldNode);
-  let newMigrationWallet = await MigrationTestWallet.create(aztecNewNode);
+  let oldMigrationWallet = await NodeMigrationEmbeddedWallet.create(
+    aztecOldNode,
+    { ephemeral: true },
+  );
+  let newMigrationWallet = await NodeMigrationEmbeddedWallet.create(
+    aztecNewNode,
+    { ephemeral: true },
+  );
 
   return {
     [oldRollupVersion]: {

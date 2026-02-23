@@ -4,12 +4,12 @@ use super::{
     public_state_proof_data::PublicStateProofData,
 };
 use aztec::{
-    context::private_context::PrivateContext,
+    context::PrivateContext,
     note::note_interface::NoteHash,
-    protocol_types::{
+    protocol::{
         abis::block_header::BlockHeader,
         address::{AztecAddress, partial_address::PartialAddress},
-        constants::{GENERATOR_INDEX__NOTE_NULLIFIER, GENERATOR_INDEX__NSK_M},
+        constants::{DOM_SEP__NHK_M, DOM_SEP__NOTE_NULLIFIER, DOM_SEP__PUBLIC_STORAGE_MAP_SLOT},
         hash::{poseidon2_hash, poseidon2_hash_with_separator},
         public_keys::{NpkM, PublicKeys},
         traits::{Hash, Packable, ToField},
@@ -23,7 +23,7 @@ use std::embedded_curve_ops::{EmbeddedCurveScalar as Scalar, fixed_base_scalar_m
 // ============================================================
 //
 // Verification chain:
-//   1. Address verification: nsk -> npk_m, verify pubkeys match owner address
+//   1. Address verification: nhk -> npk_m, verify pubkeys match owner address
 //   2. Notes inclusion in note_hash_tree at snapshot H
 //   3. Notes non-nullification at snapshot H (constrained nullifier derivation)
 //   4. MigrationKeyNote inclusion in note_hash_tree at snapshot H
@@ -46,10 +46,10 @@ use std::embedded_curve_ops::{EmbeddedCurveScalar as Scalar, fixed_base_scalar_m
 /// - `expected_storage_slot`:         Expected storage slot for the notes.
 /// - `block_header`:                  Block header at the snapshot height.
 /// - `notes_owner`:                   Address that owned the notes on the old rollup.
-/// - `public_keys`:                   Owner's public key set (npk_m is re-derived from `nsk`).
+/// - `public_keys`:                   Owner's public key set (npk_m is re-derived from `nhk`).
 /// - `partial_address`:               Owner's partial address for address re-computation.
 /// - `key_note`:                      `MigrationKeyNote` with inclusion proof.
-/// - `nsk`:                           Master nullifier secret key (used to derive npk_m and nsk_app).
+/// - `nhk`:                           Master nullifier hiding key (used to derive npk_m and nhk_app).
 pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     context: &mut PrivateContext,
     migration_archive_registry: AztecAddress,
@@ -63,13 +63,13 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     public_keys: PublicKeys,
     partial_address: Field,
     key_note: KeyNoteProofData,
-    nsk: Scalar,
+    nhk: Scalar,
 ) {
     // ============================================================
-    // 1. Address verification: derive npk_m from nsk, verify address
+    // 1. Address verification: derive npk_m from nhk, verify address
     // ============================================================
     // Derive nullifier public key from nullifier secret key via Grumpkin scalar mul
-    let derived_npk_m = NpkM { inner: fixed_base_scalar_mul(nsk) };
+    let derived_npk_m = NpkM { inner: fixed_base_scalar_mul(nhk) };
 
     let public_keys = PublicKeys {
         npk_m: derived_npk_m,
@@ -81,7 +81,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     // Verify the computed address matches the note owner
     let computed_address =
         AztecAddress::compute(public_keys, PartialAddress::from_field(partial_address));
-    assert(computed_address == notes_owner, "Address does not match public keys derived from nsk");
+    assert(computed_address == notes_owner, "Address does not match public keys derived from nhk");
 
     // ============================================================
     // 2. For each note, verify inclusion and non-nullification in the snapshot state
@@ -90,9 +90,9 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let nullifier_tree_root = block_header.state.partial.nullifier_tree.root;
     let note_hash_tree_root = block_header.state.partial.note_hash_tree.root;
 
-    // Derive nsk_app for the old app contract:
-    let nsk_app =
-        poseidon2_hash_with_separator([nsk.hi, nsk.lo, old_app.to_field()], GENERATOR_INDEX__NSK_M);
+    // Derive nhk_app for the old app contract:
+    let nhk_app =
+        poseidon2_hash_with_separator([nhk.hi, nhk.lo, old_app.to_field()], DOM_SEP__NHK_M);
 
     let mut notes_hashes: [Field; N] = [0; N];
 
@@ -105,7 +105,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
             old_app,
             note_hash_tree_root,
             nullifier_tree_root,
-            nsk_app,
+            nhk_app,
         );
     }
 
@@ -161,7 +161,7 @@ fn migrate_note<Note: NoteHash>(
     old_app: AztecAddress,
     note_hash_tree_root: Field,
     nullifier_tree_root: Field,
-    nsk_app: Field,
+    nhk_app: Field,
 ) -> Field {
     let note_proof_data = full_note_proof_data.note_proof_data;
     let non_nullification_proof_data = full_note_proof_data.non_nullification_proof_data;
@@ -178,7 +178,7 @@ fn migrate_note<Note: NoteHash>(
     // ============================================================
 
     let _ = non_nullification_proof_data.verify_nullifier_non_inclusion(
-        nsk_app,
+        nhk_app,
         old_app,
         note_unique,
         nullifier_tree_root,
@@ -189,7 +189,7 @@ fn migrate_note<Note: NoteHash>(
     // ============================================================
     let migration_nullifier = poseidon2_hash_with_separator(
         [note_unique, note_proof_data.randomness],
-        GENERATOR_INDEX__NOTE_NULLIFIER,
+        DOM_SEP__NOTE_NULLIFIER,
     );
     context.push_nullifier(migration_nullifier);
 
@@ -313,7 +313,10 @@ fn derive_map_storage_slot<K: ToField, let N: u32>(slot: Field, map_keys: [K; N]
     std::static_assert(N > 0, "map_keys must have at least one key");
     let mut derived_slot = slot;
     for i in 0..N {
-        derived_slot = poseidon2_hash([derived_slot, map_keys[i].to_field()]);
+        derived_slot = poseidon2_hash_with_separator(
+            [derived_slot, map_keys[i].to_field()],
+            DOM_SEP__PUBLIC_STORAGE_MAP_SLOT,
+        );
     }
     derived_slot
 }

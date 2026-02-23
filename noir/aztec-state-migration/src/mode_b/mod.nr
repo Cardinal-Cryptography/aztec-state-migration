@@ -11,7 +11,7 @@ pub(crate) mod public_state_proof_data;
 pub use public_state_proof_data::PublicStateProofData;
 
 use crate::note_proof_data::NoteProofData;
-use aztec::protocol_types::traits::Serialize;
+use aztec::protocol::traits::Serialize;
 
 /// A note together with its inclusion proof and nullifier non-inclusion proof data.
 /// Carries everything needed to verify that a note exists in the note hash tree

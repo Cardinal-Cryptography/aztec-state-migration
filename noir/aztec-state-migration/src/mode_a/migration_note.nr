@@ -2,9 +2,9 @@ use aztec::{
     context::PrivateContext,
     macros::notes::custom_note,
     note::note_interface::NoteHash,
-    protocol_types::{
+    protocol::{
         address::AztecAddress,
-        constants::{GENERATOR_INDEX__NOTE_HASH, GENERATOR_INDEX__NOTE_NULLIFIER},
+        constants::{DOM_SEP__NOTE_HASH, DOM_SEP__NOTE_NULLIFIER},
         hash::{poseidon2_hash, poseidon2_hash_with_separator},
         traits::{Deserialize, Packable, Serialize, ToField},
     },
@@ -61,7 +61,7 @@ impl NoteHash for MigrationNote {
                 storage_slot,
                 randomness,
             ],
-            GENERATOR_INDEX__NOTE_HASH,
+            DOM_SEP__NOTE_HASH,
         )
     }
 
@@ -84,7 +84,7 @@ impl NoteHash for MigrationNote {
         let randomness = wrapped_randomness.inner;
         poseidon2_hash_with_separator(
             [note_hash_for_nullification, randomness],
-            GENERATOR_INDEX__NOTE_NULLIFIER,
+            DOM_SEP__NOTE_NULLIFIER,
         )
     }
 
@@ -92,11 +92,11 @@ impl NoteHash for MigrationNote {
         self,
         wrapped_randomness: AztecAddress,
         note_hash_for_nullification: Field,
-    ) -> Field {
+    ) -> Option<Field> {
         let randomness = wrapped_randomness.inner;
-        poseidon2_hash_with_separator(
+        Option::some(poseidon2_hash_with_separator(
             [note_hash_for_nullification, randomness],
-            GENERATOR_INDEX__NOTE_NULLIFIER,
-        )
+            DOM_SEP__NOTE_NULLIFIER,
+        ))
     }
 }

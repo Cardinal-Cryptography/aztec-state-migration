@@ -3,31 +3,45 @@ import { BlockNumber } from "@aztec/foundation/branded-types";
 import { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import type { AztecNode } from "@aztec/aztec.js/node";
 import type { Note, NoteDao } from "@aztec/stdlib/note";
+import { siloNoteHash, computeUniqueNoteHash } from "@aztec/stdlib/hash";
 import { type NoteProofData, type ArchiveProofData } from "./types.js";
+import { BlockHash } from "@aztec/stdlib/block";
 
 /**
  * Build a {@link NoteProofData} for a single note (note-hash inclusion proof).
  *
  * @param node - Aztec node client to query the note hash tree.
- * @param blockNumber - Block number at which to prove inclusion.
+ * @param referenceBlock - Block number at which to prove inclusion.
  * @param noteDao - The note DAO to prove.
  * @param noteMapper - Callback that decodes the raw {@link Note} into the desired shape.
  * @returns Proof data containing the decoded note, storage slot, randomness, nonce, and sibling path.
  */
 export async function buildNoteProof<NoteLike>(
   node: AztecNode,
-  blockNumber: BlockNumber,
+  referenceBlock: BlockNumber | BlockHash,
   noteDao: NoteDao,
   noteMapper: (note: Note) => NoteLike,
 ): Promise<NoteProofData<NoteLike>> {
-  const leafIndex = noteDao.index;
-  const siblingPath = await node.getNoteHashSiblingPath(blockNumber, leafIndex);
+  const siloedHash = await siloNoteHash(
+    noteDao.contractAddress,
+    noteDao.noteHash,
+  );
+  const uniqueHash = await computeUniqueNoteHash(noteDao.noteNonce, siloedHash);
+  const witness = await node.getNoteHashMembershipWitness(
+    referenceBlock,
+    uniqueHash,
+  );
+  if (!witness) {
+    throw new Error(
+      `Could not get note hash membership witness for note ${uniqueHash.toString()}`,
+    );
+  }
   return {
     data: noteMapper(noteDao.note),
     randomness: noteDao.randomness,
     nonce: noteDao.noteNonce,
-    leaf_index: new Fr(leafIndex),
-    sibling_path: siblingPath.toFields(),
+    leaf_index: new Fr(witness.leafIndex),
+    sibling_path: witness.siblingPath,
   };
 }
 
@@ -41,22 +55,28 @@ export async function buildNoteProof<NoteLike>(
  */
 export async function buildArchiveProof(
   node: AztecNode,
-  blockNumber: BlockNumber,
+  blockHash: BlockHash,
 ): Promise<ArchiveProofData> {
-  const [archiveSiblingPath, blockHeader] = await Promise.all([
-    node.getArchiveSiblingPath(blockNumber, BigInt(blockNumber)),
-    node.getBlockHeader(blockNumber),
+  const [witness, blockHeader] = await Promise.all([
+    node.getBlockHashMembershipWitness(blockHash, blockHash),
+    node.getBlockHeader(blockHash),
   ]);
 
   if (!blockHeader) {
     throw new Error(
-      `Could not get block header for proven block ${blockNumber}`,
+      `Could not get block header for proven block ${blockHash.toString()}`,
+    );
+  }
+
+  if (!witness) {
+    throw new Error(
+      `Could not get archive sibling path for proven block ${blockHash.toString()}`,
     );
   }
 
   return {
     archive_block_header: blockHeaderToNoir(blockHeader),
-    archive_sibling_path: archiveSiblingPath.toFields(),
+    archive_sibling_path: witness.siblingPath,
   };
 }
 
@@ -66,16 +86,18 @@ export async function buildArchiveProof(
  * since migration circuits no longer need it.
  *
  * @param node - Aztec node client to query the block header.
- * @param blockNumber - The block number to get the header for.
+ * @param blockReference - The block number or block hash to get the header for.
  * @returns Noir-encoded block header.
  */
 export async function buildBlockHeader(
   node: AztecNode,
-  blockNumber: BlockNumber,
+  blockReference: BlockNumber | BlockHash,
 ) {
-  const blockHeader = await node.getBlockHeader(blockNumber);
+  const blockHeader = await node.getBlockHeader(blockReference);
   if (!blockHeader) {
-    throw new Error(`Could not get block header for block ${blockNumber}`);
+    throw new Error(
+      `Could not get block header for block ${blockReference.toString()}`,
+    );
   }
   return blockHeaderToNoir(blockHeader);
 }

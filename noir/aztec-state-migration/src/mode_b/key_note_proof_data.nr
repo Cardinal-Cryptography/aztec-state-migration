@@ -1,5 +1,5 @@
 use crate::note_proof_data::NoteProofData;
-use aztec::{context::private_context::PrivateContext, protocol_types::address::AztecAddress};
+use aztec::{context::PrivateContext, protocol::address::AztecAddress};
 use migration_archive_registry::MigrationArchiveRegistry;
 use migration_key_registry::{
     MigrationKeyNote, MigrationKeyRegistry::STORAGE_LAYOUT_MigrationKeyRegistry,

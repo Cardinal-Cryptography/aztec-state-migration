@@ -1,4 +1,4 @@
-use aztec::protocol_types::{
+use aztec::protocol::{
     address::AztecAddress,
     hash::poseidon2_hash,
     traits::{Deserialize, Serialize, ToField},

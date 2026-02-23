@@ -1,5 +1,5 @@
-use aztec::event::{event_interface::EventInterface, event_selector::EventSelector};
-use aztec::protocol_types::traits::Serialize;
+use aztec::event::{event_interface::EventInterface, EventSelector};
+use aztec::protocol::traits::Serialize;
 
 /// Event emitted alongside MigrationNote creation to deliver the original migration data
 /// (in encrypted form) to the recipient. Only the hash is stored in the note; the full data

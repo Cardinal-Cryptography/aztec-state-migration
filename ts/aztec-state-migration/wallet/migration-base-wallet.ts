@@ -1,8 +1,8 @@
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
-import { Note, NoteDao, NotesFilter } from "@aztec/stdlib/note";
+import { Note, NoteDao } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
 import { MIGRATION_NOTE_SLOT } from "../constants.js";
-import { AztecNode } from "@aztec/aztec.js/node";
+import type { AztecNode } from "@aztec/stdlib/interfaces/client";
 import {
   ArchiveProofData,
   MigrationSignature,
@@ -15,7 +15,7 @@ import {
 } from "../mode-b/types.js";
 import { MigrationNoteProofData } from "../mode-a/types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
-import { PXE } from "@aztec/pxe/server";
+import type { NotesFilter, PXE } from "@aztec/pxe/server";
 import { buildArchiveProof, buildNoteProof } from "../proofs.js";
 import { buildNullifierProof } from "../mode-b/proofs.js";
 import { Point } from "@aztec/foundation/schemas";
@@ -31,6 +31,8 @@ import { PrivateEvent, PrivateEventFilter } from "@aztec/aztec.js/wallet";
 import { AbiType, EventSelector } from "@aztec/stdlib/abi";
 import { MigrationKeyRegistryContractArtifact } from "../noir-contracts/MigrationKeyRegistry.js";
 import { buildMigrationNoteProof } from "../mode-a/proofs.js";
+import { Logger } from "@aztec/foundation/log";
+import { BlockHash } from "@aztec/stdlib/block";
 
 /**
  * Abstract wallet that adds migration-specific helpers (signing, proof building,
@@ -38,12 +40,9 @@ import { buildMigrationNoteProof } from "../mode-a/proofs.js";
  *
  * Subclasses must implement account creation and key-lookup methods.
  */
-export abstract class BaseMigrationWallet extends BaseWallet {
-  constructor(
-    protected readonly pxe: PXE,
-    protected readonly aztecNode: AztecNode,
-  ) {
-    super(pxe, aztecNode);
+export abstract class MigrationBaseWallet extends BaseWallet {
+  constructor(pxe: PXE, aztecNode: AztecNode, log?: Logger) {
+    super(pxe, aztecNode, log);
   }
 
   /**
@@ -51,23 +50,36 @@ export abstract class BaseMigrationWallet extends BaseWallet {
    * @param account - The account address to look up.
    * @returns The Grumpkin point, or `undefined` if the account is not registered.
    */
-  abstract getMigrationPublicKey(account: AztecAddress): Point | undefined;
+  abstract getMigrationPublicKey(account: AztecAddress): Promise<Point>;
 
   /**
    * Look up the full set of public keys for the given account.
    * @param account - The account address to look up.
    * @returns The public keys, or `undefined` if the account is not registered.
    */
-  abstract getPublicKeys(account: AztecAddress): PublicKeys | undefined;
+  abstract getPublicKeys(account: AztecAddress): Promise<PublicKeys>;
 
   /**
    * Retrieve the {@link MigrationAccount} for the given address.
    * @param address - The account address.
    * @returns The migration account instance.
    */
-  async getMigrationAccount(address: AztecAddress): Promise<MigrationAccount> {
-    return this.getAccountFromAddress(address) as Promise<MigrationAccount>;
+  abstract getMigrationSignerFromAddress(
+    address: AztecAddress,
+  ): Promise<(msg: Uint8Array) => Promise<MigrationSignature>>;
+
+  getNotes(filter: NotesFilter): Promise<NoteDao[]> {
+    return this.pxe.debug.getNotes(filter);
   }
+
+  /**
+   * Retrieve the {@link MigrationAccount} for the given address.
+   * @param address - The account address.
+   * @returns The migration account instance.
+   */
+  protected abstract getAccountFromAddress(
+    address: AztecAddress,
+  ): Promise<MigrationAccount>;
 
   /**
    * Produce a Mode A (cooperative lock-and-migrate) claim signature via the wallet.
@@ -110,7 +122,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
    * @returns The raw Schnorr signature buffer.
    */
   async signMigrationModeB(
-    signer: MigrationAccount,
+    signer: (msg: Uint8Array) => Promise<MigrationSignature>,
     recipient: AztecAddress,
     oldRollupVersion: Fr,
     newRollupVersion: Fr,
@@ -118,7 +130,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     notes: NoteDao[],
   ): Promise<MigrationSignature> {
     return signModeB(
-      signer.migrationKeySigner,
+      signer,
       oldRollupVersion,
       newRollupVersion,
       notes,
@@ -128,7 +140,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
   }
 
   async signPublicStateMigrationModeB(
-    signer: MigrationAccount,
+    signer: (msg: Uint8Array) => Promise<MigrationSignature>,
     recipient: AztecAddress,
     oldRollupVersion: Fr,
     newRollupVersion: Fr,
@@ -137,7 +149,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     dataAbiType: AbiType,
   ): Promise<MigrationSignature> {
     return signPubStateModeB(
-      signer.migrationKeySigner,
+      signer,
       oldRollupVersion,
       newRollupVersion,
       data,
@@ -147,29 +159,26 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     );
   }
 
-  /**
-   * Compute the masked nullifier secret key for cross-rollup ownership transfer.
-   *
-   * @param newOwner - The recipient migration account on the new rollup.
-   * @param contractAddress - The app contract address (domain separation).
-   * @returns The masked `Fq` key.
-   */
-  async getMaskedNsk(
-    newOwner: MigrationAccount,
-    contractAddress: AztecAddress,
+  async getMaskedNhk(
+    oldOwner: AztecAddress,
+    _newOwner: AztecAddress,
+    _newAppAddress: AztecAddress,
   ): Promise<Fq> {
-    const account = await this.getMigrationAccount(contractAddress);
-    return account.getMaskedNsk(newOwner, contractAddress);
+    const oldAccount = await this.getAccountFromAddress(oldOwner);
+    // const newAccount = await this.getAccountFromAddress(newOwner);
+    // const mask = await newAccount.getNhkApp(newAppAddress);
+    const mask = Fq.ZERO; // for now just 0
+    return oldAccount.getMaskedNhk(mask);
   }
 
   /**
    * Build an archive membership proof for the given block.
    *
-   * @param blockNumber - The proven block number to build the proof for.
+   * @param blockHash - The proven block hash to build the proof for.
    * @returns An {@link ArchiveProofData} containing the block header and Merkle path.
    */
-  async buildArchiveProof(blockNumber: BlockNumber): Promise<ArchiveProofData> {
-    return buildArchiveProof(this.aztecNode, blockNumber);
+  async buildArchiveProof(blockHash: BlockHash): Promise<ArchiveProofData> {
+    return buildArchiveProof(this.aztecNode, blockHash);
   }
 
   /**
@@ -185,7 +194,7 @@ export abstract class BaseMigrationWallet extends BaseWallet {
    * @returns The matching migration notes.
    */
   async getMigrationNotes(filter: NotesFilter): Promise<NoteDao[]> {
-    return this.pxe.getNotes({
+    return this.getNotes({
       ...filter,
       storageSlot: new Fr(MIGRATION_NOTE_SLOT),
     });
@@ -313,11 +322,12 @@ export abstract class BaseMigrationWallet extends BaseWallet {
     owner: AztecAddress,
     blockNumber: BlockNumber,
   ): Promise<NoteProofData<KeyNote>> {
-    const keyNotes = await this.pxe.getNotes({
+    const keyNotes = await this.getNotes({
       owner: owner,
       contractAddress: keyRegistry,
       storageSlot:
         MigrationKeyRegistryContractArtifact.storageLayout.registered_keys.slot,
+      scopes: [owner], // Only fetch notes owned by the specified address
     });
     if (keyNotes.length === 0) {
       throw new Error("No key notes found");
