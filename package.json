@@ -21,7 +21,7 @@
     "noir:codegen:contracts": "cd ts/aztec-state-migration && mkdir -p noir-contracts artifacts && cp ../../noir/target/*MigrationArchiveRegistry.json ../../noir/target/*MigrationKeyRegistry.json artifacts && aztec codegen ./artifacts -o ./noir-contracts",
     "noir:codegen:test-contracts": "cd e2e-tests && mkdir -p artifacts && find ../noir/target -maxdepth 1 -name '*.json' ! -name '*MigrationArchiveRegistry*' ! -name '*MigrationKeyRegistry*' -exec cp {} artifacts \\; && aztec codegen ./artifacts -o ./artifacts",
     "noir:fmt": "cd noir && nargo fmt",
-    "noir:fmt:check": "cd noir && nargo fmt",
+    "noir:fmt:check": "cd noir && nargo fmt --check",
     "ts:build": "tsc",
     "ts:fmt": "prettier --write 'ts/**/*.ts' 'e2e-tests/**/*.ts'",
     "ts:fmt:check": "prettier --check 'ts/**/*.ts' 'e2e-tests/**/*.ts'",

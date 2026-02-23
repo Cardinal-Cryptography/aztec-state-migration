@@ -2,8 +2,8 @@ FROM --platform=linux/amd64 ubuntu:24.04
 SHELL ["/bin/bash", "-c"]
 
 ENV NVM_DIR=/root/.nvm
-ENV NODE_VERSION=22.15.0
-ENV AZTEC_VERSION=3.0.0-devnet.6-patch.1
+ENV NODE_VERSION=24.12.0
+ENV AZTEC_VERSION=4.0.0-devnet.2-patch.0
 
 # Install dependencies including newer libstdc++
 RUN apt update && apt install -y \
