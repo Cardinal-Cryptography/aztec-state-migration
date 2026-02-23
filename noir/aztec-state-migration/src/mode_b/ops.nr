@@ -1,4 +1,4 @@
-use crate::{constants::{CLAIM_DOMAIN_B, CLAIM_DOMAIN_B_PUBLIC}, signature::MigrationSignature};
+use crate::{constants::{DOM_SEP__CLAIM_B, DOM_SEP__CLAIM_B_PUBLIC}, signature::MigrationSignature};
 use super::{
     FullNoteProofData, key_note_proof_data::KeyNoteProofData,
     public_state_proof_data::PublicStateProofData,
@@ -117,7 +117,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let current_rollup = context.version();
     let new_app = context.this_address();
 
-    signature.verify_migration_signature::<CLAIM_DOMAIN_B>(
+    signature.verify_migration_signature::<DOM_SEP__CLAIM_B>(
         old_rollup,
         current_rollup,
         notes_hash,
@@ -287,7 +287,7 @@ pub fn migrate_public_map_owned_state_mode_b<K: ToField, T: Packable, let N: u32
     let current_rollup = context.version();
     let new_app = context.this_address();
 
-    signature.verify_migration_signature::<CLAIM_DOMAIN_B_PUBLIC>(
+    signature.verify_migration_signature::<DOM_SEP__CLAIM_B_PUBLIC>(
         old_rollup,
         current_rollup,
         public_state_hash,

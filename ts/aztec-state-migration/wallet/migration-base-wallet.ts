@@ -1,7 +1,7 @@
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { Note, NoteDao } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
-import { MIGRATION_NOTE_SLOT } from "../constants.js";
+import { MIGRATION_NOTE_STORAGE_SLOT } from "../constants.js";
 import type { AztecNode } from "@aztec/stdlib/interfaces/client";
 import {
   ArchiveProofData,
@@ -183,7 +183,7 @@ export abstract class MigrationBaseWallet extends BaseWallet {
 
   /**
    * Fetch Mode A migration notes from the PXE, filtering on the well-known
-   * {@link MIGRATION_NOTE_SLOT} storage slot.
+   * {@link MIGRATION_NOTE_STORAGE_SLOT} storage slot.
    *
    * FIXME: Currently, it returns ALL migraton notes created by the user,
    * meaning that also those which have been already migrated are
@@ -196,7 +196,7 @@ export abstract class MigrationBaseWallet extends BaseWallet {
   async getMigrationNotes(filter: NotesFilter): Promise<NoteDao[]> {
     return this.getNotes({
       ...filter,
-      storageSlot: new Fr(MIGRATION_NOTE_SLOT),
+      storageSlot: MIGRATION_NOTE_STORAGE_SLOT,
     });
   }
 
