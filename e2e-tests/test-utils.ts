@@ -1,4 +1,5 @@
-import { ExampleMigrationAppContract } from "./artifacts/ExampleMigrationApp.js";
+import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
+import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
 import { MigrationArchiveRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationArchiveRegistry.js";
 import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
@@ -80,10 +81,8 @@ export async function deployAppPair(
 ) {
   const old_r = env[env.oldRollupVersion];
   const new_r = env[env.newRollupVersion];
-  const oldApp = await ExampleMigrationAppContract.deploy(
+  const oldApp = await ExampleMigrationAppV1Contract.deploy(
     old_r.deployerWallet,
-    NoirOption.NoneAddress,
-    NoirOption.NoneAddress,
   )
     .send({ from: old_r.deployerManager.address })
     .deployed();
@@ -95,10 +94,10 @@ export async function deployAppPair(
 
   const effectiveOldAppAddress = oldAppAddress ?? oldApp.address;
 
-  const newApp = await ExampleMigrationAppContract.deploy(
+  const newApp = await ExampleMigrationAppV2Contract.deploy(
     new_r.deployerWallet,
-    NoirOption.Some(newArchiveRegistryAddress),
-    NoirOption.Some(effectiveOldAppAddress),
+    newArchiveRegistryAddress,
+    effectiveOldAppAddress,
   )
     .send({ from: new_r.deployerManager.address })
     .deployed();

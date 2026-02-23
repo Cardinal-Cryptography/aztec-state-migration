@@ -1,0 +1,9 @@
+[package]
+name = "nft_migration_app_v1"
+type = "contract"
+authors = [""]
+compiler_version = ">=0.18.0"
+
+[dependencies]
+aztec = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v3.0.0-devnet.6-patch.1", directory = "aztec" }
+aztec_state_migration = { path = "../../../aztec-state-migration" }
