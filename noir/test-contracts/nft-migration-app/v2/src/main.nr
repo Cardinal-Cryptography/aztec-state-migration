@@ -16,6 +16,7 @@ pub contract NftMigrationAppV2 {
         protocol::{abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys},
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
     };
+    use nft_migration_app_v1::NftMigrationAppV1::STORAGE_LAYOUT_NftMigrationAppV1;
     use aztec_state_migration::{
         MigrationSignature,
         mode_a::{migrate_notes_mode_a, MigrationNoteProofData},
@@ -29,12 +30,14 @@ pub contract NftMigrationAppV2 {
 
     #[storage]
     struct Storage<Context> {
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
-        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
+        // --- Fields matching V1 storage layout (order must match for migration proofs) ---
         private_nfts: Owned<PrivateSet<NFTNote, Context>, Context>,
         nft_exists: Map<Field, PublicMutable<bool, Context>, Context>,
         public_owners: Map<Field, PublicMutable<AztecAddress, Context>, Context>,
         minter: PublicImmutable<AztecAddress, Context>,
+        // --- V2-only fields (not present in V1) ---
+        archive_root_address: PublicImmutable<AztecAddress, Context>,
+        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
     }
 
     #[external("public")]
@@ -182,8 +185,8 @@ pub contract NftMigrationAppV2 {
 
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        // NOTE: assumes old and new contracts have identical storage layout
-        let expected_storage_slot = STORAGE_LAYOUT_NftMigrationAppV2.fields.private_nfts.slot;
+        // Use V1's storage layout to get the correct slot on the old rollup
+        let expected_storage_slot = STORAGE_LAYOUT_NftMigrationAppV1.fields.private_nfts.slot;
 
         migrate_notes_mode_b(
             self.context,
@@ -229,13 +232,13 @@ pub contract NftMigrationAppV2 {
         let old_app = self.storage.old_rollup_app_address.read();
 
         // 1. Verify public state existed at snapshot height
-        // NOTE: assumes old and new contracts have identical storage layout
+        // Use V1's storage layout to get the correct slot on the old rollup
         migrate_public_map_owned_state_mode_b(
             self.context,
             archive_registry,
             old_app,
             proof_data,
-            STORAGE_LAYOUT_NftMigrationAppV2.fields.public_owners.slot,
+            STORAGE_LAYOUT_NftMigrationAppV1.fields.public_owners.slot,
             block_header,
             [token_id],
             old_owner,

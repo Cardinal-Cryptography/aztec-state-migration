@@ -29,6 +29,7 @@ pub contract ExampleMigrationAppV2 {
         Scalar,
     };
     use balance_set::BalanceSet;
+    use example_app_v1::ExampleMigrationAppV1::STORAGE_LAYOUT_ExampleMigrationAppV1;
     use uint_note::UintNote;
 
     // Only Packable needed for Migration
@@ -41,8 +42,7 @@ pub contract ExampleMigrationAppV2 {
 
     #[storage]
     struct Storage<Context> {
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
-        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
+        // --- Fields matching V1 storage layout (order must match for migration proofs) ---
         // Token balances (using Aztec's BalanceSet for private balances)
         balances: Owned<BalanceSet<Context>, Context>,
         // Public token balances
@@ -54,6 +54,9 @@ pub contract ExampleMigrationAppV2 {
         owned_struct_map: Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>,
         //
         owned_struct_nested_map: Map<Field, Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>, Context>,
+        // --- V2-only fields (not present in V1) ---
+        archive_root_address: PublicImmutable<AztecAddress, Context>,
+        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
     }
 
     #[external("public")]
@@ -225,11 +228,10 @@ pub contract ExampleMigrationAppV2 {
     ) {
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        // The `expected_storage_slot` should reflect the `balances` field in the storage layout
-        // of the contract on the old rollup. Here we just use the same storage layout as this contract
-        // is used in test on "old rollup" and "new rollup".
+        // The `expected_storage_slot` must reflect the `balances` field in the storage layout
+        // of the V1 contract on the old rollup. We import V1's storage layout to get the correct slot.
         let balances_expected_storage_slot =
-            STORAGE_LAYOUT_ExampleMigrationAppV2.fields.balances.slot;
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.balances.slot;
         let sum = full_proof_data.fold(0, |acc, full_note_proof_data| {
             acc + full_note_proof_data.note_proof_data.data.value
         });
@@ -274,7 +276,7 @@ pub contract ExampleMigrationAppV2 {
             struct_single_proof_data,
             // The `base_storage_slot` should reflect the `struct_single` field in the storage layout
             // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV2.fields.struct_single.slot,
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_single.slot,
             block_header,
         );
         ExampleMigrationAppV2::at(self.context.this_address())
@@ -302,7 +304,7 @@ pub contract ExampleMigrationAppV2 {
             struct_in_map_proof_data,
             // The `expected_storage_slot` should reflect the `struct_map` field in the storage layout
             // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV2.fields.struct_map.slot,
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_map.slot,
             block_header,
             [map_key],
         );
@@ -334,7 +336,7 @@ pub contract ExampleMigrationAppV2 {
             owned_struct_map_proof_data,
             // The `expected_storage_slot` should reflect the `owned_struct_map` field in the storage layout
             // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV2.fields.owned_struct_map.slot,
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_map.slot,
             block_header,
             [old_owner],
             old_owner,
@@ -371,7 +373,7 @@ pub contract ExampleMigrationAppV2 {
             owned_struct_nested_map_proof_data,
             // The `expected_storage_slot` should reflect the `owned_struct_nested_map` field in the storage layout
             // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV2.fields.owned_struct_nested_map.slot,
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_nested_map.slot,
             block_header,
             [map_key, old_owner.to_field()],
             old_owner,

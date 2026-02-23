@@ -24,8 +24,6 @@ pub contract NftMigrationAppV1 {
 
     #[storage]
     struct Storage<Context> {
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
-        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
         private_nfts: Owned<PrivateSet<NFTNote, Context>, Context>,
         nft_exists: Map<Field, PublicMutable<bool, Context>, Context>,
         public_owners: Map<Field, PublicMutable<AztecAddress, Context>, Context>,

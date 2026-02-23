@@ -10,7 +10,7 @@ pub contract ExampleMigrationAppV1 {
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
         protocol::{address::AztecAddress, traits::{Deserialize, Packable, Serialize}},
-        state_vars::{Map, Owned, PublicImmutable, PublicMutable},
+        state_vars::{Map, Owned, PublicMutable},
     };
     use aztec_state_migration::{mode_a::lock_migration_notes, Point};
     use balance_set::BalanceSet;
@@ -26,8 +26,6 @@ pub contract ExampleMigrationAppV1 {
 
     #[storage]
     struct Storage<Context> {
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
-        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
         // Token balances (using Aztec's BalanceSet for private balances)
         balances: Owned<BalanceSet<Context>, Context>,
         // Public token balances
