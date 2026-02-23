@@ -2,13 +2,15 @@ import { AztecNode } from "@aztec/aztec.js/node";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { computePublicDataTreeLeafSlot } from "@aztec/stdlib/hash";
+import {
+  computePublicDataTreeLeafSlot,
+  deriveStorageSlotInMap,
+} from "@aztec/stdlib/hash";
 import {
   NonNullificationProofData,
   PublicDataProof,
   PublicDataSlotProof,
 } from "./types.js";
-import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";
 import type { NoteDao } from "@aztec/stdlib/note";
 import type { AbiType } from "@aztec/stdlib/abi";
 
@@ -72,18 +74,19 @@ export async function buildPublicDataSlotProof(
     contractAddress,
     storageSlot,
   );
-
   const witness = await aztecNode.getPublicDataWitness(blockNumber, siloedSlot);
   if (!witness) {
     throw new Error(
       `No public data witness for slot ${storageSlot} (siloed: ${siloedSlot})`,
     );
   }
-
+  const nextKey = witness.leafPreimage.nextKey;
+  const nextIndex = new Fr(witness.leafPreimage.nextIndex);
+  const leafIndex = new Fr(witness.index);
   return {
-    next_slot: witness.leafPreimage.nextKey,
-    next_index: new Fr(witness.leafPreimage.nextIndex),
-    leaf_index: new Fr(witness.index),
+    next_slot: nextKey,
+    next_index: nextIndex,
+    leaf_index: leafIndex,
     sibling_path: witness.siblingPath.toFields(),
   };
 }
@@ -155,7 +158,7 @@ export async function buildPublicMapDataProof<T>(
   dataAbiType: AbiType,
 ): Promise<PublicDataProof<T>> {
   const slotCount = countPackedSlots(dataAbiType);
-  const slot_in_map = await deriveStorageSlotInMap(baseSlot, mapKeys);
+  const slot_in_map = await deriveNestedMapStorageSlot(baseSlot, mapKeys);
   const slot_proof_data = [];
   for (let i = 0; i < slotCount; i++) {
     const slot = slot_in_map.add(new Fr(i));
@@ -194,7 +197,7 @@ function countPackedSlots(abiType: AbiType): number {
   }
 }
 
-async function deriveStorageSlotInMap(
+async function deriveNestedMapStorageSlot(
   baseSlot: Fr,
   mapKeys: {
     toField: () => Fr;
@@ -202,7 +205,7 @@ async function deriveStorageSlotInMap(
 ): Promise<Fr> {
   let derived_slot = baseSlot;
   for (let i = 0; i < mapKeys.length; i++) {
-    derived_slot = await poseidon2Hash([derived_slot, mapKeys[i].toField()]);
+    derived_slot = await deriveStorageSlotInMap(derived_slot, mapKeys[i]);
   }
   return derived_slot;
 }

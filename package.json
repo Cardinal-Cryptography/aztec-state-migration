@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "type": "module",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.12.0"
   },
   "packageManager": "yarn@1.22.22",
   "scripts": {
@@ -20,8 +20,8 @@
     "noir:codegen": "yarn noir:codegen:contracts && yarn noir:codegen:test-contracts",
     "noir:codegen:contracts": "cd ts/aztec-state-migration && mkdir -p noir-contracts artifacts && cp ../../noir/target/*MigrationArchiveRegistry.json ../../noir/target/*MigrationKeyRegistry.json artifacts && aztec codegen ./artifacts -o ./noir-contracts",
     "noir:codegen:test-contracts": "cd e2e-tests && mkdir -p artifacts && find ../noir/target -maxdepth 1 -name '*.json' ! -name '*MigrationArchiveRegistry*' ! -name '*MigrationKeyRegistry*' -exec cp {} artifacts \\; && aztec codegen ./artifacts -o ./artifacts",
-    "noir:fmt": "cd noir && aztec fmt",
-    "noir:fmt:check": "cd noir && aztec fmt --check",
+    "noir:fmt": "cd noir && nargo fmt",
+    "noir:fmt:check": "cd noir && nargo fmt",
     "ts:build": "tsc",
     "ts:fmt": "prettier --write 'ts/**/*.ts' 'e2e-tests/**/*.ts'",
     "ts:fmt:check": "prettier --check 'ts/**/*.ts' 'e2e-tests/**/*.ts'",
@@ -40,18 +40,26 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@aztec/accounts": "v3.0.0-devnet.6-patch.1",
-    "@aztec/aztec.js": "v3.0.0-devnet.6-patch.1",
-    "@aztec/constants": "v3.0.0-devnet.6-patch.1",
-    "@aztec/entrypoints": "v3.0.0-devnet.6-patch.1",
-    "@aztec/foundation": "v3.0.0-devnet.6-patch.1",
-    "@aztec/noir-contracts.js": "v3.0.0-devnet.6-patch.1",
-    "@aztec/pxe": "v3.0.0-devnet.6-patch.1",
-    "@aztec/stdlib": "v3.0.0-devnet.6-patch.1",
-    "@aztec/test-wallet": "v3.0.0-devnet.6-patch.1",
+    "@aztec/accounts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/wallets": "v4.0.0-devnet.2-patch.0",
+    "@aztec/aztec.js": "v4.0.0-devnet.2-patch.0",
+    "@aztec/constants": "v4.0.0-devnet.2-patch.0",
+    "@aztec/entrypoints": "v4.0.0-devnet.2-patch.0",
+    "@aztec/foundation": "v4.0.0-devnet.2-patch.0",
+    "@aztec/noir-contracts.js": "v4.0.0-devnet.2-patch.0",
+    "@aztec/pxe": "v4.0.0-devnet.2-patch.0",
+    "@aztec/stdlib": "v4.0.0-devnet.2-patch.0",
     "viem": "^2.21.0"
   },
   "devDependencies": {
+    "@aztec/world-state": "v4.0.0-devnet.2-patch.0",
+    "@aztec/aztec-node": "v4.0.0-devnet.2-patch.0",
+    "@aztec/cli": "v4.0.0-devnet.2-patch.0",
+    "@aztec/ethereum": "v4.0.0-devnet.2-patch.0",
+    "@aztec/l1-artifacts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/noir-protocol-circuits-types": "v4.0.0-devnet.2-patch.0",
+    "@aztec/protocol-contracts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/telemetry-client": "v4.0.0-devnet.2-patch.0",
     "prettier": "^3.8.1",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
