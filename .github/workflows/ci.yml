@@ -31,7 +31,7 @@ jobs:
       - uses: ./.github/actions/setup-aztec
         with:
           version: ${{ env.AZTEC_VERSION }}
-      - run: corepack enable && yarn install
+      - run: corepack enable && yarn install --frozen-lockfile
       - run: cd solidity && forge soldeer install
       - name: Compile Noir contracts
         run: yarn noir:compile && yarn noir:codegen
@@ -60,29 +60,23 @@ jobs:
 
   format-and-lint:
     name: Format & Lint
-    needs: setup
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: yarn
       - uses: foundry-rs/foundry-toolchain@v1
       - uses: noir-lang/noirup@v0.1.4
         with:
           toolchain: ${{ env.NARGO_VERSION }}
-      - run: corepack enable && yarn install
-      - uses: actions/download-artifact@v4
-        with:
-          name: ts-contract-artifacts
-          path: ts/aztec-state-migration/
-      - uses: actions/download-artifact@v4
-        with:
-          name: test-contract-artifacts
-          path: e2e-tests/artifacts/
-      - run: yarn fmt:check
+      - name: Check Solidity formatting
+        run: cd solidity && forge fmt --check
+      - name: Check Noir formatting
+        run: cd noir && nargo fmt --check
+      - name: Check TypeScript formatting
+        run: npx prettier --check 'ts/**/*.ts' 'e2e-tests/**/*.ts'
 
   test-e2e:
     name: Test - E2E
@@ -99,7 +93,7 @@ jobs:
       - uses: ./.github/actions/setup-aztec
         with:
           version: ${{ env.AZTEC_VERSION }}
-      - run: corepack enable && yarn install
+      - run: corepack enable && yarn install --frozen-lockfile
       - uses: actions/download-artifact@v4
         with:
           name: solidity-build
