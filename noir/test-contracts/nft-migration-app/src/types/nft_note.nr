@@ -1,11 +1,11 @@
 use aztec::{
     context::PrivateContext,
-    keys::getters::{get_nsk_app, get_public_keys},
+    keys::getters::{get_nhk_app, get_public_keys},
     macros::notes::custom_note,
     note::note_interface::NoteHash,
-    protocol_types::{
+    protocol::{
         address::AztecAddress,
-        constants::{GENERATOR_INDEX__NOTE_HASH, GENERATOR_INDEX__NOTE_NULLIFIER},
+        constants::{DOM_SEP__NOTE_HASH, DOM_SEP__NOTE_NULLIFIER},
         hash::poseidon2_hash_with_separator,
         traits::{Hash, Packable, Serialize, ToField},
     },
@@ -30,13 +30,10 @@ impl NoteHash for NFTNote {
         // First round: commit to private content (owner, storage_slot, randomness).
         let partial_commitment = poseidon2_hash_with_separator(
             [owner.to_field(), storage_slot, randomness],
-            GENERATOR_INDEX__NOTE_HASH,
+            DOM_SEP__NOTE_HASH,
         );
         // Second round: include the token_id.
-        poseidon2_hash_with_separator(
-            [partial_commitment, self.token_id],
-            GENERATOR_INDEX__NOTE_HASH,
-        )
+        poseidon2_hash_with_separator([partial_commitment, self.token_id], DOM_SEP__NOTE_HASH)
     }
 
     fn compute_nullifier(
@@ -47,10 +44,10 @@ impl NoteHash for NFTNote {
     ) -> Field {
         let owner_npk_m = get_public_keys(owner).npk_m;
         let owner_npk_m_hash = owner_npk_m.hash();
-        let secret = context.request_nsk_app(owner_npk_m_hash);
+        let secret = context.request_nhk_app(owner_npk_m_hash);
         poseidon2_hash_with_separator(
             [note_hash_for_nullification, secret],
-            GENERATOR_INDEX__NOTE_NULLIFIER,
+            DOM_SEP__NOTE_NULLIFIER,
         )
     }
 
@@ -58,13 +55,13 @@ impl NoteHash for NFTNote {
         self,
         owner: AztecAddress,
         note_hash_for_nullification: Field,
-    ) -> Field {
+    ) -> Option<Field> {
         let owner_npk_m = get_public_keys(owner).npk_m;
         let owner_npk_m_hash = owner_npk_m.hash();
-        let secret = get_nsk_app(owner_npk_m_hash);
-        poseidon2_hash_with_separator(
+        let secret = get_nhk_app(owner_npk_m_hash);
+        Option::some(poseidon2_hash_with_separator(
             [note_hash_for_nullification, secret],
-            GENERATOR_INDEX__NOTE_NULLIFIER,
-        )
+            DOM_SEP__NOTE_NULLIFIER,
+        ))
     }
 }

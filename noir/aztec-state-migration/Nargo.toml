@@ -5,8 +5,8 @@ authors = [ "" ]
 compiler_version = ">=0.18.0"
 
 [dependencies]
-aztec = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v3.0.0-devnet.6-patch.1", directory = "aztec" }
-balance_set = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v3.0.0-devnet.6-patch.1", directory = "balance-set" }
+aztec = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "aztec" }
+balance_set = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "balance-set" }
 poseidon = { tag = "v0.1.1", git = "https://github.com/noir-lang/poseidon" }
 schnorr = { tag = "v0.1.3", git = "https://github.com/noir-lang/schnorr" }
 migration_archive_registry = { path = "../contracts/migration-archive-registry" }

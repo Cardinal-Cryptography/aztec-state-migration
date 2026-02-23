@@ -9,8 +9,8 @@ pub contract MigrationKeyRegistry {
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol_types::address::AztecAddress,
-        state_vars::{owned::Owned, private_immutable::PrivateImmutable},
+        protocol::address::AztecAddress,
+        state_vars::{Owned, PrivateImmutable},
     };
     use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
@@ -32,10 +32,10 @@ pub contract MigrationKeyRegistry {
             "mpk not on Grumpkin curve",
         );
 
-        let owner = self.context.msg_sender().unwrap();
+        let owner = self.msg_sender();
         let note = MigrationKeyNote::new(mpk);
         self.storage.registered_keys.at(owner).initialize(note).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
+            MessageDelivery.ONCHAIN_CONSTRAINED,
         );
     }
 

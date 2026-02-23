@@ -11,17 +11,14 @@ pub contract ExampleMigrationApp {
     use aztec::{
         macros::{functions::{external, initializer, only_self}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol_types::{
+        protocol::{
             address::AztecAddress,
             public_keys::PublicKeys,
             traits::{Deserialize, Packable, Serialize, ToField},
         },
-        state_vars::{
-            map::Map, owned::Owned, public_immutable::PublicImmutable,
-            public_mutable::PublicMutable,
-        },
+        state_vars::{Map, Owned, PublicImmutable, PublicMutable},
     };
-    use aztec::protocol_types::abis::block_header::BlockHeader;
+    use aztec::protocol::abis::block_header::BlockHeader;
     use aztec_state_migration::{
         MigrationSignature,
         mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
@@ -33,8 +30,8 @@ pub contract ExampleMigrationApp {
         Point,
         Scalar,
     };
-    use balance_set::balance_set::BalanceSet;
-    use uint_note::uint_note::UintNote;
+    use balance_set::BalanceSet;
+    use uint_note::UintNote;
 
     // Only Packable needed for Migration
     // Serialize and Deserialize because it's used as argument
@@ -84,13 +81,13 @@ pub contract ExampleMigrationApp {
     /// Mint tokens to an account (for testing)
     #[external("private")]
     fn mint(to: AztecAddress, amount: u128) {
-        self.storage.balances.at(to).add(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        self.storage.balances.at(to).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 
     /// Burn tokens from an account (for testing)
     #[external("private")]
     fn burn(from: AztecAddress, amount: u128) {
-        self.storage.balances.at(from).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        self.storage.balances.at(from).sub(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 
     /// Get balance (view function)
@@ -119,20 +116,14 @@ pub contract ExampleMigrationApp {
 
     #[external("public")]
     fn _increment_public_balance(owner: AztecAddress, amount: u128) {
-        assert(
-            self.context.msg_sender().unwrap() == self.context.this_address(),
-            "Only callable internally",
-        );
+        assert(self.msg_sender() == self.context.this_address(), "Only callable internally");
         let current = self.storage.public_balances.at(owner).read();
         self.storage.public_balances.at(owner).write(current + amount);
     }
 
     #[external("public")]
     fn _decrement_public_balance(owner: AztecAddress, amount: u128) {
-        assert(
-            self.context.msg_sender().unwrap() == self.context.this_address(),
-            "Only callable internally",
-        );
+        assert(self.msg_sender() == self.context.this_address(), "Only callable internally");
         let current = self.storage.public_balances.at(owner).read();
         assert(current >= amount, "Insufficient public balance");
         self.storage.public_balances.at(owner).write(current - amount);
@@ -150,9 +141,9 @@ pub contract ExampleMigrationApp {
     /// 3. Creates a MigrationNote that can be proven on the destination rollup
     #[external("private")]
     fn lock_migration_notes_mode_a(amount: u128, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.context.msg_sender().unwrap();
+        let note_owner = self.msg_sender();
 
-        self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 
         lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
     }
@@ -166,7 +157,7 @@ pub contract ExampleMigrationApp {
     /// The MigrationNote is the same as for private locks, so the claim circuit is unchanged.
     #[external("private")]
     fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.context.msg_sender().unwrap();
+        let note_owner = self.msg_sender();
 
         lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
 
@@ -205,7 +196,7 @@ pub contract ExampleMigrationApp {
         // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
 
         migrate_notes_mode_a(
@@ -220,8 +211,8 @@ pub contract ExampleMigrationApp {
         );
 
         // 4. If successful, mint the migrated tokens to the user on the new rollup
-        self.storage.balances.at(self.context.msg_sender().unwrap()).add(amount).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
+        self.storage.balances.at(self.msg_sender()).add(amount).deliver(
+            MessageDelivery.ONCHAIN_CONSTRAINED,
         );
     }
 
@@ -242,7 +233,7 @@ pub contract ExampleMigrationApp {
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
         // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
             self.context,
@@ -256,7 +247,7 @@ pub contract ExampleMigrationApp {
         );
 
         // 3. Mint to PUBLIC balance (instead of private)
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         ExampleMigrationApp::at(self.context.this_address())
             ._increment_public_balance(recipient, amount)
             .enqueue(self.context);
@@ -290,7 +281,7 @@ pub contract ExampleMigrationApp {
         //
         nsk: Scalar,
     ) {
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
         // The `expected_storage_slot` should reflect the `balances` field in the storage layout
         // of the contract on the old rollup. Here we just use the same storage layout as this contract
@@ -319,7 +310,7 @@ pub contract ExampleMigrationApp {
         );
 
         // 2. Mint the migrated tokens to the user on the new rollup
-        self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 
     #[external("private")]
@@ -390,7 +381,7 @@ pub contract ExampleMigrationApp {
         signature: MigrationSignature,
         key_note: KeyNoteProofData,
     ) {
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
         let owned_struct = owned_struct_map_proof_data.data;
@@ -427,7 +418,7 @@ pub contract ExampleMigrationApp {
         key_note: KeyNoteProofData,
         map_key: Field,
     ) {
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
         let owned_struct = owned_struct_nested_map_proof_data.data;
@@ -479,17 +470,12 @@ pub contract ExampleMigrationApp {
 
     #[external("public")]
     fn init_owned_struct_map(some_struct: SomeStruct) {
-        self.storage.owned_struct_map.at(self.context.msg_sender().unwrap()).write(some_struct);
+        self.storage.owned_struct_map.at(self.msg_sender()).write(some_struct);
     }
 
     #[external("public")]
     fn init_owned_struct_nested_map(map_key: Field, some_struct: SomeStruct) {
-        self
-            .storage
-            .owned_struct_nested_map
-            .at(map_key)
-            .at(self.context.msg_sender().unwrap())
-            .write(some_struct);
+        self.storage.owned_struct_nested_map.at(map_key).at(self.msg_sender()).write(some_struct);
     }
 
     #[external("utility")]

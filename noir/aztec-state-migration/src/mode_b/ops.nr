@@ -4,12 +4,12 @@ use super::{
     public_state_proof_data::PublicStateProofData,
 };
 use aztec::{
-    context::private_context::PrivateContext,
+    context::PrivateContext,
     note::note_interface::NoteHash,
-    protocol_types::{
+    protocol::{
         abis::block_header::BlockHeader,
         address::{AztecAddress, partial_address::PartialAddress},
-        constants::{GENERATOR_INDEX__NOTE_NULLIFIER, GENERATOR_INDEX__NSK_M},
+        constants::{DOM_SEP__NHK_M, DOM_SEP__NOTE_NULLIFIER, DOM_SEP__PUBLIC_STORAGE_MAP_SLOT},
         hash::{poseidon2_hash, poseidon2_hash_with_separator},
         public_keys::{NpkM, PublicKeys},
         traits::{Hash, Packable, ToField},
@@ -92,7 +92,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
 
     // Derive nsk_app for the old app contract:
     let nsk_app =
-        poseidon2_hash_with_separator([nsk.hi, nsk.lo, old_app.to_field()], GENERATOR_INDEX__NSK_M);
+        poseidon2_hash_with_separator([nsk.hi, nsk.lo, old_app.to_field()], DOM_SEP__NHK_M);
 
     let mut notes_hashes: [Field; N] = [0; N];
 
@@ -189,7 +189,7 @@ fn migrate_note<Note: NoteHash>(
     // ============================================================
     let migration_nullifier = poseidon2_hash_with_separator(
         [note_unique, note_proof_data.randomness],
-        GENERATOR_INDEX__NOTE_NULLIFIER,
+        DOM_SEP__NOTE_NULLIFIER,
     );
     context.push_nullifier(migration_nullifier);
 
@@ -313,7 +313,10 @@ fn derive_map_storage_slot<K: ToField, let N: u32>(slot: Field, map_keys: [K; N]
     std::static_assert(N > 0, "map_keys must have at least one key");
     let mut derived_slot = slot;
     for i in 0..N {
-        derived_slot = poseidon2_hash([derived_slot, map_keys[i].to_field()]);
+        derived_slot = poseidon2_hash_with_separator(
+            [derived_slot, map_keys[i].to_field()],
+            DOM_SEP__PUBLIC_STORAGE_MAP_SLOT,
+        );
     }
     derived_slot
 }
