@@ -132,6 +132,33 @@ The test scripts read connection URLs from environment variables with defaults:
 
 `check:full` (`scripts/check-full.sh`) runs `test:setup`, then executes `test:mode-a`, `test:mode-b`, and `test:mode-b:public` sequentially, and stops the environment on exit via a trap. It does **not** include `test:registry` or `test:hash`.
 
+## E2E Test Architecture
+
+The E2E tests run against two Aztec sandbox instances (ports 8080 and 8081) representing old and new rollups.
+
+### Private note migration test (`scripts/migration_mode_b.test.ts`):
+
+1. Deploys contracts on both rollups and mints tokens on the old rollup
+2. Registers a migration key on the old rollup (`MigrationKeyRegistry`)
+3. Bridges the archive root via L1 (`bridgeBlock` -- consume L1->L2 message + register block) and sets snapshot height
+4. Gathers Merkle proofs: note inclusion, nullifier non-inclusion, key note inclusion
+5. Signs the migration via Schnorr signature
+6. Calls `migrate_mode_b` on the new rollup
+7. Verifies the balance on the new rollup
+8. Tests that migrating a nullified note fails (expected failure case)
+
+### Public state migration test (`scripts/migration_public_mode_b.test.ts`):
+
+1. Deploys contracts and sets public storage values (standalone struct, map struct, owned map struct, nested owned map struct)
+2. Bridges the archive root and sets snapshot height
+3. Builds `PublicStateProofData` from the Aztec node's public data tree witnesses
+4. Calls the corresponding `migrate_to_public_*_mode_b` functions on the new rollup
+5. Verifies each migrated value on the new rollup
+
+### Account management
+
+User accounts are created via `deployAndFundAccount`, which deploys a Schnorr account contract on-chain with fee juice claimed from L1. The `MigrationTestWallet` wraps account management and provides migration-specific helpers (key derivation, note retrieval, proof building, signature generation).
+
 ## Solidity Contracts Summary
 
 | Contract | Purpose |

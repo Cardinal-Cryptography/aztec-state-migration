@@ -86,25 +86,10 @@ This separation allows block registration to happen once per block, with multipl
 
 ## Public Balance Migration (App-Level)
 
-Public balance migration reuses the same `MigrationNote` and claim circuit as private migration. The difference is in the app-level wrappers.
+Public balance migration reuses the same `MigrationNote` and claim circuit as private migration. The difference is in the app-level wrappers:
 
-### Lock (Old Rollup)
-
-The app contract's `lock_public_for_migration` (`example_app/main.nr`, function `lock_public_for_migration`):
-
-1. Calls `lock_migration_notes` to create a `MigrationNote` (identical to private lock).
-2. Enqueues a public call to `_decrement_public_balance(note_owner, amount)`.
-
-If the public balance decrement fails (insufficient balance), the entire transaction reverts, including the `MigrationNote` creation.
-
-### Claim (New Rollup)
-
-The app contract's `migrate_to_public_mode_a` (`example_app/main.nr`, function `migrate_to_public_mode_a`):
-
-1. Calls `migrate_notes_mode_a` (same library function as private claim).
-2. Enqueues a public call to `_increment_public_balance(recipient, amount)`.
-
-> **Implementation note:** The reference app's `migrate_mode_a` and `migrate_to_public_mode_a` take an explicit `amount` parameter that is asserted to equal `note_proof_data[0].data`. This is a known redundancy -- the `amount` duplicates data already present in the proof. The code marks it with `FIXME` (`example_app/main.nr:203, 239`) and it may be removed in a future iteration.
+- **Lock (old rollup):** The app contract calls `lock_migration_notes` to create a `MigrationNote`, then applies its own state transition (e.g., decrementing a public balance). If the state transition fails, the entire transaction reverts.
+- **Claim (new rollup):** The app contract calls `migrate_notes_mode_a` (same library function as private claim), then applies its own state transition (e.g., incrementing a public balance).
 
 ## Authentication
 

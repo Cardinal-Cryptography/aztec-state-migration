@@ -380,18 +380,7 @@ The tables below list library functions first, then app-level interfaces.
 
 > **Note:** Mode B library functions accept an `expected_storage_slot` parameter to bind the proof to a specific storage location, preventing slot substitution attacks.
 
-### App-Level Interfaces
-
-App contracts wrap the library functions above with app-specific logic (minting, burning, balance management). The tables below show the interfaces for the reference app contract.
-
-> **Note:** An NFT migration contract implementing Mode A + Mode B for NFTs exists in the codebase. Its API follows the same library composition pattern. See `noir/contracts/nft_migration_app/src/main.nr`.
-
-#### TokenV1 (Old Rollup)
-
-| Function | Params | Description |
-| --- | --- | --- |
-| `lock_migration_notes_mode_a` | `amount, destination_rollup, mpk` | Lock private balance for migration, creates MigrationNote |
-| `lock_public_for_migration` | `amount, destination_rollup, mpk` | Lock public balance for migration, creates MigrationNote + decrements public balance |
+### Shared Contract Interfaces
 
 #### MigrationKeyRegistry (Old Rollup, Mode B only)
 
@@ -431,19 +420,6 @@ App contracts wrap the library functions above with app-specific logic (minting,
 | `ArchiveRootMigrated` | `uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenBlockNumber, bytes32 messageLeaf, uint256 messageLeafIndex` | Emitted on successful bridge (3 indexed, 4 non-indexed params) |
 
 > **Note on naming:** The Solidity event uses `provenBlockNumber` while `getArchiveInfo` returns `provenCheckpointNumber`. The Noir/spec convention uses `proven_block_number`. These refer to the same value.
-
-#### App Contract (New Rollup)
-
-| Function | Params | Description |
-| --- | --- | --- |
-| `migrate_mode_a` | `amount, mpk, signature, note_proof_data, block_header` | Claim Mode A migration (private -> private) |
-| `migrate_to_public_mode_a` | `amount, mpk, signature, note_proof_data, block_header` | Claim Mode A migration (private -> public) |
-| `migrate_mode_b` | `amount, signature, full_proof_data, block_header, notes_owner, public_keys, partial_address, key_note, nsk` | Claim Mode B migration (private notes) |
-| `migrate_to_public_*_mode_b` | `proof_data, block_header, [map_keys], [old_owner, signature, key_note]` | Claim Mode B migration (public state) |
-| `migrate_to_public_struct_mode_b` | `proof_data, block_header` | Mode B: migrate standalone public struct |
-| `migrate_to_public_struct_map_mode_b` | `proof_data, block_header, map_keys` | Mode B: migrate public struct from a map |
-| `migrate_to_public_owned_struct_map_mode_b` | `proof_data, block_header, map_keys, old_owner, signature, key_note` | Mode B: migrate owned public struct from a map |
-| `migrate_to_public_owned_struct_nested_map_mode_b` | `proof_data, block_header, map_keys, old_owner, signature, key_note` | Mode B: migrate owned public struct from a nested map |
 
 ## Migration Nullifiers
 
