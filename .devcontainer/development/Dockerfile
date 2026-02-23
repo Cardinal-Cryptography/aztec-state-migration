@@ -37,11 +37,6 @@ RUN curl -L https://foundry.paradigm.xyz | bash \
     && /root/.foundry/bin/foundryup
 ENV PATH="/root/.foundry/bin:${PATH}"
 
-# Install Rust and Soldeer for Solidity dependency management
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-    && /root/.cargo/bin/cargo install soldeer
-ENV PATH="/root/.cargo/bin:${PATH}"
-
 # Install Aztec CLI binaries and set default version
 RUN mkdir -p /root/.aztec \
     && echo "${AZTEC_VERSION}" > /root/.aztec/default_version \

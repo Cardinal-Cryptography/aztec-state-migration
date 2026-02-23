@@ -2,7 +2,7 @@
 set -e
 
 # Mac ARM overrides HOME to the host user's path, so Dockerfile-installed
-# tools in /root/ are not on the default PATH. Install Foundry + soldeer into $HOME.
+# tools in /root/ are not on the default PATH. Install Foundry into $HOME.
 
 # Install Foundry (forge, cast, anvil)
 if ! command -v forge &> /dev/null; then
@@ -13,18 +13,6 @@ if ! command -v forge &> /dev/null; then
   echo "✓ Foundry installed at $(which forge)"
 fi
 export PATH="$HOME/.foundry/bin:$PATH"
-
-# Install soldeer (Solidity dependency manager)
-if ! command -v soldeer &> /dev/null; then
-  echo "Installing soldeer..."
-  if ! command -v cargo &> /dev/null; then
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    export PATH="$HOME/.cargo/bin:$PATH"
-  fi
-  cargo install soldeer
-  echo "✓ soldeer installed at $(which soldeer)"
-fi
-export PATH="$HOME/.cargo/bin:$PATH"
 
 # Run the standard development setup (yarn, aztec CLI, nargo, solidity deps)
 bash .devcontainer/development/postCreate.sh

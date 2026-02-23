@@ -31,11 +31,8 @@ jobs:
       - uses: ./.github/actions/setup-aztec
         with:
           version: ${{ env.AZTEC_VERSION }}
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo install soldeer
       - run: corepack enable && yarn install
-      - run: cd solidity && soldeer install
+      - run: cd solidity && forge soldeer install
       - name: Compile Noir contracts
         run: yarn noir:compile && yarn noir:codegen
       - name: Compile Solidity contracts

@@ -18,6 +18,6 @@ echo "✓ nargo installed at $(which nargo)"
 
 # Install Solidity dependencies
 echo "Installing Solidity dependencies..."
-cd solidity && soldeer install && cd ..
+cd solidity && forge soldeer install && cd ..
 echo "✓ Solidity dependencies installed"
 echo "=== Devcontainer setup complete ==="

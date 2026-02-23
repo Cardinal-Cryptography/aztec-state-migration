@@ -11,7 +11,7 @@
   "scripts": {
     "clean": "rm -rf noir/target noir/codegenCache.json solidity/target solidity/cache",
     "sol": "yarn sol:deps && yarn sol:compile",
-    "sol:deps": "cd solidity && soldeer install",
+    "sol:deps": "cd solidity && forge soldeer install",
     "sol:compile": "cd solidity && forge build",
     "sol:fmt": "cd solidity && forge fmt",
     "sol:fmt:check": "cd solidity && forge fmt --check",
