@@ -16,7 +16,6 @@ pub contract NftMigrationAppV2 {
         protocol::{abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys},
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
     };
-    use nft_migration_app_v1::NftMigrationAppV1::STORAGE_LAYOUT_NftMigrationAppV1;
     use aztec_state_migration::{
         MigrationSignature,
         mode_a::{migrate_notes_mode_a, MigrationNoteProofData},
@@ -27,6 +26,7 @@ pub contract NftMigrationAppV2 {
         Point,
         Scalar,
     };
+    use nft_migration_app_v1::NftMigrationAppV1::STORAGE_LAYOUT_NftMigrationAppV1;
 
     #[storage]
     struct Storage<Context> {
