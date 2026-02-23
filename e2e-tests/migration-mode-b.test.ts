@@ -86,20 +86,17 @@ async function main() {
 
   await oldApp.methods
     .mint(oldUserManager.address, MINT_AMOUNT_1)
-    .send({ from: oldDeployerManager.address })
-    .wait();
+    .send({ from: oldDeployerManager.address });
   console.log(`   Minted ${MINT_AMOUNT_1} tokens (mint 1)`);
 
   await oldApp.methods
     .mint(oldUserManager.address, MINT_AMOUNT_2)
-    .send({ from: oldDeployerManager.address })
-    .wait();
+    .send({ from: oldDeployerManager.address });
   console.log(`   Minted ${MINT_AMOUNT_2} tokens (mint 2)`);
 
   await oldAppUser.methods
     .burn(oldUserManager.address, BURN_AMOUNT_1)
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
   console.log(`   Burned ${BURN_AMOUNT_1} tokens (burn 1)`);
 
   const oldBalance = await oldAppUser.methods
@@ -112,7 +109,9 @@ async function main() {
   // ============================================================
   console.log("Step 4. Registering migration key for Alice...");
 
-  const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
+  const mpk = await oldUserWallet.getMigrationPublicKey(
+    oldUserManager.address,
+  )!;
 
   const oldUserKeyRegistry = MigrationKeyRegistryContract.at(
     oldKeyRegistry.address,
@@ -121,8 +120,7 @@ async function main() {
 
   await oldUserKeyRegistry.methods
     .register(mpk.toNoirStruct())
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
 
   const registeredKey = await oldUserKeyRegistry.methods
     .get(oldUserManager.address)
@@ -148,8 +146,7 @@ async function main() {
       provenBlockNumber,
       archiveProof.archive_sibling_path,
     )
-    .send({ from: newDeployerManager.address })
-    .wait();
+    .send({ from: newDeployerManager.address });
 
   const storedSnapshot = await newArchiveRegistry.methods
     .get_snapshot_height()
@@ -161,18 +158,13 @@ async function main() {
   // ============================================================
   console.log("Step 8. Deriving account keys...");
 
-  const publicKeys = oldUserWallet.getPublicKeys(oldUserManager.address)!;
+  const publicKeys = await oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
   const partialAddress = completeAddress.partialAddress;
-  const oldMigrationAccount = await oldUserWallet.getMigrationAccount(
+  const nhk = await oldUserWallet.getMaskedNhk(
     oldUserManager.address,
-  );
-  const newMigrationAccount = await newUserWallet.getMigrationAccount(
     newUserManager.address,
-  );
-  const nsk = await oldMigrationAccount.getMaskedNsk(
-    newMigrationAccount,
-    oldApp.address,
+    newApp.address,
   );
 
   console.log(`   nsk derived`);
@@ -183,21 +175,14 @@ async function main() {
   // ============================================================
   console.log("Step 9. Building proofs and signing...");
 
-  const keyRegistrySlot =
-    oldKeyRegistry.artifact.storageLayout["registered_keys"].slot;
   const balancesSlot = oldApp.artifact.storageLayout["balances"].slot;
-
-  const keyNotes = await oldUserWallet.getNotes({
-    owner: oldUserManager.address,
-    contractAddress: oldKeyRegistry.address,
-    storageSlot: keyRegistrySlot,
-  });
 
   const balanceNotesAll = await oldUserWallet.getNotes({
     owner: oldUserManager.address,
     contractAddress: oldApp.address,
     storageSlot: balancesSlot,
     status: NoteStatus.ACTIVE_OR_NULLIFIED,
+    scopes: [oldUserManager.address],
   });
 
   const balanceNotesActive = await oldUserWallet.getNotes({
@@ -205,6 +190,7 @@ async function main() {
     contractAddress: oldApp.address,
     storageSlot: balancesSlot,
     status: NoteStatus.ACTIVE,
+    scopes: [oldUserManager.address],
   });
 
   const balanceNotesNullified = balanceNotesAll.filter(
@@ -213,9 +199,6 @@ async function main() {
 
   if (balanceNotesActive.length === 0) {
     throw new Error("No active balance notes found");
-  }
-  if (keyNotes.length === 0) {
-    throw new Error("No key notes found");
   }
 
   // The ExampleMigrationApp currently only creates one note per call.
@@ -235,11 +218,11 @@ async function main() {
   );
 
   // Sign via standalone function
-  const oldAccount = await oldUserWallet.getMigrationAccount(
+  const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
   const signature = await signMigrationModeB(
-    oldAccount.migrationKeySigner,
+    oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     balanceNotes,
@@ -271,13 +254,12 @@ async function main() {
       [noteProof],
       blockHeader,
       oldUserManager.address,
-      publicKeys.toNoirStruct(),
+      publicKeys,
       partialAddress,
       keyNoteProof,
-      { hi: nsk.hi, lo: nsk.lo },
+      { hi: nhk.hi, lo: nhk.lo },
     )
-    .send({ from: newUserManager.address })
-    .wait();
+    .send({ from: newUserManager.address });
 
   const newBalanceAfter = await newAppUser.methods
     .get_balance(newUserManager.address)
@@ -314,7 +296,7 @@ async function main() {
   );
 
   const nullifiedNoteSig = await signMigrationModeB(
-    oldAccount.migrationKeySigner,
+    oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     [nullifiedNote],
@@ -332,19 +314,18 @@ async function main() {
         [nullifiedNoteProof],
         blockHeader,
         oldUserManager.address,
-        publicKeys.toNoirStruct(),
+        publicKeys,
         partialAddress,
         keyNoteProof,
-        { hi: nsk.hi, lo: nsk.lo },
+        { hi: nhk.hi, lo: nhk.lo },
       )
-      .send({ from: newUserManager.address })
-      .wait();
+      .send({ from: newUserManager.address });
     if (!res.status.includes("reverted")) {
       throw new Error(
         "Expected migration of nullified note to fail, but it succeeded",
       );
     } else {
-      if (!res.error.includes("Note nullifier non-inclusion")) {
+      if (!res.error!.includes("Note nullifier non-inclusion")) {
         throw new Error(
           `Migration failed as expected, but with unexpected error: ${res.error}`,
         );
