@@ -143,11 +143,11 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let block_hash = block_header.hash();
 
     // ============================================================
-    // 6. Enqueue public verification of block hash against snapshot
+    // 6. Verification of block hash against snapshot
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_b(block_hash)
-        .enqueue(context);
+        .call(context);
 }
 
 /// Verify a single note's inclusion in the note hash tree and non-nullification
@@ -222,11 +222,11 @@ pub fn migrate_public_state_mode_b<T: Packable>(
     let block_hash = block_header.hash();
 
     // ============================================================
-    // 3. Enqueue public verification of block hash against snapshot
+    // 3. Verification of block hash against snapshot
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_b(block_hash)
-        .enqueue(context);
+        .call(context);
 }
 
 pub fn migrate_public_map_state_mode_b<K: ToField, T: Packable, let N: u32>(
