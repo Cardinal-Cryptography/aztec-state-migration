@@ -279,7 +279,7 @@ pub contract ExampleMigrationApp {
         //
         key_note: KeyNoteProofData,
         //
-        nsk: Scalar,
+        nhk: Scalar,
     ) {
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
@@ -306,7 +306,7 @@ pub contract ExampleMigrationApp {
             public_keys,
             partial_address,
             key_note,
-            nsk,
+            nhk,
         );
 
         // 2. Mint the migrated tokens to the user on the new rollup

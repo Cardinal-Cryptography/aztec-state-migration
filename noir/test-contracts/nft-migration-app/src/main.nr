@@ -242,7 +242,7 @@ pub contract NftMigrationApp {
         public_keys: PublicKeys,
         partial_address: Field,
         key_note: KeyNoteProofData,
-        nsk: Scalar,
+        nhk: Scalar,
     ) {
         assert(full_proof_data.note_proof_data.data.token_id == token_id, "Token ID mismatch");
 
@@ -264,7 +264,7 @@ pub contract NftMigrationApp {
             public_keys,
             partial_address,
             key_note,
-            nsk,
+            nhk,
         );
 
         let new_note = NFTNote { token_id };

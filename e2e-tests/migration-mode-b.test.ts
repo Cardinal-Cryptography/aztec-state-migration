@@ -167,7 +167,7 @@ async function main() {
     newApp.address,
   );
 
-  console.log(`   nsk derived`);
+  console.log(`   nhk derived`);
   console.log(`   Partial address: ${partialAddress}\n`);
 
   // ============================================================

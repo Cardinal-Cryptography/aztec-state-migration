@@ -3,8 +3,8 @@
 /** Domain separator used to derive the master migration secret key via `sha512ToGrumpkinScalar`. */
 export const MSK_M_GEN = 2137;
 
-/** Domain separator for masking the nullifier secret key during cross-rollup migration. */
-export const NSK_MASK_DOMAIN = 1670;
+/** Domain separator for masking the nullifier hiding key during cross-rollup migration. */
+export const NHK_MASK_DOMAIN = 1670;
 
 /**
  * Storage slot for migration notes on the old rollup.
