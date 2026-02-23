@@ -87,20 +87,14 @@ pub contract ExampleMigrationAppV1 {
 
     #[external("public")]
     fn _increment_public_balance(owner: AztecAddress, amount: u128) {
-        assert(
-            self.msg_sender() == self.context.this_address(),
-            "Only callable internally",
-        );
+        assert(self.msg_sender() == self.context.this_address(), "Only callable internally");
         let current = self.storage.public_balances.at(owner).read();
         self.storage.public_balances.at(owner).write(current + amount);
     }
 
     #[external("public")]
     fn _decrement_public_balance(owner: AztecAddress, amount: u128) {
-        assert(
-            self.msg_sender() == self.context.this_address(),
-            "Only callable internally",
-        );
+        assert(self.msg_sender() == self.context.this_address(), "Only callable internally");
         let current = self.storage.public_balances.at(owner).read();
         assert(current >= amount, "Insufficient public balance");
         self.storage.public_balances.at(owner).write(current - amount);
@@ -166,12 +160,7 @@ pub contract ExampleMigrationAppV1 {
 
     #[external("public")]
     fn init_owned_struct_nested_map(map_key: Field, some_struct: SomeStruct) {
-        self
-            .storage
-            .owned_struct_nested_map
-            .at(map_key)
-            .at(self.msg_sender())
-            .write(some_struct);
+        self.storage.owned_struct_nested_map.at(map_key).at(self.msg_sender()).write(some_struct);
     }
 
     #[external("utility")]
