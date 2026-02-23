@@ -137,12 +137,12 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     let block_hash = block_header.hash();
 
     // ============================================================
-    // 4. Enqueue public check: block hash must match the one
+    // 4. Verification: block hash must match the one
     //    registered in MigrationArchiveRegistry (bridged from L1)
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_a(block_header.global_variables.block_number, block_hash)
-        .enqueue(context);
+        .call(context);
 }
 
 /// Verify a single MigrationNote's inclusion and emit its nullifier.
