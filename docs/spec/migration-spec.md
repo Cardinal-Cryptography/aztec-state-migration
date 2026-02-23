@@ -79,7 +79,7 @@ A convenience function `consume_l1_to_l2_message_and_register_block` combines bo
 
 **Storage:** MigrationArchiveRegistry stores `block_number → block_hash` for all registered blocks, and for Mode B, a write-once `snapshot_block_hash`. Any migrating app can call `verify_migration_mode_a(block_number, block_hash)` or `verify_migration_mode_b(block_hash)` to check a block hash against the stored value.
 
-**App-level block hash policy:** Each migrating app (e.g., TokenV2) enforces its own policy on which block hashes it accepts:
+**App-level block hash policy:** Each migrating app enforces its own policy on which block hashes it accepts:
 
 - **Mode A:** accept any registered block hash.
 - **Mode B:** accept only the block hash at snapshot height H (stored as `snapshot_block_hash`).
@@ -191,7 +191,7 @@ An external registry works for all existing accounts without protocol changes an
 
 ## Batching multiple notes
 
-Both Mode A and Mode B circuits accept arrays of note proof data (`[MigrationNoteProofData; N]` and `[FullNoteProofData; N]` respectively) and loop over all N notes in a single proof. The `ExampleApp` contract currently hardcodes `N = 1`, but the library circuits support arbitrary batch sizes.
+Both Mode A and Mode B circuits accept arrays of note proof data (`[MigrationNoteProofData; N]` and `[FullNoteProofData; N]` respectively) and loop over all N notes in a single proof. The reference app contract sets `N = 1`, but the library circuits support arbitrary batch sizes.
 
 For Mode A, `lock_migration_notes` already creates one `MigrationNote` per element in the input array, and emits a `MigrationDataEvent` for each. The TS client retrieves events filtered by `txHash` to match them to the correct lock transaction.
 
@@ -362,7 +362,7 @@ All claims provide:
 The migration API is organized in three layers:
 
 1. **Migration Library** (`migration_lib`): Core Noir functions that implement proof verification, nullifier emission, signature checking, and block hash verification. These are generic and reusable across any migrating application.
-2. **App Contracts** (e.g., `ExampleMigrationApp`, `NftMigrationApp`): Wrappers that call library functions and handle app-specific state such as minting, balance updates, and access control.
+2. **App Contracts**: Wrappers that call library functions and handle app-specific state such as minting, balance updates, and access control.
 3. **TypeScript Client** (`migration-lib`): Client-side proof building, key derivation, and transaction construction.
 
 The tables below list library functions first, then app-level interfaces.
@@ -382,9 +382,9 @@ The tables below list library functions first, then app-level interfaces.
 
 ### App-Level Interfaces
 
-App contracts wrap the library functions above with app-specific logic (minting, burning, balance management). The tables below show the interfaces for the reference `ExampleMigrationApp`.
+App contracts wrap the library functions above with app-specific logic (minting, burning, balance management). The tables below show the interfaces for the reference app contract.
 
-> **Note:** An `NftMigrationApp` contract implementing Mode A + Mode B for NFTs exists in the codebase. Its API follows the same library composition pattern. See `noir/contracts/nft_migration_app/src/main.nr`.
+> **Note:** An NFT migration contract implementing Mode A + Mode B for NFTs exists in the codebase. Its API follows the same library composition pattern. See `noir/contracts/nft_migration_app/src/main.nr`.
 
 #### TokenV1 (Old Rollup)
 
@@ -432,7 +432,7 @@ App contracts wrap the library functions above with app-specific logic (minting,
 
 > **Note on naming:** The Solidity event uses `provenBlockNumber` while `getArchiveInfo` returns `provenCheckpointNumber`. The Noir/spec convention uses `proven_block_number`. These refer to the same value.
 
-#### TokenV2 / ExampleMigrationApp (New Rollup)
+#### App Contract (New Rollup)
 
 | Function | Params | Description |
 | --- | --- | --- |

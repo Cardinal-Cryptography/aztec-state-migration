@@ -21,7 +21,7 @@ This project implements two migration modes, both anchored by L1 archive roots t
 
 This migration covers **native application state only** -- token balances and contract storage that live entirely on the Aztec L2. L1-bridged assets (tokens held in Ethereum bridge contracts) are out of scope because the bridge custody model requires coordination with the bridge protocol itself, which is independent of the rollup upgrade.
 
-> **Note on NFTs:** An `NftMigrationApp` contract exists in the codebase and implements both Mode A and Mode B for NFTs. However, this documentation focuses on the fungible token `ExampleMigrationApp` pattern. The same migration library functions generalize to NFTs.
+> **Note on NFTs:** An NFT migration contract exists in the codebase and implements both Mode A and Mode B for NFTs. However, this documentation focuses on the fungible token migration pattern. The same migration library functions generalize to NFTs.
 
 ## Glossary
 

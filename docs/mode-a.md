@@ -90,7 +90,7 @@ Public balance migration reuses the same `MigrationNote` and claim circuit as pr
 
 ### Lock (Old Rollup)
 
-`ExampleMigrationApp.lock_public_for_migration` (`example_app/main.nr`, function `lock_public_for_migration`):
+The app contract's `lock_public_for_migration` (`example_app/main.nr`, function `lock_public_for_migration`):
 
 1. Calls `lock_migration_notes` to create a `MigrationNote` (identical to private lock).
 2. Enqueues a public call to `_decrement_public_balance(note_owner, amount)`.
@@ -99,12 +99,12 @@ If the public balance decrement fails (insufficient balance), the entire transac
 
 ### Claim (New Rollup)
 
-`ExampleMigrationApp.migrate_to_public_mode_a` (`example_app/main.nr`, function `migrate_to_public_mode_a`):
+The app contract's `migrate_to_public_mode_a` (`example_app/main.nr`, function `migrate_to_public_mode_a`):
 
 1. Calls `migrate_notes_mode_a` (same library function as private claim).
 2. Enqueues a public call to `_increment_public_balance(recipient, amount)`.
 
-> **Implementation note:** `ExampleMigrationApp.migrate_mode_a` and `migrate_to_public_mode_a` take an explicit `amount` parameter that is asserted to equal `note_proof_data[0].data`. This is a known redundancy -- the `amount` duplicates data already present in the proof. The code marks it with `FIXME` (`example_app/main.nr:203, 239`) and it may be removed in a future iteration.
+> **Implementation note:** The reference app's `migrate_mode_a` and `migrate_to_public_mode_a` take an explicit `amount` parameter that is asserted to equal `note_proof_data[0].data`. This is a known redundancy -- the `amount` duplicates data already present in the proof. The code marks it with `FIXME` (`example_app/main.nr:203, 239`) and it may be removed in a future iteration.
 
 ## Authentication
 
@@ -153,7 +153,7 @@ Where `note_hash` is the note hash of the `MigrationNote` being claimed, and `ra
 
 The library function `migrate_notes_mode_a` accepts `[MigrationNoteProofData<T>; N]` and loops over all N notes. The signature covers the hash of all N note hashes, so the entire batch is authenticated atomically.
 
-However, `ExampleMigrationApp` hardcodes `N = 1`. This is sufficient for the example because `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data_hash` (the total amount), producing one `MigrationNote` per lock call.
+However, the reference app contract sets `N = 1`. This is sufficient for the example because `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data_hash` (the total amount), producing one `MigrationNote` per lock call.
 
 Apps that create multiple `MigrationNote` instances per lock (e.g., locking distinct asset types) would set a larger N. The library circuit is ready; only the app contract's array size and TS client need updating.
 
@@ -161,13 +161,13 @@ Apps that create multiple `MigrationNote` instances per lock (e.g., locking dist
 
 The following limitations apply to the current proof-of-concept implementation and are **not suitable for production**:
 
-1. **No supply cap enforcement.** The new rollup's `ExampleMigrationApp` mints freely on each successful migration. A production deployment should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup.
+1. **No supply cap enforcement.** The reference app contract mints freely on each successful migration. A production deployment should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup.
 
-2. **`old_rollup_app_address` is a deployment-time configuration.** The address is read from `ExampleMigrationApp`'s `PublicImmutable` storage (set at deployment). If configured incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [threat model](threat-model.md) for details.
+2. **`old_rollup_app_address` is a deployment-time configuration.** The address is read from the app contract's immutable public storage (set at deployment). If configured incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [threat model](threat-model.md) for details.
 
 3. **L1 relay is permissionless.** Anyone can call `Migrator.sol`'s `migrateArchiveRoot()` to bridge an archive root snapshot. An attacker could spam calls to fill L1-to-L2 message trees or increase costs. Consider rate limiting or requiring a small bond.
 
-4. **No access control on `mint()` / `burn()`.** `ExampleMigrationApp` has no access control on `mint()` and `burn()` functions. A production token contract would restrict minting to authorized callers (e.g., migration-only minting).
+4. **No access control on `mint()` / `burn()`.** The reference app contract has no access control on `mint()` and `burn()` functions. A production token contract would restrict minting to authorized callers (e.g., migration-only minting).
 
 ## See Also
 

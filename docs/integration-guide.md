@@ -12,7 +12,7 @@ title: Integration Guide
 The migration system is organized into three tiers:
 
 1. **Library tier: Noir `migration_lib`** -- Core verification logic: proof verification, nullifier emission, signature checking. This is a library, not a contract.
-2. **Application tier: App contracts** (e.g. `ExampleMigrationApp`) -- Wrappers that call library functions and handle app-specific state (minting, balance updates).
+2. **Application tier: App contracts** -- Wrappers that call library functions and handle app-specific state (minting, balance updates).
 3. **Client SDK tier: TS `migration-lib`** -- Client-side proof building, key derivation, transaction construction.
 
 Integrators typically work at the Application and Client SDK tiers: writing an app contract that calls into `migration_lib`, and using the TS client library to build proofs and submit transactions. The focus here is the Client SDK tier and the proof data types that bridge Noir and TypeScript.

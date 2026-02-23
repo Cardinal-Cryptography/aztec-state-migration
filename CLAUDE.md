@@ -152,6 +152,7 @@ These skills are read-only by design and should not run long tests automatically
 - Prefer short sections, lists, and exact commands.
 - Keep docs in the same repo (no external docs).
 - When describing behavior, link to the spec/flow doc where possible.
+- Before writing or reviewing spec/architecture docs, check `.claude/docsignore` for items that must NOT appear in those docs. These are app-specific details that belong only in guide/example documentation.
 
 ## B6) Solidity guidelines (only when `.sol` is edited)
 - Keep changes minimal and easy to review.

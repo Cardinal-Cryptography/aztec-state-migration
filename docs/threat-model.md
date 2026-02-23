@@ -79,19 +79,19 @@ Each domain produces a different message hash, so a signature valid under one do
 
 The current implementation is a proof-of-concept. The following limitations must be addressed before production use:
 
-- **No supply cap enforcement.** The new rollup's `ExampleMigrationApp` mints freely on each successful migration. A compromised archive root or bug could allow unlimited minting. Production should enforce a `mintable_supply` cap matching the total locked/snapshot supply.
+- **No supply cap enforcement.** The reference app contract mints freely on each successful migration. A compromised archive root or bug could allow unlimited minting. Production should enforce a `mintable_supply` cap matching the total locked/snapshot supply.
 
-- **`old_rollup_app_address` is a deployment-time configuration.** The migration circuit reads `old_rollup_app_address` from the new app's `PublicImmutable` storage. This is not an unchecked witness -- it is constrained by the rollup's public state tree. However, if configured incorrectly at deployment, migrations will silently fail (archive root mismatch). Production should verify this address via an on-chain registry.
+- **`old_rollup_app_address` is a deployment-time configuration.** The migration circuit reads `old_rollup_app_address` from the new app's immutable public storage. This is not an unchecked witness -- it is constrained by the rollup's public state tree. However, if configured incorrectly at deployment, migrations will silently fail (archive root mismatch). Production should verify this address via an on-chain registry.
 
 - **L1 `migrateArchiveRoot` is permissionless.** Anyone can call `Migrator.sol` to bridge archive roots, consuming L1-to-L2 message slots. An attacker could spam calls to fill message trees or increase costs. Consider rate limiting or requiring a bond.
 
 - **Snapshot height governance has no access control beyond write-once (critical).** The first caller to `set_snapshot_height` wins. An incorrect snapshot height permanently bricks Mode B for affected users. Production must restrict this to governance.
 
-- **`ExampleMigrationApp` has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. Production apps must restrict minting to verified migration proofs only.
+- **The reference app contract has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. Production apps must restrict minting to verified migration proofs only.
 
 - **In-memory key storage.** The TS client stores migration keys in memory. Production should use secure storage (hardware wallet, encrypted keystore).
 
-- **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently. See `NOTE` comments in `nft_migration_app` for details.
+- **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently. See `NOTE` comments in the NFT example contract for details.
 
 - **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `migration_lib/src/mode_a/ops.nr`, line 52).
 

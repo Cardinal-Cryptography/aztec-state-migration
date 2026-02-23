@@ -21,7 +21,7 @@ Old Rollup L2                  L1                         New Rollup L2
 |   register(mpk)       |   |   message via    |   +-------------+----------------+
 |   (Mode B only)       |   |   Inbox          |                 | reads
 +-----------------------+   +------------------+   +-------------v----------------+
-                                                    | ExampleMigrationApp          |
+                                                    | App Contract (new rollup)    |
                                                     |   migrate_mode_a()           |
                                                     |   migrate_mode_b()           |
                                                     |   migrate_to_public_*()      |
@@ -50,14 +50,6 @@ Module structure (`noir/migration_lib/src/`):
 | `note_proof_data` | `NoteProofData<T>` (shared by both modes) |
 | `signature` | `MigrationSignature` (Schnorr signature wrapper) |
 | `constants` | Domain separators, generator indices |
-
-### `ExampleMigrationApp` (Noir contract)
-
-A migration-aware token contract (`noir/contracts/example_app/src/main.nr`) that demonstrates both Mode A and Mode B. Wraps `migration_lib` functions to handle minting, balance updates, and public state migration. Uses `BalanceSet` for private balances and `PublicMutable`/`Map` for public state.
-
-### `NftMigrationApp` (Noir contract)
-
-An NFT migration contract implementing Mode A and Mode B for non-fungible tokens. Present in the codebase but **out of documentation scope**. The same `migration_lib` functions generalize to NFTs.
 
 ### `MigrationArchiveRegistry` (Noir contract, new rollup)
 
@@ -99,7 +91,7 @@ Library tier: Noir migration_lib          Core verification logic: proof verific
 
 **Library tier (Noir `migration_lib`)** verifies Merkle proofs, checks Schnorr signatures, emits migration nullifiers, and enqueues block hash verification. It is app-agnostic.
 
-**Application tier (App contracts)** import library functions and add app-specific logic: minting tokens on claim, decrementing supply, managing `BalanceSet` or `PublicMutable` state.
+**Application tier (App contracts)** import library functions and add app-specific logic.
 
 **Client SDK tier (TS `migration-lib`)** builds proof witnesses from Aztec node data, derives migration keys from account secrets, constructs Schnorr signatures, and orchestrates transaction submission. Exports are split by mode (`mode-a/`, `mode-b/`).
 
@@ -134,7 +126,7 @@ A convenience function `consume_l1_to_l2_message_and_register_block` combines st
 
 ## Cross-Context Configuration
 
-Storage fields such as `old_rollup_app_address` (in `ExampleMigrationApp`), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state because:
+Storage fields such as `old_rollup_app_address` (in migrating app contracts), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state because:
 
 - They are set at deployment time (not known at compile time)
 - They must be readable in both private and public execution contexts

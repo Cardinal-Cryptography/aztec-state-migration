@@ -33,7 +33,7 @@ Mode B library decomposition:
 - **Public state migration** is composed of `migrate_public_state_mode_b` -> `migrate_public_map_state_mode_b` -> `migrate_public_map_owned_state_mode_b`, each adding one concern (slot derivation, ownership authentication).
 - **Proof data types** are separate modules: `KeyNoteProofData`, `NonNullificationProofData`, `PublicStateProofData`, `NoteProofData`.
 
-`migrate_notes_mode_b` accepts `[FullNoteProofData<Note>; N]` and loops over all N notes in a single proof. The `ExampleMigrationApp` contract hardcodes `N = 1`, but the library circuit supports arbitrary batch sizes.
+`migrate_notes_mode_b` accepts `[FullNoteProofData<Note>; N]` and loops over all N notes in a single proof. The reference app contract sets `N = 1`, but the library circuit supports arbitrary batch sizes.
 
 ## Proof Chain
 
@@ -202,7 +202,7 @@ Currently there is no access control on who can call `set_snapshot_height`, but 
 
 Mode B supports migrating public storage values via Merkle proofs against the public data tree. The implementation provides composable functions at different levels of abstraction:
 
-1. **`migrate_public_state_mode_b`** -- Base function for standalone public storage values (e.g., `PublicImmutable`, `PublicMutable`). Verifies each packed field exists in the public data tree at the correct storage slot, emits a migration nullifier per struct, and enqueues block hash verification.
+1. **`migrate_public_state_mode_b`** -- Base function for standalone public storage values. Verifies each packed field exists in the public data tree at the correct storage slot, emits a migration nullifier per struct, and enqueues block hash verification.
 
 2. **`migrate_public_map_state_mode_b`** -- For `Map<K, PublicMutable<T>>`. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash([slot, key])`, then delegates to `migrate_public_state_mode_b`.
 
@@ -237,7 +237,7 @@ The `MigrationArchiveRegistry` on the new rollup stores this address (set at dep
 
 ## PublicImmutable for Cross-Context Configuration
 
-Storage fields like `old_rollup_app_address` (in `ExampleMigrationApp`), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state because:
+Storage fields like `old_rollup_app_address` (in migrating app contracts), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state because:
 
 - They need to be set at deployment time (not known at compile time)
 - They need to be readable in both private and public contexts
@@ -249,10 +249,10 @@ Private migration functions can read deployment configuration without note manag
 
 The following limitations apply to the current proof-of-concept implementation and are **NOT suitable for production** without changes:
 
-- **No supply cap enforcement.** The new rollup's `ExampleMigrationApp` mints freely on successful migration. Production should enforce a `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
+- **No supply cap enforcement.** The reference app contract mints freely on successful migration. Production should enforce a `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
 - **Snapshot height governance has no access control** beyond write-once (`initialize()`). See [Snapshot Height](#snapshot-height) for production considerations.
 - **Identical storage layout assumed** between old and new rollup contracts for public state migration. If the storage layout changes, slot indices will not match.
-- **`ExampleMigrationApp` simplifications:** No access control on `mint()`/`burn()`, no `#[only_self]` on public struct init functions. Production apps must add access control.
+- **Reference app simplifications:** No access control on `mint()`/`burn()`, no `#[only_self]` on public struct init functions. Production apps must add access control.
 
 ## Test Architecture
 
