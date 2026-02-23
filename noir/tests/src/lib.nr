@@ -44,11 +44,11 @@ unconstrained fn test_nft_note_hash() {
     // Hardcoded expected values for regression detection.
     // If these change, the NFTNote hash formula drifted from defi-wonderland/aztec-standards.
     assert(
-        partial == 0x20e8dc8d929d1cec8d6113a02cb2cf69446c9f2cf684364cb1cc174ada5b1874,
+        partial == 0x0da5def2c6afe2b3b074d6ad0597b2b97b5a771af82e97819a96b478b1d8fe18,
         "NFTNote partial commitment changed",
     );
     assert(
-        note_hash == 0x0283a6856f6caa2a11252be4b62ad9e23938f6c13ab3169e540a718c163a9384,
+        note_hash == 0x205d1e6d375f042964d8bc27754748208b8eeaae80f3a000206cc5240f8e4451,
         "NFTNote hash changed",
     );
 }

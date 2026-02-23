@@ -1,5 +1,5 @@
 [package]
-name = "example_app"
+name = "example_app_v1"
 type = "contract"
 authors = [""]
 compiler_version = ">=0.18.0"
@@ -8,4 +8,4 @@ compiler_version = ">=0.18.0"
 aztec = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "aztec" }
 balance_set = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "balance-set" }
 uint_note = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "uint-note" }
-aztec_state_migration = { path = "../../aztec-state-migration" }
+aztec_state_migration = { path = "../../../aztec-state-migration" }

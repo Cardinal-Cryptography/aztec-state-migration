@@ -9,7 +9,8 @@ import {
   deployAndFundAccount,
   assertEq,
 } from "./test-utils.js";
-import { ExampleMigrationAppContract } from "./artifacts/ExampleMigrationApp.js";
+import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
+import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
 import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
 import { UintNote } from "../ts/aztec-state-migration/common-notes.js";
 import { NoteStatus } from "@aztec/stdlib/note";
@@ -61,11 +62,11 @@ async function main() {
     env,
     newArchiveRegistry.address,
   );
-  const oldAppUser = ExampleMigrationAppContract.at(
+  const oldAppUser = ExampleMigrationAppV1Contract.at(
     oldApp.address,
     oldUserWallet,
   );
-  const newAppUser = ExampleMigrationAppContract.at(
+  const newAppUser = ExampleMigrationAppV2Contract.at(
     newApp.address,
     newUserWallet,
   );
