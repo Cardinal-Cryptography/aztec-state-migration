@@ -12,9 +12,9 @@ import {IPoseidon2} from "poseidon2-evm/IPoseidon2.sol";
 /// @dev Users can then prove note membership against the old archive root on the new rollup
 // solhint-disable comprehensive-interface
 contract Migrator {
-    // This is poseidon2_hash([DOM_SEP__SECRET_HASH, 0]) so that L2 can consume with secret=0
-    // This matches Noir's compute_secret_hash(0) where DOM_SEP__SECRET_HASH = 20
-    bytes32 public constant SECRET_HASH_FOR_ZERO = 0x001dc7b0244cb71a4609d526300ba6771064bd046848666f7bfe577053d630c5;
+    // This is poseidon2_hash_with_separator([0], DOM_SEP__SECRET_HASH) so that L2 can consume with secret=0
+    // This matches Noir's compute_secret_hash(0) where DOM_SEP__SECRET_HASH = 4199652938
+    bytes32 public constant SECRET_HASH_FOR_ZERO = 0x1f8eff65d91ed781c2e7a28a2ff99b7f7506b7293121b5ffcf3cd339c84d2250;
 
     IRegistry public immutable REGISTRY;
     IPoseidon2 public immutable POSEIDON2;

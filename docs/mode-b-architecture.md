@@ -86,8 +86,8 @@ This private->public split is necessary because the block hashes are stored in p
 UintNote uses a two-step hash that matches the `uint-note` library exactly:
 
 ```
-partial = poseidon2([owner, storage_slot, randomness], GENERATOR_INDEX__NOTE_HASH)
-note_hash = poseidon2([partial, value], GENERATOR_INDEX__NOTE_HASH)
+partial = poseidon2([owner, storage_slot, randomness], DOM_SEP__NOTE_HASH)
+note_hash = poseidon2([partial, value], DOM_SEP__NOTE_HASH)
 siloed = compute_siloed_note_hash(old_app_address, note_hash)
 unique = compute_unique_note_hash(nonce, siloed)
 ```
@@ -99,7 +99,7 @@ The two-step structure exists because UintNote uses `#[partial_note(quote { self
 The MigrationKeyNote hash includes the owner:
 
 ```
-note_hash = poseidon2([mpk_hash, owner, storage_slot, randomness], GENERATOR_INDEX__NOTE_HASH)
+note_hash = poseidon2([mpk_hash, owner, storage_slot, randomness], DOM_SEP__NOTE_HASH)
 siloed = compute_siloed_note_hash(old_key_registry_address, note_hash)
 unique = compute_unique_note_hash(nonce, siloed)
 ```
@@ -120,7 +120,7 @@ The proof works as follows:
 
 If these conditions hold, the target nullifier cannot exist in the tree — there is no position where it could be inserted while maintaining the sorted invariant, which proves the note was not spent.
 
-The field comparisons use `full_field_less_than` and `full_field_greater_than` from protocol_types, which handle the full field range (not just u64 truncation).
+The field comparisons use `full_field_less_than` and `full_field_greater_than` from protocol, which handle the full field range (not just u64 truncation).
 
 ## Authentication Model
 
@@ -154,7 +154,7 @@ This ensures only the true owner of the nullifier secret key can migrate their n
 Each Mode B private note migration emits a nullifier:
 
 ```
-migration_nullifier = poseidon2_with_sep([unique_note_hash, randomness], GENERATOR_INDEX__NOTE_NULLIFIER)
+migration_nullifier = poseidon2_with_sep([unique_note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
 ```
 
 This is pushed in the private function via `context.push_nullifier()`. Because nullifiers are globally unique and the new rollup's kernel enforces non-duplication, the same note cannot be migrated twice. The nullifier uses `randomness` (not the user's secret key) to preserve privacy — observers cannot link old/new rollup identities by predicting the nullifier.

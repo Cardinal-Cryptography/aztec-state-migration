@@ -1,9 +1,9 @@
-use crate::constants::GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER;
+use crate::constants::DOM_SEP__PUBLIC_MIGRATION_NULLIFIER;
 use aztec::{
-    context::private_context::PrivateContext,
-    protocol_types::{
+    context::PrivateContext,
+    protocol::{
         address::AztecAddress,
-        constants::{GENERATOR_INDEX__PUBLIC_LEAF_INDEX, PUBLIC_DATA_TREE_HEIGHT},
+        constants::{DOM_SEP__PUBLIC_LEAF_SLOT, PUBLIC_DATA_TREE_HEIGHT},
         hash::{poseidon2_hash, poseidon2_hash_with_separator},
         merkle_tree::root::root_from_sibling_path,
         traits::{Deserialize, Packable, Serialize, ToField},
@@ -28,17 +28,16 @@ impl PublicStateSlotProofData {
         public_state_tree_root: Field,
     ) {
         // Compute the siloed storage slot (public data tree index) using the protocol's domain separator
-        let public_data_tree_index = poseidon2_hash_with_separator(
-            [old_app.to_field(), slot],
-            GENERATOR_INDEX__PUBLIC_LEAF_INDEX,
-        );
+        let public_data_tree_index =
+            poseidon2_hash_with_separator([old_app.to_field(), slot], DOM_SEP__PUBLIC_LEAF_SLOT);
 
         // Compute leaf hash from the preimage (must match PublicDataTreeLeafPreimage::hash())
+        // Order: slot, value, nextKey (next_slot), nextIndex (next_index)
         let leaf_hash = poseidon2_hash([
             public_data_tree_index,
             slot_value,
-            self.next_index,
             self.next_slot,
+            self.next_index,
         ]);
 
         // Verify the leaf is in the public data tree
@@ -92,7 +91,7 @@ impl<T: Packable, let N: u32> PublicStateProofData<T, N> {
         // to prevent double-migration of the same storage slots.
         let nullifier = poseidon2_hash_with_separator(
             [old_app.to_field(), base_storage_slot],
-            GENERATOR_INDEX__PUBLIC_MIGRATION_NULLIFIER,
+            DOM_SEP__PUBLIC_MIGRATION_NULLIFIER,
         );
         context.push_nullifier(nullifier);
     }

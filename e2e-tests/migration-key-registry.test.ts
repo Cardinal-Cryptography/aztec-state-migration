@@ -1,4 +1,4 @@
-import { TestWallet } from "@aztec/test-wallet/server";
+import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
 import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
@@ -30,7 +30,7 @@ async function main() {
   // ============================================================
   console.log("1. Setting up client...");
   const aztecNode = createAztecNodeClient(AZTEC_NODE_URL);
-  const wallet = await TestWallet.create(aztecNode);
+  const wallet = await EmbeddedWallet.create(aztecNode, { ephemeral: true });
 
   const testAccountsData = await getInitialTestAccountsData();
   const aliceManager = await wallet.createSchnorrAccount(
@@ -52,9 +52,9 @@ async function main() {
   // Step 2: Deploy MigrationKeyRegistry
   // ============================================================
   console.log("2. Deploying MigrationKeyRegistry...");
-  const registry = await MigrationKeyRegistryContract.deploy(wallet)
-    .send({ from: alice })
-    .deployed();
+  const registry = await MigrationKeyRegistryContract.deploy(wallet).send({
+    from: alice,
+  });
   console.log(`   Deployed at: ${registry.address}\n`);
 
   // ============================================================
@@ -81,8 +81,7 @@ async function main() {
 
   const registerTx = await registry.methods
     .register(mpk.toNoirStruct())
-    .send({ from: alice })
-    .wait();
+    .send({ from: alice });
   console.log(`   Register tx: ${registerTx.txHash}\n`);
 
   // ============================================================
@@ -124,10 +123,7 @@ async function main() {
   const msk2 = Fq.random();
   const mpk2 = await generatePublicKey(msk2);
   try {
-    await registry.methods
-      .register(mpk2.toNoirStruct())
-      .send({ from: alice })
-      .wait();
+    await registry.methods.register(mpk2.toNoirStruct()).send({ from: alice });
     throw new Error("Expected second registration to fail, but it succeeded");
   } catch (e) {
     const err = e as Error;

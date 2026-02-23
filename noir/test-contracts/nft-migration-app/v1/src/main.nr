@@ -16,7 +16,7 @@ pub contract NftMigrationAppV1 {
             constants::MAX_NOTES_PER_PAGE, note_getter_options::NoteGetterOptions,
             note_interface::NoteProperties, note_viewer_options::NoteViewerOptions,
         },
-        protocol_types::address::AztecAddress,
+        protocol::address::AztecAddress,
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
         utils::comparison::Comparator,
     };
@@ -44,10 +44,10 @@ pub contract NftMigrationAppV1 {
 
     #[external("private")]
     fn mint_to_private(to: AztecAddress, token_id: Field) {
-        assert(self.context.msg_sender().unwrap() == self.storage.minter.read(), "Only minter");
+        assert(self.msg_sender() == self.storage.minter.read(), "Only minter");
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(to).insert(new_note).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
+            MessageDelivery.ONCHAIN_CONSTRAINED,
         );
         NftMigrationAppV1::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
             self.context,
@@ -56,7 +56,7 @@ pub contract NftMigrationAppV1 {
 
     #[external("private")]
     fn mint_to_public(to: AztecAddress, token_id: Field) {
-        assert(self.context.msg_sender().unwrap() == self.storage.minter.read(), "Only minter");
+        assert(self.msg_sender() == self.storage.minter.read(), "Only minter");
         assert(to != AztecAddress::zero(), "Cannot mint to zero address");
         NftMigrationAppV1::at(self.context.this_address())._set_public_owner(token_id, to).enqueue(
             self.context,
@@ -100,7 +100,7 @@ pub contract NftMigrationAppV1 {
     /// Nullifies the NFTNote and creates a MigrationNote with the token_id.
     #[external("private")]
     fn lock_nft_mode_a(token_id: Field, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.context.msg_sender().unwrap();
+        let note_owner = self.msg_sender();
 
         let notes = self.storage.private_nfts.at(note_owner).pop_notes(NoteGetterOptions::new()
             .select(NFTNote::properties().token_id, Comparator.EQ, token_id)
@@ -120,7 +120,7 @@ pub contract NftMigrationAppV1 {
     /// Creates a MigrationNote and enqueues clearing the public owner.
     #[external("private")]
     fn lock_public_nft_for_migration(token_id: Field, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.context.msg_sender().unwrap();
+        let note_owner = self.msg_sender();
 
         lock_migration_notes(
             self.context,

@@ -12,6 +12,7 @@ import type {
   Account,
 } from "viem";
 import type { L1MigrationResult } from "./types.js";
+import { BlockNumber } from "@aztec/foundation/branded-types";
 
 const L1MigratorAbi = parseAbi([
   "function migrateArchiveRoot(uint256 oldVersion, (bytes32 actor, uint256 version) l2Migrator) external returns (bytes32 leaf, uint256 leafIndex)",
@@ -111,7 +112,9 @@ export async function migrateArchiveRootOnL1(
   };
 
   const provenArchiveRoot = Fr.fromHexString(eventArgs.archiveRoot);
-  const provenBlockNumber = Number(eventArgs.provenCheckpointNumber);
+  const provenBlockNumber = BlockNumber.fromBigInt(
+    eventArgs.provenCheckpointNumber,
+  );
 
   // Parse MessageSent event from Inbox
   const inboxLogs = receipt.logs.filter(

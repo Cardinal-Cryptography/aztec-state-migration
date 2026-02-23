@@ -1,6 +1,6 @@
-use aztec::protocol_types::{
+use aztec::protocol::{
     address::AztecAddress,
-    constants::{GENERATOR_INDEX__NOTE_NULLIFIER, NULLIFIER_TREE_HEIGHT},
+    constants::{DOM_SEP__NOTE_NULLIFIER, NULLIFIER_TREE_HEIGHT},
     hash::{compute_siloed_nullifier, poseidon2_hash, poseidon2_hash_with_separator},
     merkle_tree::root::root_from_sibling_path,
     traits::{Packable, Serialize},
@@ -20,17 +20,15 @@ pub struct NonNullificationProofData {
 impl NonNullificationProofData {
     pub fn verify_nullifier_non_inclusion(
         self,
-        nsk_app: Field,
+        nhk_app: Field,
         old_app: AztecAddress,
         note_hash_unique: Field,
         nullifier_tree_root: Field,
     ) -> Field {
         // Use the unique note hash for nullifier computation, matching the protocol's behavior
         // for settled notes (compute_nullifier receives the unique hash, not the inner hash).
-        let inner_nullifier = poseidon2_hash_with_separator(
-            [note_hash_unique, nsk_app],
-            GENERATOR_INDEX__NOTE_NULLIFIER,
-        );
+        let inner_nullifier =
+            poseidon2_hash_with_separator([note_hash_unique, nhk_app], DOM_SEP__NOTE_NULLIFIER);
         let siloed_nullifier = compute_siloed_nullifier(old_app, inner_nullifier);
 
         // Compute low leaf hash: poseidon2_hash([nullifier, next_nullifier, next_index])

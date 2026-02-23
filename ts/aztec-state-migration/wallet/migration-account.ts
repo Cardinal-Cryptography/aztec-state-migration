@@ -1,15 +1,24 @@
-import { Account, ChainInfo, SignerlessAccount } from "@aztec/aztec.js/account";
-import { AccountInterface, BaseAccount } from "@aztec/aztec.js/account";
-import {
-  deriveKeys,
-  generatePublicKey,
-  PublicKeys,
-} from "@aztec/aztec.js/keys";
+import { Account, AccountWithSecretKey, Salt } from "@aztec/aztec.js/account";
+import { deriveKeys, PublicKeys } from "@aztec/aztec.js/keys";
 import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import { Fq, Fr, Point } from "@aztec/aztec.js/fields";
 import { deriveMasterMigrationSecretKey } from "../keys.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationSignature } from "../types.js";
+import {
+  computeAppNullifierHidingKey,
+  derivePublicKeyFromSecretKey,
+} from "@aztec/stdlib/keys";
+import { ChainInfo, EntrypointInterface } from "@aztec/entrypoints/interfaces";
+import { DefaultMultiCallEntrypoint } from "@aztec/entrypoints/multicall";
+import { ExecutionPayload, TxExecutionRequest } from "@aztec/stdlib/tx";
+import { GasSettings } from "@aztec/stdlib/gas";
+import {
+  AuthWitness,
+  CallIntent,
+  IntentInnerHash,
+} from "@aztec/aztec.js/authorization";
+import { CompleteAddress } from "@aztec/stdlib/contract";
 
 /**
  * Extension of the standard Aztec {@link Account} with migration-specific
@@ -17,7 +26,7 @@ import { MigrationSignature } from "../types.js";
  */
 export interface MigrationAccount extends Account {
   /** Return the Grumpkin public key used for migration signing. */
-  getMigrationPublicKey: () => Point;
+  getMigrationPublicKey: () => Promise<Point>;
 
   /**
    * Sign an arbitrary message with the master migration secret key (Schnorr).
@@ -27,18 +36,21 @@ export interface MigrationAccount extends Account {
   migrationKeySigner: (msg: Uint8Array) => Promise<MigrationSignature>;
 
   /**
-   * Compute the masked nullifier secret key for cross-rollup note ownership transfer.
-   * @param newRollupAccount - The recipient account on the new rollup.
-   * @param contractAddress - The app contract address (used for domain separation).
+   * Compute the masked nullifier hiding key for cross-rollup note ownership transfer.
+   * @param mask - The mask to apply to the nullifier hiding key.
    * @returns The masked `Fq` key.
    */
-  getMaskedNsk: (
-    newRollupAccount: MigrationAccount,
-    contractAddress: AztecAddress,
-  ) => Promise<Fq>;
+  getMaskedNhk: (mask: Fq) => Promise<Fq>;
+
+  /**
+   * Compute the app-siloed nullifier hiding key.
+   * @param contractAddress - The app contract address.
+   * @returns The app-siloed nullifier hiding key.
+   */
+  getNhkApp: (contractAddress: AztecAddress) => Promise<Fq>;
 
   /** Return the full set of public keys derived from the account secret. */
-  getPublicKeys: () => PublicKeys;
+  getPublicKeys: () => Promise<PublicKeys>;
 }
 
 /**
@@ -47,53 +59,32 @@ export interface MigrationAccount extends Account {
  *
  * **Note:** Suitable for testing; production wallets should protect key material.
  */
-export class BaseMigrationAccount
-  extends BaseAccount
+export class MigrationAccountWithSecretKey
+  extends AccountWithSecretKey
   implements MigrationAccount
 {
   // NOTE: Stores the keys in memory,
   // which is fine for testing but should be handled securely in production.
   constructor(
-    account: AccountInterface,
-    protected readonly masterNullifierSecretKey: Fq,
-    protected readonly masterMigrationSecretKey: Fq,
-    protected readonly migrationPublicKey: Point,
-    protected readonly publicKeys: PublicKeys,
+    account: Account,
+    secretKey: Fr,
+    /** Deployment salt for this account contract. */
+    salt: Salt,
   ) {
-    super(account);
-  }
-
-  /**
-   * Factory that derives all migration keys from an account interface and secret.
-   *
-   * @param account - The underlying account interface (e.g. Schnorr).
-   * @param secret - The master secret key from which migration keys are derived.
-   * @returns A fully initialised {@link BaseMigrationAccount}.
-   */
-  static async create(
-    account: AccountInterface,
-    secret: Fr,
-  ): Promise<BaseMigrationAccount> {
-    const msk = deriveMasterMigrationSecretKey(secret);
-    const { masterNullifierSecretKey, publicKeys } = await deriveKeys(secret);
-    const mpk = await generatePublicKey(msk);
-    return new BaseMigrationAccount(
-      account,
-      masterNullifierSecretKey,
-      msk,
-      mpk,
-      publicKeys,
-    );
+    super(account, secretKey, salt);
   }
 
   /** @returns The full set of public keys for this account. */
-  getPublicKeys(): PublicKeys {
-    return this.publicKeys;
+  async getPublicKeys(): Promise<PublicKeys> {
+    const { publicKeys } = await deriveKeys(this.getSecretKey());
+    return publicKeys;
   }
 
   /** @returns The Grumpkin point used as the migration public key. */
-  getMigrationPublicKey(): Point {
-    return this.migrationPublicKey;
+  async getMigrationPublicKey(): Promise<Point> {
+    let msk = deriveMasterMigrationSecretKey(this.getSecretKey());
+    let mpk = derivePublicKeyFromSecretKey(msk);
+    return mpk;
   }
 
   /**
@@ -103,83 +94,108 @@ export class BaseMigrationAccount
    */
   migrationKeySigner = async (msg: Uint8Array): Promise<MigrationSignature> => {
     const schnorr = new Schnorr();
+    let msk = deriveMasterMigrationSecretKey(this.getSecretKey());
     return MigrationSignature.fromSchnorrSignature(
-      await schnorr.constructSignature(msg, this.masterMigrationSecretKey),
+      await schnorr.constructSignature(msg, msk),
     );
   };
 
   /**
-   * Compute a masked nullifier secret key so the new-rollup account can
+   * Compute a masked nullifier hiding key so the new-rollup account can
    * nullify notes originally owned by this account.
    *
-   * @param newRollupAccount - The recipient account on the new rollup.
-   * @param contractAddress - The app contract address (domain separation).
-   * @returns The masked `Fq` value (`nsk.hi + mask`, `nsk.lo + mask`).
+   * @param mask - The mask to apply to the nullifier hiding key.
+   * @returns The masked `Fq` value (`nhk.hi + mask`, `nhk.lo + mask`).
    */
-  async getMaskedNsk(
-    newRollupAccount: MigrationAccount,
-    contractAddress: AztecAddress,
-  ): Promise<Fq> {
-    let mask = await this.getMask(newRollupAccount, contractAddress);
-    return this.masterNullifierSecretKey.add(mask);
+  async getMaskedNhk(mask: Fq): Promise<Fq> {
+    const { masterNullifierHidingKey } = await deriveKeys(this.getSecretKey());
+    return masterNullifierHidingKey.add(mask);
   }
 
-  /**
-   * Compute the mask applied to the nullifier secret key.
-   * Currently returns zero (no mask); will be replaced with a Poseidon2-based
-   * derivation.
-   */
-  protected getMask = async (
-    _newRollupAccount: MigrationAccount,
-    _contractAddress: AztecAddress,
-  ): Promise<Fq> => {
-    // const nskApp = await computeAppNullifierSecretKey(this.masterNullifierSecretKey, contractAddress);
-    // return new Fq(poseidon2Hash([NSK_MASK_DOMAIN,nskApp]).toBigInt());
-    // For now just return zero (no mask applied)
-    return Fq.ZERO;
-  };
+  async getNhkApp(contractAddress: AztecAddress): Promise<Fq> {
+    const { masterNullifierHidingKey } = await deriveKeys(this.getSecretKey());
+    let nhkApp = await computeAppNullifierHidingKey(
+      masterNullifierHidingKey,
+      contractAddress,
+    );
+    return new Fq(nhkApp.toBigInt());
+  }
 }
 
 /**
- * A {@link MigrationAccount} that cannot sign or produce keys.
- * Used as a placeholder for the `AztecAddress.ZERO` sender in fee-less transactions.
+ * Account implementation which creates a transaction using the multicall protocol contract as entrypoint.
  */
-export class SignerlessMigrationAccount
-  extends SignerlessAccount
-  implements MigrationAccount
-{
-  constructor(chainInfo: ChainInfo) {
-    super(chainInfo);
+export class SignerlessMigrationAccount implements MigrationAccount {
+  private entrypoint: EntrypointInterface;
+
+  constructor() {
+    this.entrypoint = new DefaultMultiCallEntrypoint();
   }
 
-  getMigrationPublicKey(): Point {
+  createTxExecutionRequest(
+    exec: ExecutionPayload,
+    gasSettings: GasSettings,
+    chainInfo: ChainInfo,
+  ): Promise<TxExecutionRequest> {
+    return this.entrypoint.createTxExecutionRequest(
+      exec,
+      gasSettings,
+      chainInfo,
+    );
+  }
+
+  wrapExecutionPayload(
+    exec: ExecutionPayload,
+    options?: any,
+  ): Promise<ExecutionPayload> {
+    return this.entrypoint.wrapExecutionPayload(exec, options);
+  }
+
+  createAuthWit(
+    _intent: Fr | Buffer | IntentInnerHash | CallIntent,
+  ): Promise<AuthWitness> {
+    throw new Error(
+      "SignerlessMigrationAccount: Method createAuthWit not implemented.",
+    );
+  }
+
+  getCompleteAddress(): CompleteAddress {
+    throw new Error(
+      "SignerlessMigrationAccount: Method getCompleteAddress not implemented.",
+    );
+  }
+
+  getAddress(): AztecAddress {
+    throw new Error(
+      "SignerlessMigrationAccount: Method getAddress not implemented.",
+    );
+  }
+
+  getMigrationPublicKey(): Promise<Point> {
     throw new Error(
       "SignerlessMigrationAccount: Method getMigrationPublicKey not implemented.",
     );
   }
 
-  async migrationKeySigner(msg: Uint8Array): Promise<MigrationSignature> {
+  migrationKeySigner(msg: Uint8Array): Promise<MigrationSignature> {
     throw new Error(
       "SignerlessMigrationAccount: Method migrationKeySigner not implemented.",
     );
   }
 
-  getEnryptedNskApp(): Promise<Fr> {
+  getMaskedNhk(_mask: Fq): Promise<Fq> {
     throw new Error(
-      "SignerlessMigrationAccount: Method getEnryptedNskApp not implemented.",
+      "SignerlessMigrationAccount: Method getMaskedNhk not implemented.",
     );
   }
 
-  getMaskedNsk(
-    _newRollupAccount: MigrationAccount,
-    _contractAddress: AztecAddress,
-  ): Promise<Fq> {
+  getNhkApp(_contractAddress: AztecAddress): Promise<Fq> {
     throw new Error(
-      "SignerlessMigrationAccount: Method getMaskedNsk not implemented.",
+      "SignerlessMigrationAccount: Method getNhkApp not implemented.",
     );
   }
 
-  getPublicKeys(): PublicKeys {
+  getPublicKeys(): Promise<PublicKeys> {
     throw new Error(
       "SignerlessMigrationAccount: Method getPublicKeys not implemented.",
     );

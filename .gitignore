@@ -25,6 +25,9 @@ ts/aztec-state-migration/noir-contracts
 ts/aztec-state-migration/artifacts
 e2e-tests/artifacts
 
+pxe_data_*
+wallet_data_*
+
 # Claude Code per-user settings (do not commit)
 .claude/settings*.json
 

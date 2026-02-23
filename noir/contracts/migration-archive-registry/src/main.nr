@@ -1,8 +1,6 @@
 use aztec::macros::aztec as aztec_contract;
 
-pub use aztec::protocol_types::constants::{
-    ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT, NULLIFIER_TREE_HEIGHT,
-};
+pub use aztec::protocol::constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT, NULLIFIER_TREE_HEIGHT};
 
 /// On-chain registry that stores block hashes bridged from the old rollup via L1.
 ///
@@ -13,7 +11,7 @@ pub use aztec::protocol_types::constants::{
 pub contract MigrationArchiveRegistry {
     use aztec::{
         macros::{functions::{external, initializer, internal}, storage::storage},
-        protocol_types::{
+        protocol::{
             abis::block_header::BlockHeader,
             address::{AztecAddress, EthAddress},
             constants::ARCHIVE_HEIGHT,
@@ -21,7 +19,7 @@ pub contract MigrationArchiveRegistry {
             merkle_tree::root::root_from_sibling_path,
             traits::{Hash, ToField},
         },
-        state_vars::{map::Map, public_immutable::PublicImmutable, public_mutable::PublicMutable},
+        state_vars::{Map, PublicImmutable, PublicMutable},
     };
 
     #[storage]

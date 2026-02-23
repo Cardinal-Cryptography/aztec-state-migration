@@ -9,15 +9,12 @@ pub contract ExampleMigrationAppV1 {
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol_types::{address::AztecAddress, traits::{Deserialize, Packable, Serialize}},
-        state_vars::{
-            map::Map, owned::Owned, public_immutable::PublicImmutable,
-            public_mutable::PublicMutable,
-        },
+        protocol::{address::AztecAddress, traits::{Deserialize, Packable, Serialize}},
+        state_vars::{Map, Owned, PublicImmutable, PublicMutable},
     };
     use aztec_state_migration::{mode_a::lock_migration_notes, Point};
-    use balance_set::balance_set::BalanceSet;
-    use uint_note::uint_note::UintNote;
+    use balance_set::BalanceSet;
+    use uint_note::UintNote;
 
     // Only Packable needed for Migration
     // Serialize and Deserialize because it's used as argument
@@ -55,13 +52,13 @@ pub contract ExampleMigrationAppV1 {
     /// Mint tokens to an account (for testing)
     #[external("private")]
     fn mint(to: AztecAddress, amount: u128) {
-        self.storage.balances.at(to).add(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        self.storage.balances.at(to).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 
     /// Burn tokens from an account (for testing)
     #[external("private")]
     fn burn(from: AztecAddress, amount: u128) {
-        self.storage.balances.at(from).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        self.storage.balances.at(from).sub(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 
     /// Get balance (view function)
@@ -91,7 +88,7 @@ pub contract ExampleMigrationAppV1 {
     #[external("public")]
     fn _increment_public_balance(owner: AztecAddress, amount: u128) {
         assert(
-            self.context.msg_sender().unwrap() == self.context.this_address(),
+            self.msg_sender() == self.context.this_address(),
             "Only callable internally",
         );
         let current = self.storage.public_balances.at(owner).read();
@@ -101,7 +98,7 @@ pub contract ExampleMigrationAppV1 {
     #[external("public")]
     fn _decrement_public_balance(owner: AztecAddress, amount: u128) {
         assert(
-            self.context.msg_sender().unwrap() == self.context.this_address(),
+            self.msg_sender() == self.context.this_address(),
             "Only callable internally",
         );
         let current = self.storage.public_balances.at(owner).read();
@@ -121,9 +118,9 @@ pub contract ExampleMigrationAppV1 {
     /// 3. Creates a MigrationNote that can be proven on the destination rollup
     #[external("private")]
     fn lock_migration_notes_mode_a(amount: u128, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.context.msg_sender().unwrap();
+        let note_owner = self.msg_sender();
 
-        self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+        self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 
         lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
     }
@@ -137,7 +134,7 @@ pub contract ExampleMigrationAppV1 {
     /// The MigrationNote is the same as for private locks, so the claim circuit is unchanged.
     #[external("private")]
     fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.context.msg_sender().unwrap();
+        let note_owner = self.msg_sender();
 
         lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
 
@@ -164,7 +161,7 @@ pub contract ExampleMigrationAppV1 {
 
     #[external("public")]
     fn init_owned_struct_map(some_struct: SomeStruct) {
-        self.storage.owned_struct_map.at(self.context.msg_sender().unwrap()).write(some_struct);
+        self.storage.owned_struct_map.at(self.msg_sender()).write(some_struct);
     }
 
     #[external("public")]
@@ -173,7 +170,7 @@ pub contract ExampleMigrationAppV1 {
             .storage
             .owned_struct_nested_map
             .at(map_key)
-            .at(self.context.msg_sender().unwrap())
+            .at(self.msg_sender())
             .write(some_struct);
     }
 

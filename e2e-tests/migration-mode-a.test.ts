@@ -72,8 +72,7 @@ async function main() {
   const MINT_AMOUNT = 1000n;
   await oldAppUser.methods
     .mint(oldUserManager.address, MINT_AMOUNT)
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
   const oldBalanceAfterMint = await oldAppUser.methods
     .get_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
@@ -83,7 +82,9 @@ async function main() {
   // Step 4: Lock tokens for migration on OLD rollup
   // ============================================================
   console.log("Step 4. Locking tokens for migration...");
-  const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
+  const mpk = await oldUserWallet.getMigrationPublicKey(
+    oldUserManager.address,
+  )!;
   console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
   const LOCK_AMOUNT = 300n;
@@ -93,8 +94,7 @@ async function main() {
       env.newRollupVersion,
       mpk.toNoirStruct(),
     )
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
 
   const oldBalanceAfterLock = await oldAppUser.methods
     .get_balance(oldUserManager.address)
@@ -121,6 +121,7 @@ async function main() {
   const lockNotes = await oldUserWallet.getMigrationNotes({
     owner: oldUserManager.address,
     contractAddress: oldApp.address,
+    scopes: [oldUserManager.address],
   });
   if (lockNotes.length === 0) {
     throw new Error("No migration notes found");
@@ -148,11 +149,11 @@ async function main() {
   );
 
   // Sign via standalone function
-  const oldAccount = await oldUserWallet.getMigrationAccount(
+  const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
   const signature = await signMigrationModeA(
-    oldAccount.migrationKeySigner,
+    oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     lockNotes,
@@ -175,8 +176,7 @@ async function main() {
       migrationNoteProofs,
       blockHeader,
     )
-    .send({ from: newUserManager.address })
-    .wait();
+    .send({ from: newUserManager.address });
 
   const newBalanceAfter = await newAppUser.methods
     .get_balance(newUserManager.address)
@@ -199,8 +199,7 @@ async function main() {
   const PUBLIC_MINT_AMOUNT = 1000n;
   await oldAppUser.methods
     .mint_public(oldUserManager.address, PUBLIC_MINT_AMOUNT)
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
 
   const oldPublicBalanceAfterMint = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
@@ -225,12 +224,9 @@ async function main() {
     .lock_public_for_migration(
       PUBLIC_LOCK_AMOUNT,
       env.newRollupVersion,
-      oldUserWallet
-        .getMigrationPublicKey(oldUserManager.address)!
-        .toNoirStruct(),
+      mpk.toNoirStruct(),
     )
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
 
   const oldPublicBalanceAfterLock = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
@@ -263,9 +259,10 @@ async function main() {
   );
 
   // Get the actual lock note from PXE
-  const publicLockNotes = await oldUserWallet.getNotes({
+  const publicLockNotes = await oldUserWallet.getMigrationNotes({
     owner: oldUserManager.address,
     contractAddress: oldApp.address,
+    scopes: [oldUserManager.address],
   });
 
   // Find the note for the public lock (most recently created — last one)
@@ -302,7 +299,7 @@ async function main() {
 
   // Sign via standalone function
   const publicSignature = await signMigrationModeA(
-    oldAccount.migrationKeySigner,
+    oldMigrationSigner,
     publicBlockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
     [publicLockNote],
@@ -330,8 +327,7 @@ async function main() {
       publicMigrationNoteProofs,
       publicBlockHeader,
     )
-    .send({ from: newUserManager.address })
-    .wait();
+    .send({ from: newUserManager.address });
 
   const newPublicBalanceAfter = await newAppUser.methods
     .get_public_balance(newUserManager.address)

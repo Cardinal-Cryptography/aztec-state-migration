@@ -10,7 +10,7 @@ use aztec::{
     event::event_emission::emit_event_in_private,
     messages::message_delivery::MessageDelivery,
     note::{lifecycle::create_note, note_interface::NoteHash},
-    protocol_types::{
+    protocol::{
         abis::block_header::BlockHeader,
         address::AztecAddress,
         hash::poseidon2_hash,
@@ -62,7 +62,7 @@ where
             MIGRATION_MODE_A_STORAGE_SLOT,
             migration_note,
         )
-            .deliver(MessageDelivery.CONSTRAINED_ONCHAIN);
+            .deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 
         // Emit migration data as an encrypted private event so the recipient can
         // reconstruct the original data when claiming on the new rollup.
@@ -70,7 +70,7 @@ where
             context,
             MigrationDataEvent { migration_data: migration_data[i] },
         )
-            .deliver_to(notes_owner, MessageDelivery.CONSTRAINED_ONCHAIN);
+            .deliver_to(notes_owner, MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 }
 

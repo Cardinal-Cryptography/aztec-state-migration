@@ -107,17 +107,19 @@ async function main() {
     oldUserWallet,
   );
 
-  const mpk = oldUserWallet.getMigrationPublicKey(oldUserManager.address)!;
+  const mpk = await oldUserWallet.getMigrationPublicKey(
+    oldUserManager.address,
+  )!;
   await oldUserKeyRegistry.methods
     .register(mpk.toNoirStruct())
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
 
-  const mpk2 = oldUserWallet.getMigrationPublicKey(oldUser2Manager.address)!;
+  const mpk2 = await oldUserWallet.getMigrationPublicKey(
+    oldUser2Manager.address,
+  )!;
   await oldUserKeyRegistry.methods
     .register(mpk2.toNoirStruct())
-    .send({ from: oldUser2Manager.address })
-    .wait();
+    .send({ from: oldUser2Manager.address });
 
   // ============================================================
   // Step 4: Set Public Storage on OLD rollup
@@ -128,8 +130,7 @@ async function main() {
   const STRUCT_SINGLE = await randomSomeStruct();
   await oldAppUser.methods
     .init_struct_single(STRUCT_SINGLE)
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
   let structResult: SomeStruct = await oldAppUser.methods
     .get_struct_single()
     .simulate({ from: oldUserManager.address });
@@ -140,8 +141,7 @@ async function main() {
   const STRUCT_MAP = await randomSomeStruct();
   await oldAppUser.methods
     .init_struct_map(STRUCT_MAP_KEY, STRUCT_MAP)
-    .send({ from: oldUserManager.address })
-    .wait();
+    .send({ from: oldUserManager.address });
   structResult = await oldAppUser.methods
     .get_struct_map(STRUCT_MAP_KEY)
     .simulate({ from: oldUserManager.address });
@@ -152,8 +152,7 @@ async function main() {
   const OWNED_STRUCT_MAP = await randomSomeStruct();
   await oldAppUser.methods
     .init_owned_struct_map(OWNED_STRUCT_MAP)
-    .send({ from: OWNED_STRUCT_MAP_OWNER })
-    .wait();
+    .send({ from: OWNED_STRUCT_MAP_OWNER });
   structResult = await oldAppUser.methods
     .get_owned_struct_map(OWNED_STRUCT_MAP_OWNER)
     .simulate({ from: oldUserManager.address });
@@ -168,8 +167,7 @@ async function main() {
       OWNED_STRUCT_NESTED_MAP_KEY,
       OWNED_STRUCT_NESTED_MAP,
     )
-    .send({ from: OWNED_STRUCT_NESTED_MAP_OWNER })
-    .wait();
+    .send({ from: OWNED_STRUCT_NESTED_MAP_OWNER });
   structResult = await oldAppUser.methods
     .get_owned_struct_nested_map(
       OWNED_STRUCT_NESTED_MAP_KEY,
@@ -188,6 +186,9 @@ async function main() {
     newArchiveRegistry,
   );
   console.log(`   Proven block: ${provenBlockNumber}`);
+  console.log(
+    `   Public data tree root: ${blockHeader.state.partial.public_data_tree.root}`,
+  );
 
   await newArchiveRegistry.methods
     .set_snapshot_height(
@@ -196,13 +197,23 @@ async function main() {
       provenBlockNumber,
       archiveProof.archive_sibling_path,
     )
-    .send({ from: newDeployerManager.address })
-    .wait();
+    .send({ from: newDeployerManager.address });
 
   // ============================================================
   // Step 6: Get public data tree witnesses for SomeStruct (2 fields)
   // ============================================================
   console.log("Step 6. Getting public data tree witnesses...");
+
+  // Debug: also fetch the block header directly from the old node to compare roots
+  const oldBlockHeader = await oldAztecNode.getBlockHeader(provenBlockNumber);
+  if (oldBlockHeader) {
+    console.log(
+      `   Old node block header public data root: ${oldBlockHeader.state.partial.publicDataTree.root}`,
+    );
+    console.log(
+      `   Noir block header public data root:     ${blockHeader.state.partial.public_data_tree.root}`,
+    );
+  }
 
   let slot = oldAppDeployer.artifact.storageLayout["struct_single"].slot;
   const structSingleProof = await buildPublicDataProof(
@@ -254,8 +265,7 @@ async function main() {
   console.log("Step 7. Migration Single Struct on NEW rollup...");
   await newAppUser.methods
     .migrate_to_public_struct_mode_b(structSingleProof, blockHeader)
-    .send({ from: newUserManager.address })
-    .wait();
+    .send({ from: newUserManager.address });
   // Verify struct was set on new rollup
   structResult = await newAppUser.methods
     .get_struct_single()
@@ -270,8 +280,7 @@ async function main() {
       blockHeader,
       STRUCT_MAP_KEY,
     )
-    .send({ from: newUserManager.address })
-    .wait();
+    .send({ from: newUserManager.address });
   // Verify struct was set on new rollup
   structResult = await newAppUser.methods
     .get_struct_map(STRUCT_MAP_KEY)
@@ -285,12 +294,12 @@ async function main() {
     OWNED_STRUCT_MAP_OWNER,
     provenBlockNumber,
   );
-  const oldAccountUser = await oldUserWallet.getMigrationAccount(
+  const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     OWNED_STRUCT_MAP_OWNER,
   );
   const ownedStructMapSignature =
     await newUserWallet.signPublicStateMigrationModeB(
-      oldAccountUser,
+      oldMigrationSigner,
       newUserManager.address,
       new Fr(env.oldRollupVersion),
       new Fr(env.newRollupVersion),
@@ -306,8 +315,7 @@ async function main() {
       ownedStructMapSignature,
       keyNoteProof,
     )
-    .send({ from: newUserManager.address })
-    .wait();
+    .send({ from: newUserManager.address });
   // Verify struct was set on new rollup
   structResult = await newAppUser.methods
     .get_owned_struct_map(newUserManager.address)
@@ -321,12 +329,12 @@ async function main() {
     OWNED_STRUCT_NESTED_MAP_OWNER,
     provenBlockNumber,
   );
-  const oldAccountUser2 = await oldUserWallet.getMigrationAccount(
+  const oldMigrationSigner2 = await oldUserWallet.getMigrationSignerFromAddress(
     OWNED_STRUCT_NESTED_MAP_OWNER,
   );
   const ownedStructNestedMapSignature =
     await newUserWallet.signPublicStateMigrationModeB(
-      oldAccountUser2,
+      oldMigrationSigner2,
       newUser2Manager.address,
       new Fr(env.oldRollupVersion),
       new Fr(env.newRollupVersion),
@@ -343,8 +351,7 @@ async function main() {
       keyNoteProof2,
       OWNED_STRUCT_NESTED_MAP_KEY,
     )
-    .send({ from: newUser2Manager.address })
-    .wait();
+    .send({ from: newUser2Manager.address });
   // Verify struct was set on new rollup
   structResult = await newAppUser.methods
     .get_owned_struct_nested_map(

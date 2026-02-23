@@ -13,9 +13,7 @@ pub contract NftMigrationAppV2 {
         macros::{functions::{external, initializer, only_self}, storage::storage},
         messages::message_delivery::MessageDelivery,
         note::{constants::MAX_NOTES_PER_PAGE, note_viewer_options::NoteViewerOptions},
-        protocol_types::{
-            abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys,
-        },
+        protocol::{abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys},
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
     };
     use aztec_state_migration::{
@@ -57,10 +55,10 @@ pub contract NftMigrationAppV2 {
 
     #[external("private")]
     fn mint_to_private(to: AztecAddress, token_id: Field) {
-        assert(self.context.msg_sender().unwrap() == self.storage.minter.read(), "Only minter");
+        assert(self.msg_sender() == self.storage.minter.read(), "Only minter");
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(to).insert(new_note).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
+            MessageDelivery.ONCHAIN_CONSTRAINED,
         );
         NftMigrationAppV2::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
             self.context,
@@ -111,7 +109,7 @@ pub contract NftMigrationAppV2 {
     ) {
         assert(note_proof_data.data == token_id, "Migration data mismatch");
 
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
             self.context,
@@ -126,7 +124,7 @@ pub contract NftMigrationAppV2 {
 
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
+            MessageDelivery.ONCHAIN_CONSTRAINED,
         );
         NftMigrationAppV2::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
             self.context,
@@ -144,7 +142,7 @@ pub contract NftMigrationAppV2 {
     ) {
         assert(note_proof_data.data == token_id, "Migration data mismatch");
 
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
             self.context,
@@ -178,11 +176,11 @@ pub contract NftMigrationAppV2 {
         public_keys: PublicKeys,
         partial_address: Field,
         key_note: KeyNoteProofData,
-        nsk: Scalar,
+        nhk: Scalar,
     ) {
         assert(full_proof_data.note_proof_data.data.token_id == token_id, "Token ID mismatch");
 
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
         // NOTE: assumes old and new contracts have identical storage layout
         let expected_storage_slot = STORAGE_LAYOUT_NftMigrationAppV2.fields.private_nfts.slot;
@@ -200,12 +198,12 @@ pub contract NftMigrationAppV2 {
             public_keys,
             partial_address,
             key_note,
-            nsk,
+            nhk,
         );
 
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
-            MessageDelivery.CONSTRAINED_ONCHAIN,
+            MessageDelivery.ONCHAIN_CONSTRAINED,
         );
         NftMigrationAppV2::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
             self.context,
@@ -227,7 +225,7 @@ pub contract NftMigrationAppV2 {
         assert(old_owner != AztecAddress::zero(), "Cannot migrate zero-address ownership");
 
         let archive_registry = self.storage.archive_root_address.read();
-        let recipient = self.context.msg_sender().unwrap();
+        let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
 
         // 1. Verify public state existed at snapshot height
