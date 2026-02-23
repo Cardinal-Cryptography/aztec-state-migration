@@ -9,19 +9,13 @@ pub contract ExampleMigrationAppV1 {
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol_types::{
-            address::AztecAddress,
-            traits::{Deserialize, Packable, Serialize},
-        },
+        protocol_types::{address::AztecAddress, traits::{Deserialize, Packable, Serialize}},
         state_vars::{
             map::Map, owned::Owned, public_immutable::PublicImmutable,
             public_mutable::PublicMutable,
         },
     };
-    use aztec_state_migration::{
-        mode_a::lock_migration_notes,
-        Point,
-    };
+    use aztec_state_migration::{mode_a::lock_migration_notes, Point};
     use balance_set::balance_set::BalanceSet;
     use uint_note::uint_note::UintNote;
 

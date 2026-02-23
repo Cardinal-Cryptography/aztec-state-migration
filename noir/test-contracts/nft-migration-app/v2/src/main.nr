@@ -12,9 +12,7 @@ pub contract NftMigrationAppV2 {
     use aztec::{
         macros::{functions::{external, initializer, only_self}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        note::{
-            constants::MAX_NOTES_PER_PAGE, note_viewer_options::NoteViewerOptions,
-        },
+        note::{constants::MAX_NOTES_PER_PAGE, note_viewer_options::NoteViewerOptions},
         protocol_types::{
             abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys,
         },

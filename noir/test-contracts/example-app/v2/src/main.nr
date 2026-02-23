@@ -61,10 +61,7 @@ pub contract ExampleMigrationAppV2 {
 
     #[external("public")]
     #[initializer]
-    fn constructor(
-        archive_root_address: AztecAddress,
-        old_rollup_app_address: AztecAddress,
-    ) {
+    fn constructor(archive_root_address: AztecAddress, old_rollup_app_address: AztecAddress) {
         self.storage.archive_root_address.initialize(archive_root_address);
         self.storage.old_rollup_app_address.initialize(old_rollup_app_address);
     }

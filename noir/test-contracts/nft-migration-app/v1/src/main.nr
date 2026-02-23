@@ -20,10 +20,7 @@ pub contract NftMigrationAppV1 {
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
         utils::comparison::Comparator,
     };
-    use aztec_state_migration::{
-        mode_a::lock_migration_notes,
-        Point,
-    };
+    use aztec_state_migration::{mode_a::lock_migration_notes, Point};
 
     #[storage]
     struct Storage<Context> {
