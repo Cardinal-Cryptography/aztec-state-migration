@@ -9,7 +9,7 @@ COREPACK_ENABLE_DOWNLOAD_PROMPT=0 yarn
 echo "✓ Yarn dependencies installed"
 
 # Install nargo natively via noirup (for Noir LSP / editor support)
-NARGO_VERSION="1.0.0-beta.15"
+NARGO_VERSION="1.0.0-beta.18"
 echo "Installing nargo ${NARGO_VERSION} via noirup..."
 curl -L https://raw.githubusercontent.com/noir-lang/noirup/refs/heads/main/install | bash
 export PATH="$HOME/.nargo/bin:$PATH"

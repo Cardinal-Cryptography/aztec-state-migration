@@ -37,14 +37,8 @@ RUN curl -L https://foundry.paradigm.xyz | bash \
     && /root/.foundry/bin/foundryup
 ENV PATH="/root/.foundry/bin:${PATH}"
 
-# Install Aztec CLI binaries and set default version
-RUN mkdir -p /root/.aztec \
-    && echo "${AZTEC_VERSION}" > /root/.aztec/default_version \
-    && for bin in .aztec-run aztec aztec-up; do \
-         curl -fsSL "https://install.aztec.network/${AZTEC_VERSION}/${bin}" -o "/usr/local/bin/${bin}" \
-         && chmod +x "/usr/local/bin/${bin}"; \
-       done \
-    && for bin in aztec-nargo aztec-postprocess-contract aztec-wallet; do \
-         curl -fsSL "https://install.aztec.network/${AZTEC_VERSION}/${bin}" -o "/usr/local/bin/${bin}" \
-         && chmod +x "/usr/local/bin/${bin}" || true; \
-       done
+# Install Aztec CLI via official installer (same method as CI)
+RUN curl -sL "https://install.aztec.network/${AZTEC_VERSION}/" -o /tmp/aztec-install.sh \
+    && VERSION=${AZTEC_VERSION} bash /tmp/aztec-install.sh <<< "yes" \
+    && rm /tmp/aztec-install.sh
+ENV PATH="/root/.aztec/current/bin:/root/.aztec/current/node_modules/.bin:/root/.aztec/bin:${PATH}"
