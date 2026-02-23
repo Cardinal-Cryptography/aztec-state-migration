@@ -1,4 +1,5 @@
-import { ExampleMigrationAppContract } from "./artifacts/ExampleMigrationApp.js";
+import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
+import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { signMigrationModeA } from "../ts/aztec-state-migration/index.js";
 import { deploy } from "./deploy.js";
@@ -53,11 +54,11 @@ async function main() {
     env,
     newArchiveRegistry.address,
   );
-  const oldAppUser = ExampleMigrationAppContract.at(
+  const oldAppUser = ExampleMigrationAppV1Contract.at(
     oldApp.address,
     oldUserWallet,
   );
-  const newAppUser = ExampleMigrationAppContract.at(
+  const newAppUser = ExampleMigrationAppV2Contract.at(
     newApp.address,
     newUserWallet,
   );

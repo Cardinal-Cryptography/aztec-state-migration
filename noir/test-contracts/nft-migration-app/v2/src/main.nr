@@ -2,29 +2,23 @@ mod types;
 
 use aztec::macros::aztec;
 
-/// Migration-enabled NFT contract matching the defi-wonderland/aztec-standards NFT data model.
+/// V2 of the NFT migration contract.
 ///
-/// Supports both Mode A (routine lock-and-claim) and Mode B (emergency snapshot) migration.
-///
-/// Mode A: Users call `lock_nft_mode_a()` on old rollup, then `migrate_nft_mode_a()` on new rollup.
-/// Mode B: Users prove NFTNote existence + non-nullification at snapshot height H.
+/// Deployed on the NEW rollup. Supports migration claim functions
+/// for both Mode A (routine lock-and-claim) and Mode B (emergency snapshot).
 #[aztec]
-pub contract NftMigrationApp {
+pub contract NftMigrationAppV2 {
     use crate::types::nft_note::NFTNote;
     use aztec::{
         macros::{functions::{external, initializer, only_self}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        note::{
-            constants::MAX_NOTES_PER_PAGE, note_getter_options::NoteGetterOptions,
-            note_interface::NoteProperties, note_viewer_options::NoteViewerOptions,
-        },
+        note::{constants::MAX_NOTES_PER_PAGE, note_viewer_options::NoteViewerOptions},
         protocol::{abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys},
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
-        utils::comparison::Comparator,
     };
     use aztec_state_migration::{
         MigrationSignature,
-        mode_a::{lock_migration_notes, migrate_notes_mode_a, MigrationNoteProofData},
+        mode_a::{migrate_notes_mode_a, MigrationNoteProofData},
         mode_b::{
             FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
             migrate_public_map_owned_state_mode_b, PublicStateProofData,
@@ -32,39 +26,34 @@ pub contract NftMigrationApp {
         Point,
         Scalar,
     };
+    use nft_migration_app_v1::NftMigrationAppV1::STORAGE_LAYOUT_NftMigrationAppV1;
 
     #[storage]
     struct Storage<Context> {
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
-        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
+        // --- Fields matching V1 storage layout (order must match for migration proofs) ---
         private_nfts: Owned<PrivateSet<NFTNote, Context>, Context>,
         nft_exists: Map<Field, PublicMutable<bool, Context>, Context>,
         public_owners: Map<Field, PublicMutable<AztecAddress, Context>, Context>,
         minter: PublicImmutable<AztecAddress, Context>,
+        // --- V2-only fields (not present in V1) ---
+        archive_root_address: PublicImmutable<AztecAddress, Context>,
+        old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
     }
 
     #[external("public")]
     #[initializer]
     fn constructor(
-        minter: Option<AztecAddress>,
-        archive_root_address: Option<AztecAddress>,
-        old_rollup_app_address: Option<AztecAddress>,
+        minter: AztecAddress,
+        archive_root_address: AztecAddress,
+        old_rollup_app_address: AztecAddress,
     ) {
-        assert(
-            archive_root_address.is_some() == old_rollup_app_address.is_some(),
-            "Must provide both old rollup app address and archive root address, or neither",
-        );
-        if archive_root_address.is_some() {
-            self.storage.archive_root_address.initialize(archive_root_address.unwrap());
-            self.storage.old_rollup_app_address.initialize(old_rollup_app_address.unwrap());
-        }
-        if minter.is_some() {
-            self.storage.minter.initialize(minter.unwrap());
-        }
+        self.storage.minter.initialize(minter);
+        self.storage.archive_root_address.initialize(archive_root_address);
+        self.storage.old_rollup_app_address.initialize(old_rollup_app_address);
     }
 
     // ============================================================
-    // Test helpers
+    // Internal minting (used by migration functions)
     // ============================================================
 
     #[external("private")]
@@ -74,16 +63,7 @@ pub contract NftMigrationApp {
         self.storage.private_nfts.at(to).insert(new_note).deliver(
             MessageDelivery.ONCHAIN_CONSTRAINED,
         );
-        NftMigrationApp::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
-            self.context,
-        );
-    }
-
-    #[external("private")]
-    fn mint_to_public(to: AztecAddress, token_id: Field) {
-        assert(self.msg_sender() == self.storage.minter.read(), "Only minter");
-        assert(to != AztecAddress::zero(), "Cannot mint to zero address");
-        NftMigrationApp::at(self.context.this_address())._set_public_owner(token_id, to).enqueue(
+        NftMigrationAppV2::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
             self.context,
         );
     }
@@ -118,49 +98,6 @@ pub contract NftMigrationApp {
     }
 
     // ============================================================
-    // Mode A: Lock for Migration (on OLD rollup)
-    // ============================================================
-
-    /// Lock a private NFT for migration to a new rollup.
-    /// Nullifies the NFTNote and creates a MigrationNote with the token_id.
-    #[external("private")]
-    fn lock_nft_mode_a(token_id: Field, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.msg_sender();
-
-        let notes = self.storage.private_nfts.at(note_owner).pop_notes(NoteGetterOptions::new()
-            .select(NFTNote::properties().token_id, Comparator.EQ, token_id)
-            .set_limit(1));
-        assert(notes.len() == 1, "NFT not found");
-
-        lock_migration_notes(
-            self.context,
-            note_owner,
-            destination_rollup,
-            mpk,
-            [token_id],
-        );
-    }
-
-    /// Lock a publicly owned NFT for migration to a new rollup.
-    /// Creates a MigrationNote and enqueues clearing the public owner.
-    #[external("private")]
-    fn lock_public_nft_for_migration(token_id: Field, destination_rollup: Field, mpk: Point) {
-        let note_owner = self.msg_sender();
-
-        lock_migration_notes(
-            self.context,
-            note_owner,
-            destination_rollup,
-            mpk,
-            [token_id],
-        );
-
-        NftMigrationApp::at(self.context.this_address())
-            ._clear_public_owner(note_owner, token_id)
-            .enqueue(self.context);
-    }
-
-    // ============================================================
     // Mode A: Claim Migration (on NEW rollup)
     // ============================================================
 
@@ -192,7 +129,7 @@ pub contract NftMigrationApp {
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
             MessageDelivery.ONCHAIN_CONSTRAINED,
         );
-        NftMigrationApp::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
+        NftMigrationAppV2::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
             self.context,
         );
     }
@@ -221,7 +158,7 @@ pub contract NftMigrationApp {
             block_header,
         );
 
-        NftMigrationApp::at(self.context.this_address())
+        NftMigrationAppV2::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
     }
@@ -248,8 +185,8 @@ pub contract NftMigrationApp {
 
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        // NOTE: assumes old and new contracts have identical storage layout
-        let expected_storage_slot = STORAGE_LAYOUT_NftMigrationApp.fields.private_nfts.slot;
+        // Use V1's storage layout to get the correct slot on the old rollup
+        let expected_storage_slot = STORAGE_LAYOUT_NftMigrationAppV1.fields.private_nfts.slot;
 
         migrate_notes_mode_b(
             self.context,
@@ -271,7 +208,7 @@ pub contract NftMigrationApp {
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
             MessageDelivery.ONCHAIN_CONSTRAINED,
         );
-        NftMigrationApp::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
+        NftMigrationAppV2::at(self.context.this_address())._set_nft_exists(token_id).enqueue(
             self.context,
         );
     }
@@ -295,13 +232,13 @@ pub contract NftMigrationApp {
         let old_app = self.storage.old_rollup_app_address.read();
 
         // 1. Verify public state existed at snapshot height
-        // NOTE: assumes old and new contracts have identical storage layout
+        // Use V1's storage layout to get the correct slot on the old rollup
         migrate_public_map_owned_state_mode_b(
             self.context,
             archive_registry,
             old_app,
             proof_data,
-            STORAGE_LAYOUT_NftMigrationApp.fields.public_owners.slot,
+            STORAGE_LAYOUT_NftMigrationAppV1.fields.public_owners.slot,
             block_header,
             [token_id],
             old_owner,
@@ -311,7 +248,7 @@ pub contract NftMigrationApp {
         );
 
         // 4. Mint to authenticated recipient
-        NftMigrationApp::at(self.context.this_address())
+        NftMigrationAppV2::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
     }
@@ -333,14 +270,5 @@ pub contract NftMigrationApp {
     fn _set_nft_exists(token_id: Field) {
         assert(!self.storage.nft_exists.at(token_id).read(), "NFT already exists");
         self.storage.nft_exists.at(token_id).write(true);
-    }
-
-    #[external("public")]
-    #[only_self]
-    fn _clear_public_owner(owner: AztecAddress, token_id: Field) {
-        let current_owner = self.storage.public_owners.at(token_id).read();
-        assert(current_owner == owner, "Not the public owner of this NFT");
-        self.storage.public_owners.at(token_id).write(AztecAddress::zero());
-        // nft_exists stays true - monotonic flag prevents replay attacks
     }
 }

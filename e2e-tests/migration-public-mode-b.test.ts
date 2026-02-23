@@ -8,10 +8,11 @@ import {
   deployAndFundAccount,
   assertEq,
 } from "./test-utils.js";
+import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
 import {
-  ExampleMigrationAppContract,
-  ExampleMigrationAppContractArtifact,
-} from "./artifacts/ExampleMigrationApp.js";
+  ExampleMigrationAppV2Contract,
+  ExampleMigrationAppV2ContractArtifact,
+} from "./artifacts/ExampleMigrationAppV2.js";
 import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
@@ -30,7 +31,7 @@ interface SomeStruct {
 // Extract the ABI type for SomeStruct from the contract artifact.
 // Public setter functions are folded into public_dispatch by loadContractArtifact,
 // so we pull the type from a migration function's PublicStateProofData<SomeStruct,2>.data field.
-const proofDataAbiType = ExampleMigrationAppContractArtifact.functions
+const proofDataAbiType = ExampleMigrationAppV2ContractArtifact.functions
   .find((f) => f.name === "migrate_to_public_struct_mode_b")!
   .parameters.find((p) => p.name === "struct_single_proof_data")!.type;
 if (proofDataAbiType.kind !== "struct")
@@ -93,8 +94,8 @@ async function main() {
   const oldApp = oldAppDeployer.address;
   const newApp = newAppDeployer.address;
 
-  const oldAppUser = ExampleMigrationAppContract.at(oldApp, oldUserWallet);
-  const newAppUser = ExampleMigrationAppContract.at(newApp, newUserWallet);
+  const oldAppUser = ExampleMigrationAppV1Contract.at(oldApp, oldUserWallet);
+  const newAppUser = ExampleMigrationAppV2Contract.at(newApp, newUserWallet);
 
   // ============================================================
   // Step 3: Register migration key
