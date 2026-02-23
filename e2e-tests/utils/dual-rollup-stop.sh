@@ -2,7 +2,7 @@
 # =============================================================================
 # Dual Rollup Stop Script
 # =============================================================================
-# Stops all running Aztec containers started by dual-rollup-setup.sh
+# Stops all processes started by dual-rollup-setup.sh
 # =============================================================================
 
 set -euo pipefail
@@ -15,23 +15,20 @@ NC='\033[0m'
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[OK]${NC} $1"; }
 
-log_info "Stopping Aztec containers..."
+log_info "Stopping dual-rollup processes..."
 
-# Kill Node 2 (named aztec-node2)
-if docker ps -q --filter "name=aztec-node2" 2>/dev/null | grep -q .; then
-    docker kill aztec-node2 2>/dev/null || true
-    log_success "Node 2 (aztec-node2) stopped"
-else
-    log_info "Node 2 (aztec-node2) not running"
-fi
+# Kill Aztec nodes (start-nodes.ts)
+pkill -f "start-nodes.ts" 2>/dev/null && log_success "Nodes stopped" || log_info "Nodes not running"
 
-# Kill Node 1 (named aztec-start-*)
-NODE1_CONTAINERS=$(docker ps -q --filter "name=aztec-start" 2>/dev/null || true)
-if [ -n "$NODE1_CONTAINERS" ]; then
-    echo "$NODE1_CONTAINERS" | xargs -r docker kill 2>/dev/null || true
-    log_success "Node 1 (aztec-start) stopped"
-else
-    log_info "Node 1 (aztec-start) not running"
-fi
+# Kill any legacy aztec start processes
+pkill -f "aztec.*start" 2>/dev/null && log_success "Legacy aztec processes stopped" || true
 
-log_success "All Aztec containers stopped"
+# Kill Anvil
+pkill anvil 2>/dev/null && log_success "Anvil stopped" || log_info "Anvil not running"
+
+# Free ports used by the setup
+for port in 8080 8081 8545; do
+    fuser -k "$port/tcp" 2>/dev/null || true
+done
+
+log_success "All processes stopped"
