@@ -245,6 +245,54 @@ Storage fields like `old_rollup_app_address` (in migrating app contracts), `old_
 
 Private migration functions can read deployment configuration without note management overhead.
 
+## Wallet Integration
+
+Mode B places heavier demands on the wallet than Mode A because there is no cooperative lock step -- the wallet must gather proofs directly from the old rollup's state trees without requiring any transaction on the old rollup.
+
+**Key registration (pre-snapshot).** Before the snapshot height H is set, the wallet must call `keyRegistry.register(mpk)` on the old rollup's `MigrationKeyRegistry` to commit the user's migration public key. This is a one-time, write-once operation. If a user misses this window, they cannot migrate via Mode B. Wallets should prompt users to register early and confirm the registration was included in a block before H.
+
+**Key management.** The wallet derives MSK/MPK via `deriveMasterMigrationSecretKey(secretKey)`, the same as Mode A. Additionally, Mode B requires the wallet to provide the nullifier hiding key (NHK) for address verification. The `MigrationAccount` interface exposes `getMaskedNhk(mask)` and `getNhkApp(contractAddress)` for this purpose. The NHK proves the user owns the notes being migrated by enabling in-circuit derivation of `npk_m` and address recomputation.
+
+**Proof building (private notes).** The wallet builds combined inclusion and non-nullification proofs via `buildFullNoteProofs(blockNumber, notes, noteMapper)`. This internally constructs a note inclusion Merkle proof and a low-nullifier membership proof for each note, both anchored at the snapshot block. The wallet also builds a key registration proof via `buildKeyNoteProofData(keyRegistry, owner, blockNumber)` to prove the user's MPK was committed to the key registry before the snapshot.
+
+**Proof building (public state).** For public state migration, the wallet builds proofs against the public data tree using `buildPublicDataProof(node, blockNumber, data, contractAddress, baseSlot, dataAbiType)` for standalone values or `buildPublicMapDataProof(...)` for map-based storage. These functions query the Aztec node for public data tree witnesses and construct the `PublicStateProofData` structure.
+
+**Signing.** The wallet signs claim messages via `signMigrationModeB(signer, oldVersion, newVersion, notes, recipient, newApp)` for private note migration, or `signPublicStateMigrationModeB(signer, oldVersion, newVersion, data, abiType, recipient, newApp)` for owned public state migration. Each uses a distinct domain separator (`CLAIM_DOMAIN_B` and `CLAIM_DOMAIN_B_PUBLIC` respectively).
+
+**Archive bridging and snapshot setup.** As with Mode A, the wallet bridges the archive root via `migrateArchiveRootOnL1(...)` + `waitForL1ToL2Message(...)`. Additionally, Mode B requires setting the snapshot height via `set_snapshot_height` on the archive registry, which anchors all subsequent proofs to a fixed block. In a production scenario, snapshot height would be set by governance rather than by individual wallets.
+
+### Cross-Rollup PXE Scoping
+
+Each wallet instance connects to a single Aztec node, and its PXE talks only to that node's rollup. For Mode B, integrators create **two separate wallet instances** -- one connected to the old rollup (for querying notes, building inclusion/non-nullification proofs, and building key note proofs) and one connected to the new rollup (for submitting claim transactions and checking migration status).
+
+The application layer coordinates both wallets. Storage directories are namespaced by rollup address (e.g., `pxe_data_<rollupAddress>`), so the two PXE instances do not conflict even when running in the same process or browser tab.
+
+### Browser vs Node Environments
+
+The same two entrypoints apply as in Mode A: `NodeMigrationEmbeddedWallet` (LMDB, bundled imports) for server/CLI/test use, and `BrowserMigrationEmbeddedWallet` (IndexedDB, lazy imports) for web apps. Both accept `nodeOrUrl: string | AztecNode`.
+
+For the old-rollup wallet instance, browser wallets may use the ephemeral storage option (`openTmpStore`) if the old rollup's PXE data does not need to persist beyond the migration session. This avoids accumulating stale IndexedDB data for a rollup the user will not return to.
+
+### Error Recovery
+
+Mode B has several failure modes that wallets should handle explicitly:
+
+- **Missed registration window.** If a user did not call `keyRegistry.register(mpk)` before the snapshot height H, Mode B migration is permanently unavailable for that account. There is no recovery path -- the key note must exist in the note hash tree at block H. Wallets should prompt key registration as soon as Mode B is announced and confirm the registration transaction was included in a block at or before H.
+- **Nullified notes.** `buildFullNoteProofs()` will fail at the nullifier non-inclusion proof step if a note was spent before the snapshot height. The error surfaces as a failed bounds check in the low-nullifier membership proof. Wallets should pre-filter notes by checking nullifier status at the snapshot block before attempting proof construction.
+- **Key note not found.** `buildKeyNoteProofData()` throws `"No key notes found"` if the PXE has not synced the key registry contract or the user never registered. Wallets should verify registration status via `keyRegistry.get(owner)` (an unconstrained view that returns `point_at_infinity` if no key is registered) before entering the migration flow.
+- **Proof building failures.** Individual note proof failures (missing membership witness, unavailable block data) throw immediately. Wallets building multi-note batches should construct proofs per-note and report per-note status rather than failing the entire batch silently.
+
+### Key Registration and Snapshot Height Timing
+
+The snapshot height H is a governance-controlled parameter that determines the cutoff block for all Mode B proofs. The critical ordering is:
+
+1. User registers migration key on old rollup (`keyRegistry.register(mpk)`).
+2. The registration transaction is included in a block at or before H.
+3. Governance sets H via `set_snapshot_height` on the `MigrationArchiveRegistry`.
+4. User builds proofs anchored at H (note inclusion, nullifier non-inclusion, key note inclusion all verified against the snapshot block's tree roots).
+
+If step 2 completes after H, the key note will not be in the note hash tree at the snapshot block, and `buildKeyNoteProofData()` will fail. Wallets should monitor announced snapshot heights and warn users whose registration transactions are still pending. In an emergency scenario where H is set with little advance notice, wallets should prioritize key registration above all other user-facing operations.
+
 ## PoC Limitations
 
 The following limitations apply to the current proof-of-concept implementation and are **NOT suitable for production** without changes:

@@ -63,7 +63,11 @@ Each domain produces a different message hash, so a signature valid under one do
 
 **Threat:** An attacker obtains a user's `msk` (migration secret key) and claims their tokens before the legitimate user does.
 
-**Impact:** Fund loss scoped to the migration. The attacker can claim all tokens associated with that `msk`. However, this does not compromise the user's account keys or any non-migration state.
+**Impact (differs by mode):**
+
+- **Mode A:** Fund loss scoped to the migration. The attacker with `msk` (and knowledge of note preimages) can claim all tokens associated with that key. The `msk` alone is sufficient to sign Mode A claims because the `MigrationNote` is keyed solely by `mpk`. This does not compromise the user's account keys or any non-migration state.
+- **Mode B (private notes):** Compromising `msk` alone is **not sufficient**. The Mode B circuit additionally requires the victim's `nsk` (nullifier secret key) to prove address ownership and compute nullifiers for the non-nullification proof. An attacker who holds only `msk` cannot migrate Mode B private notes.
+- **Mode B (public state):** For unowned public state, no signature is required. For owned public state (`migrate_public_map_owned_state_mode_b`), the attacker needs `msk` to sign, plus the `MigrationKeyNote` preimage for the inclusion proof, but does not need `nsk`.
 
 **Mitigation:** The `msk` is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar`. It is never transmitted on-chain -- only the public key `mpk` is stored. Key compromise requires access to the account secret key itself.
 

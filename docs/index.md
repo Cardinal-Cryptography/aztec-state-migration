@@ -1,15 +1,17 @@
 ---
 layout: default
-title: Aztec Dual-Rollup Migration
+title: Aztec State Migration
 ---
 
-# Aztec Dual-Rollup Migration
+# Aztec State Migration
 
 > **Proof-of-concept.** This implementation demonstrates the migration design but is not production-ready. See the [threat model](threat-model.md#poc-limitations-not-for-production) for placeholder constants, missing access controls, and other limitations that must be addressed before deployment.
 
 ## Problem
 
 Aztec Network version upgrades deploy entirely new rollup instances rather than upgrading contracts in place. This means user state -- private balances, public storage, and application data -- is stranded on the old rollup with no built-in path to the new one. Privacy constraints compound the problem: unlike transparent chains, Aztec cannot simply export account balances because note ownership and nullifier secrets are private. A migration mechanism must prove state validity without revealing user secrets.
+
+This project was developed in response to the Aztec Foundation's [Request for Grant Proposals: Application State Migration](https://forum.aztec.network/t/request-for-grant-proposals-application-state-migration/8298).
 
 ## Solution
 
@@ -19,7 +21,7 @@ This project implements two migration modes, both anchored by L1 archive roots t
 
 ## Scope
 
-This migration covers **native application state only** -- token balances and contract storage that live entirely on the Aztec L2. L1-bridged assets (tokens held in Ethereum bridge contracts) are out of scope because the bridge custody model requires coordination with the bridge protocol itself, which is independent of the rollup upgrade.
+This migration covers **native application state only** -- token balances and contract storage that live entirely on the Aztec L2. L1-bridged assets (tokens held in Ethereum bridge contracts) require coordination with the bridge protocol's L1 portal contracts and are not covered by this migration mechanism. See [Non-Native Assets](non-native-assets.md) for an analysis of constraints, approaches, and open design questions.
 
 > **Note on NFTs:** An NFT migration contract exists in the codebase and implements both Mode A and Mode B for NFTs. However, this documentation focuses on the fungible token migration pattern. The same migration library functions generalize to NFTs.
 
@@ -44,6 +46,7 @@ This migration covers **native application state only** -- token balances and co
 | [Mode A](mode-a.md) | Cooperative lock-and-claim flow, authentication, nullifier derivation, and limitations |
 | [Mode B](mode-b.md) | Emergency snapshot migration, proof chains, public state migration, and key registry |
 | [Integration Guide](integration-guide.md) | TypeScript SDK, wallet classes, proof data types, and developer workflows |
+| [Non-Native Assets](non-native-assets.md) | Constraints and approaches for migrating L1-bridged tokens (not implemented) |
 | [Threat Model](threat-model.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
 | [Operations](operations.md) | Testing setup, dual-rollup environment, compilation, troubleshooting, and version info |
 

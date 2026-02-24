@@ -176,6 +176,8 @@ The wallet classes handle proof construction and note management:
 
 These methods combine multiple lower-level proof-building functions into higher-level wrapper methods. Integrators should prefer these over calling `buildNoteProof`, `buildNullifierProof`, etc. directly.
 
+For the end-to-end wallet flow in each migration mode, see the Wallet Integration sections in [Mode A](mode-a.md#wallet-integration) and [Mode B](mode-b.md#wallet-integration).
+
 ## Key Derivation
 
 The master migration secret key (MSK) is derived from the account's secret key:

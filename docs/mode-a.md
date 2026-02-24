@@ -142,6 +142,46 @@ However, the reference app contract sets `N = 1`. This is sufficient for the exa
 
 Apps that create multiple `MigrationNote` instances per lock (e.g., locking distinct asset types) would set a larger N. The library circuit is ready; only the app contract's array size and TS client need updating.
 
+## Wallet Integration
+
+Migration cannot be integrated by app developers alone -- wallets must support the full lifecycle from key derivation through proof building to claim submission. The wallet responsibilities for Mode A are:
+
+**Key management.** The wallet derives a dedicated migration secret key (MSK) and migration public key (MPK) via `deriveMasterMigrationSecretKey(secretKey)`. The MSK is derived deterministically from the account's secret key, so no additional key storage is needed. The MPK is passed to the lock transaction on the old rollup. The MSK stays entirely off-chain and is used only for signing claim messages.
+
+**Event retrieval.** After a lock transaction, the wallet retrieves the encrypted `MigrationDataEvent`s emitted during the lock step via `getMigrationDataEvents(abiType, eventFilter)`. These events contain the original migration data (before hashing) that the claimer needs to reconstruct on the new rollup. Events are currently matched to notes by `txHash` filtering, since the events do not include a note-identifying hash.
+
+**Proof building.** The wallet builds inclusion proofs for the locked migration notes using `buildMigrationNoteProofs(blockNumber, lockNotes, events)`, which pairs each note with its corresponding event data and constructs the Merkle proof against the old rollup's note hash tree.
+
+**Archive bridging.** The wallet orchestrates the L1 bridge step: calling `migrateArchiveRootOnL1(...)` to send the old rollup's proven archive root to the new rollup via an L1-to-L2 message, then `waitForL1ToL2Message(...)` to wait for the message to be included on L2. The archive registry's `register_block` must be called to verify and store the block hash before any claim transactions can succeed.
+
+**Signing.** The wallet signs the claim message via `signMigrationModeA(signer, oldVersion, newVersion, notes, recipient, newApp)`, producing a Schnorr signature that binds the claim to a specific recipient and target app contract.
+
+**Claim submission.** The wallet assembles all proof data, the signature, and the block header into a transaction calling the new rollup's app contract migration function. The `MigrationBaseWallet` class provides higher-level wrappers that combine these steps.
+
+### Browser vs Node Environments
+
+The migration library provides two wallet entrypoints:
+
+- **`NodeMigrationEmbeddedWallet`** -- Uses LMDB for persistent storage and bundles all account contract providers eagerly. Suitable for server-side processes, CLI tools, and test environments.
+- **`BrowserMigrationEmbeddedWallet`** -- Uses IndexedDB for persistent storage and lazy-loads account contract providers via dynamic imports (enabling code splitting in bundlers). Suitable for web applications.
+
+Both entrypoints accept `nodeOrUrl: string | AztecNode` and namespace their storage directories by rollup address, so multiple rollup connections do not conflict. Key derivation uses the same `deriveMasterMigrationSecretKey(secretKey)` path in both environments -- there is no WebCrypto or HSM integration yet.
+
+### Key Persistence
+
+`MigrationAccountWithSecretKey` stores the account secret key in memory. `MigrationEmbeddedWallet` persists account metadata (secret key, salt, signing key, account type) to its backing store via `WalletDB` -- IndexedDB in the browser, LMDB in Node. The migration secret key (MSK) is derived deterministically from the account secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])` and can be re-derived at any time, so it does not require separate persistence.
+
+Production wallets should protect the account secret key (the MSK derivation source) via hardware-backed storage, encrypted keystores, or similar mechanisms. The current `MigrationAccountWithSecretKey` implementation is designed for testing and development.
+
+### Error Handling and Multi-Note UX
+
+Wallet implementations should handle the following scenarios:
+
+- **Missing events.** `getMigrationDataEvents()` returns an empty array if no events match the filter. Wallets should surface this as "lock transaction not yet indexed" and prompt the user to wait for the PXE to sync, rather than treating it as a silent no-op.
+- **Unfinalized blocks.** `buildMigrationNoteProofs()` throws if any note's membership witness is unavailable (note not yet committed to a proven block). Wallets should wait for block finality before attempting proof construction and retry on failure.
+- **Already-migrated notes.** `getMigrationNotes()` returns all migration notes, including those already claimed on the new rollup. Wallets must track claim status externally (e.g., by checking nullifier existence on the new rollup) and filter the UI accordingly.
+- **Multi-note batches.** The library circuit supports batch sizes greater than one via `[MigrationNoteProofData; N]`. Wallets presenting multi-note lock flows should build proofs for all notes in a single `buildMigrationNoteProofs` call to produce an atomic batch authenticated by one signature.
+
 ## PoC Limitations
 
 The following limitations apply to the current proof-of-concept implementation and are **not suitable for production**:
