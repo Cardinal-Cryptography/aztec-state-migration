@@ -14,7 +14,6 @@ pub contract ExampleMigrationAppV1 {
     };
     use aztec_state_migration::{mode_a::lock_migration_notes, Point};
     use balance_set::BalanceSet;
-    use uint_note::UintNote;
 
     // Only Packable needed for Migration
     // Serialize and Deserialize because it's used as argument
