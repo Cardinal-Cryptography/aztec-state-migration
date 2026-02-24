@@ -88,7 +88,7 @@ async function main() {
   console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
   const LOCK_AMOUNT = 300n;
-  const lockTx = await oldAppUser.methods
+  await oldAppUser.methods
     .lock_migration_notes_mode_a(
       LOCK_AMOUNT,
       env.newRollupVersion,
@@ -118,45 +118,33 @@ async function main() {
   console.log("Step 6. Preparing migration args...");
 
   // Get lock notes via wallet
-  const lockNotes = await oldUserWallet.getMigrationNotes({
-    owner: oldUserManager.address,
-    contractAddress: oldApp.address,
-    scopes: [oldUserManager.address],
-  });
-  if (lockNotes.length === 0) {
-    throw new Error("No migration notes found");
-  }
-
-  // Fetch encrypted migration data events emitted alongside the lock notes
-  const migrationDataEvents =
-    await oldUserWallet.getMigrationDataEvents<bigint>(MIGRATION_DATA_TYPE, {
-      contractAddress: oldApp.address,
-      scopes: [oldUserManager.address],
-      txHash: lockTx.txHash,
-    });
-  console.log(`   Found ${migrationDataEvents.length} MigrationDataEvent(s)`);
-  assertEq(
-    migrationDataEvents.length,
-    lockNotes.length,
-    "Mismatch between MigrationDataEvents and MigrationNotes count",
+  const lockNotesAndData = await oldUserWallet.getMigrationNotesAndData<bigint>(
+    oldApp.address,
+    oldUserManager.address,
+    MIGRATION_DATA_TYPE,
   );
+  if (lockNotesAndData.length !== 1) {
+    throw new Error(
+      `Expected exactly 1 migration note, but found ${lockNotesAndData.length}`,
+    );
+  }
 
   // Build proofs via wallet, combining note proofs with event data
   const [migrationNoteProof] = await oldUserWallet.buildMigrationNoteProofs(
     provenBlockNumber,
-    lockNotes,
-    migrationDataEvents,
+    lockNotesAndData,
   );
 
   // Sign via standalone function
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
+
   const signature = await signMigrationModeA(
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    lockNotes,
+    lockNotesAndData.map(({ note }) => note),
     newUserManager.address,
     newApp.address,
   );
@@ -258,42 +246,35 @@ async function main() {
   );
 
   // Get the actual lock note from PXE
-  const publicLockNotes = await oldUserWallet.getMigrationNotes({
-    owner: oldUserManager.address,
-    contractAddress: oldApp.address,
-    scopes: [oldUserManager.address],
-  });
+  const allLockNotesAndData =
+    await oldUserWallet.getMigrationNotesAndData<bigint>(
+      oldApp.address,
+      oldUserManager.address,
+      MIGRATION_DATA_TYPE,
+    );
 
-  // Find the note for the public lock (most recently created — last one)
-  // The private lock note was already used, so the remaining one is the public lock note
-  if (publicLockNotes.length === 0) {
-    throw new Error("No lock notes found in PXE for public lock");
+  if (allLockNotesAndData.length !== 2) {
+    throw new Error(
+      `Expected exactly 2 migration notes, but found ${allLockNotesAndData.length}`,
+    );
   }
 
-  // The public lock note should be the latest one
-  const publicLockNote = publicLockNotes[publicLockNotes.length - 1];
-  console.log(
-    `   Found ${publicLockNotes.length} lock note(s) in PXE, using the last one`,
+  // const alreadyMigratedNoteHashes = lockNotes.map((note) => note.noteHash);
+  const filteredNotes = await newUserWallet.filterOutMigratedNotes(
+    newApp.address,
+    allLockNotesAndData,
   );
 
-  // Fetch migration data events for the public lock
-  const publicMigrationDataEvents =
-    await oldUserWallet.getMigrationDataEvents<bigint>(MIGRATION_DATA_TYPE, {
-      contractAddress: oldApp.address,
-      scopes: [oldUserManager.address],
-      txHash: lockPublicTx.txHash,
-    });
-  if (publicMigrationDataEvents.length === 0) {
+  if (filteredNotes.length !== 1) {
     throw new Error(
-      "No MigrationDataEvents found for public lock — event delivery failed",
+      `Expected exactly 1 migration note for the public lock, but found ${filteredNotes.length}`,
     );
   }
 
   const [publicMigrationNoteProof] =
     await oldUserWallet.buildMigrationNoteProofs(
       publicProvenBlockNumber,
-      [publicLockNote],
-      publicMigrationDataEvents,
+      filteredNotes,
     );
 
   // Sign via standalone function
@@ -301,7 +282,7 @@ async function main() {
     oldMigrationSigner,
     publicBlockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    [publicLockNote],
+    filteredNotes.map(({ note }) => note),
     newUserManager.address,
     newApp.address,
   );

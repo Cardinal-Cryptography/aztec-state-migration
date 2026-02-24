@@ -1,6 +1,6 @@
 import type { Fr } from "@aztec/foundation/curves/bn254";
-import { NoteProofData } from "../types.js";
-import { Note } from "@aztec/stdlib/note";
+import type { NoteProofData } from "../types.js";
+import type { Note, NoteDao } from "@aztec/stdlib/note";
 
 /** MigrationNote proof data with generic migration data. */
 export type MigrationNoteProofData<T> = NoteProofData<T>;
@@ -42,3 +42,9 @@ export const MigrationNote = {
     };
   },
 };
+
+/** A Mode A migration note paired with its decoded migration data. */
+export interface MigrationNoteAndData<T> {
+  note: NoteDao;
+  data: T;
+}

@@ -1,5 +1,5 @@
 title: Aztec Contract Migration
-description: Dual-rollup migration protocol using cryptographic proofs anchored by L1
+description: Aztec state migration protocol using cryptographic proofs anchored by L1
 remote_theme: pages-themes/cayman@v0.2.0
 
 plugins:

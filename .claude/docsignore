@@ -1,0 +1,47 @@
+# Docsignore — what to keep OUT of spec and architecture docs
+#
+# Spec and architecture docs describe the protocol and its generic composition
+# model. They should read as if no example application exists yet — any developer
+# should be able to follow the spec and build their own app contract.
+#
+# This file states exclusion *principles*, each with known examples.
+# Apply the principle to new cases even if they are not listed here.
+#
+# Referenced by CLAUDE.md Section B5.
+
+
+## 1. No concrete app contract names
+#
+# Principle: Spec and architecture docs describe the *library* and *protocol*,
+# not any particular application built on top of them. Naming a specific app
+# contract couples the protocol docs to one implementation and misleads readers
+# into thinking the protocol is limited to that use case.
+#
+# Where they belong: integration guide, tutorials, example walkthroughs.
+#
+# Known examples:
+#   ExampleMigrationApp, ExampleApp, NftMigrationApp, ExampleNFT
+
+
+## 2. No app-specific storage types or business logic
+#
+# Principle: The architecture should describe tiers and composition boundaries,
+# not what any particular app stores or does. Saying "Application tier contracts
+# import library functions and add app-specific logic" is correct. Listing the
+# specific storage types or operations of one app is not.
+#
+# Where they belong: integration guide (storage patterns section), example code.
+#
+# Known examples:
+#   BalanceSet, PublicMutable (when cited as app storage, not as Aztec primitives)
+#   "minting tokens on claim", "decrementing supply"
+
+
+## 3. No hardcoded implementation limits from example apps
+#
+# Principle: If a limit (e.g. batch size N=1) exists only because an example
+# app hardcodes it, don't present it as a protocol property. The library
+# supports the general case — document that instead.
+#
+# Known examples:
+#   "ExampleApp currently hardcodes N = 1"
