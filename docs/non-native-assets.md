@@ -58,27 +58,9 @@ Two distinct L1 portals exist -- one for the old rollup, one for the new.
 - **Liquidity transfer.** When the new rollup's "migrated so far" counter is consumed on L1, the old portal physically transfers the corresponding ERC20 tokens to the new portal.
 - **Tradeoff.** Cleaner separation of concerns and the old portal can eventually be deprecated. But two contracts must trust each other (or a mediator must coordinate), and the old portal must reserve enough tokens to honor any in-flight old-rollup withdrawals that have not yet been finalized on L1.
 
-### Pattern 3: Old-Side Lock Counter
-
-Instead of tracking "how much has been claimed on the new rollup," base the L1 reassignment on "how much has been locked/burned on the old rollup."
-
-- **Advantage.** This ties the backing transfer to the exact moment the old-side exit capability is destroyed, avoiding a window where the new L2 has issued balances but L1 has not yet reassigned backing.
-- **Tradeoff.** Requires the old rollup's portal to observe lock events (via L2-to-L1 messages from the old rollup), which may be infeasible if the old rollup's contracts cannot be modified.
-
-### Pattern 4: L1-Mediated Migration
-
-Treat migration as a routed flow: old L2 &rarr; L1 portal &rarr; new L2. The user initiates a special withdrawal on the old rollup that, instead of paying the user on L1, immediately credits the new rollup via an L1-to-L2 deposit.
-
-- **Advantage.** L1 sees every unit of migrated backing flow through. No counter is needed and no trust in a reported number -- solvency is enforced atomically per migration.
-- **Tradeoff.** Adds L1 execution cost (two cross-chain messages per migration). May also leak more information (amounts, timing) depending on how deposits and claims are represented.
-
 ### Counter Security Requirements
 
-Patterns 1-3 all rely on a "migrated so far" counter (whether tracked on the new or old side). For any counter-based approach:
-
-- **Monotonic.** The counter must only increase. A decrease would allow the old portal to over-release.
-- **Unforgeable.** The counter must only be incrementable as a consequence of a valid migration that corresponds to a real reduction of withdrawable supply on the old rollup.
-- **Authenticated.** The L1 portal must only accept counter updates from a specific trusted contract (e.g., verified via L2-to-L1 message proofs). If an arbitrary caller can advance the counter, this becomes a direct bridge-drain vector.
+Both patterns rely on a "migrated so far" counter. For any counter-based approach, it seems following tradeoffs are unavoidable:
 
 **Counter latency.** Because L2-to-L1 messages require epoch proving before they reach L1, the counter on L1 always lags behind reality on L2. This is a **liveness** concern (new-rollup users may temporarily be unable to withdraw to L1 until the counter catches up) but not a **safety** concern (the L1 counter underestimates migration, so the old portal over-reserves rather than under-reserves).
 
