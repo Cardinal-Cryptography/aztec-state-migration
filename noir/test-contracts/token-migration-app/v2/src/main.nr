@@ -279,6 +279,13 @@ pub contract TokenMigrationAppV2 {
         self.storage.private_balances.at(recipient).add(amount).deliver(
             MessageDelivery.ONCHAIN_CONSTRAINED,
         );
+
+        // Update total supply on the new rollup.
+        // Privacy note: this leaks the migrated amount as a public function argument.
+        // This is a known compromise. If only Mode B migration is supported, an
+        // alternative is to initialize V2 with total_supply from the old rollup snapshot
+        // and skip incrementing on each claim.
+        self.enqueue_self.increase_total_supply_internal(amount);
     }
 
     /// Claim a Mode A migration on the new rollup (to public balance).
@@ -367,6 +374,13 @@ pub contract TokenMigrationAppV2 {
         self.storage.private_balances.at(recipient).add(amount).deliver(
             MessageDelivery.ONCHAIN_CONSTRAINED,
         );
+
+        // Update total supply on the new rollup.
+        // Privacy note: this leaks the migrated amount as a public function argument.
+        // This is a known compromise. If only Mode B migration is supported, an
+        // alternative is to initialize V2 with total_supply from the old rollup snapshot
+        // and skip incrementing on each claim.
+        self.enqueue_self.increase_total_supply_internal(amount);
     }
 
     /// Claim a Mode B migration for a public balance on the new rollup.

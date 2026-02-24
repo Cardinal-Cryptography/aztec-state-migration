@@ -235,16 +235,17 @@ pub contract TokenMigrationAppV1 {
     /// This function:
     /// 1. Creates a MigrationNote (identical to private lock)
     /// 2. Enqueues a public function to decrement the user's public balance
-    /// 3. Enqueues a public function to decrement the total supply
+    ///
+    /// Note: total_supply is intentionally NOT decremented here. Doing so would
+    /// leak the locked amount as a public function argument, undermining the
+    /// privacy of the migration. The new rollup's V2 contract updates its own
+    /// total_supply when tokens are claimed.
     #[external("private")]
     fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.msg_sender();
         lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
         TokenMigrationAppV1::at(self.context.this_address())
             .decrease_public_balance_internal(note_owner, amount)
-            .enqueue(self.context);
-        TokenMigrationAppV1::at(self.context.this_address())
-            .decrease_total_supply_internal(amount)
             .enqueue(self.context);
     }
 
