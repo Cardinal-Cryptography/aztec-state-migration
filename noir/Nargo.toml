@@ -3,8 +3,10 @@ members = [
     "aztec-state-migration",
     "contracts/migration-archive-registry",
     "contracts/migration-key-registry",
-    "test-contracts/example-app",
-    "test-contracts/nft-migration-app",
+    "test-contracts/example-app/v1",
+    "test-contracts/example-app/v2",
+    "test-contracts/nft-migration-app/v1",
+    "test-contracts/nft-migration-app/v2",
     "tests",
 ]
 exclude = ["tests"]

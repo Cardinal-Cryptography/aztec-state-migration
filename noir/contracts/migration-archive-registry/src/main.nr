@@ -36,9 +36,9 @@ pub contract MigrationArchiveRegistry {
         snapshot_block_hash: PublicImmutable<Field, Context>,
 
         // Mapping: proven_block_number -> archive_root (trusted, consumed from L1)
-        archive_roots: Map<u32, PublicMutable<Field, Context>, Context>,
+        archive_roots: Map<u32, PublicImmutable<Field, Context>, Context>,
         // Mapping: block_number -> block_hash (hash of the block header)
-        block_hashes: Map<u32, PublicMutable<Field, Context>, Context>,
+        block_hashes: Map<u32, PublicImmutable<Field, Context>, Context>,
         // Track the latest registered proven block
         latest_proven_block: PublicMutable<u32, Context>,
     }
@@ -142,7 +142,7 @@ pub contract MigrationArchiveRegistry {
             self.storage.l1_migrator.read(),
             leaf_index,
         );
-        self.storage.archive_roots.at(proven_block_number).write(archive_root);
+        self.storage.archive_roots.at(proven_block_number).initialize(archive_root);
 
         let current_latest = self.storage.latest_proven_block.read();
         if proven_block_number as u64 > current_latest as u64 {
@@ -166,7 +166,7 @@ pub contract MigrationArchiveRegistry {
             block_number as u64 <= proven_block_number as u64,
             "Block number exceeds proven checkpoint",
         );
-        self.storage.block_hashes.at(block_number as u32).write(block_hash);
+        self.storage.block_hashes.at(block_number as u32).initialize(block_hash);
     }
 
     // ============================================================
@@ -209,7 +209,7 @@ pub contract MigrationArchiveRegistry {
 
     /// Verify a Mode A migration by checking that the block hash matches
     /// the registered hash for the given block number.
-    #[external("public")]
+    #[external("private")]
     fn verify_migration_mode_a(block_number: u32, block_hash: Field) {
         let stored_hash = self.storage.block_hashes.at(block_number).read();
         assert(stored_hash != 0, "Block hash not registered for this block");
@@ -222,7 +222,7 @@ pub contract MigrationArchiveRegistry {
 
     /// Verify a Mode B migration by checking that the block hash matches
     /// the stored snapshot block hash.
-    #[external("public")]
+    #[external("private")]
     fn verify_migration_mode_b(block_hash: Field) {
         let stored_hash = self.storage.snapshot_block_hash.read();
         assert(stored_hash != 0, "Snapshot not set");
