@@ -2,9 +2,11 @@ use aztec::macros::aztec;
 
 /// V2 of the ERC20-like token migration contract.
 ///
-/// Deployed on the NEW rollup. Implements the same AIP-20-style token plus:
-/// - Mode A (routine lock-and-claim) migration
-/// - Mode B (emergency snapshot) migration for both private and public balances
+/// Deployed on the NEW rollup.
+/// Implements the ERC-20 core of AIP-20 (balances, transfers, mint, burn, authwit, metadata views).
+/// Omits: commitment-based transfers (PartialUintNote), upgrade mechanism, vault/ERC-4626.
+/// Adds: Mode A claims (migrate_mode_a, migrate_to_public_mode_a),
+///       Mode B claims (migrate_mode_b, migrate_public_balance_mode_b).
 #[aztec]
 pub contract TokenMigrationAppV2 {
     use aztec::{
