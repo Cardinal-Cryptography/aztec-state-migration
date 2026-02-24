@@ -15,6 +15,7 @@ if [ "$hash_2_compatible" = true ] && [ "$hash_3_compatible" = true ]; then
     echo "Hashes are compatible:"
     echo "hash2: $solidity_hash_2"
     echo "hash3: $solidity_hash_3"
+    exit 0
 elif [ "$hash_2_compatible" = false ]; then
     echo "Hashes are NOT compatible! (hash2)"
     echo "Solidity hash: $solidity_hash_2"
