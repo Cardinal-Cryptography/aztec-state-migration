@@ -47,9 +47,9 @@ A front-runner cannot change the recipient without invalidating the signature. S
 
 **Mitigation:** Domain separation constants are included in every signed message:
 
-- `CLAIM_DOMAIN_A` -- Mode A claims (private and public balance)
-- `CLAIM_DOMAIN_B` -- Mode B private note claims
-- `CLAIM_DOMAIN_B_PUBLIC` -- Mode B public state owned-entry claims
+- `DOM_SEP__CLAIM_A` -- Mode A claims (private and public balance)
+- `DOM_SEP__CLAIM_B` -- Mode B private note claims
+- `DOM_SEP__CLAIM_B_PUBLIC` -- Mode B public state owned-entry claims
 
 Each domain produces a different message hash, so a signature valid under one domain is invalid under another.
 
@@ -66,8 +66,8 @@ Each domain produces a different message hash, so a signature valid under one do
 **Impact (differs by mode):**
 
 - **Mode A:** Fund loss scoped to the migration. The attacker with `msk` (and knowledge of note preimages) can claim all tokens associated with that key. The `msk` alone is sufficient to sign Mode A claims because the `MigrationNote` is keyed solely by `mpk`. This does not compromise the user's account keys or any non-migration state.
-- **Mode B (private notes):** Compromising `msk` alone is **not sufficient**. The Mode B circuit additionally requires the victim's `nsk` (nullifier secret key) to prove address ownership and compute nullifiers for the non-nullification proof. An attacker who holds only `msk` cannot migrate Mode B private notes.
-- **Mode B (public state):** For unowned public state, no signature is required. For owned public state (`migrate_public_map_owned_state_mode_b`), the attacker needs `msk` to sign, plus the `MigrationKeyNote` preimage for the inclusion proof, but does not need `nsk`.
+- **Mode B (private notes):** Compromising `msk` alone is **not sufficient**. The Mode B circuit additionally requires the victim's `nhk` (nullifier hiding key) to prove address ownership and compute nullifiers for the non-nullification proof. An attacker who holds only `msk` cannot migrate Mode B private notes.
+- **Mode B (public state):** For unowned public state, no signature is required. For owned public state (`migrate_public_map_owned_state_mode_b`), the attacker needs `msk` to sign, plus the `MigrationKeyNote` preimage for the inclusion proof, but does not need `nhk`.
 
 **Mitigation:** The `msk` is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar`. It is never transmitted on-chain -- only the public key `mpk` is stored. Key compromise requires access to the account secret key itself.
 
@@ -95,11 +95,9 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **In-memory key storage.** The TS client stores migration keys in memory. Production should use secure storage (hardware wallet, encrypted keystore).
 
-- **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently. See `NOTE` comments in the NFT example contract for details.
+- **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently.
 
 - **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `noir/aztec-state-migration/src/mode_a/ops.nr`).
-
-> **Production requirement:** Placeholder domain separators (`CLAIM_DOMAIN_A = MIGRATION_MODE_A_STORAGE_SLOT`, `CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef`, `DOM_SEP__PUBLIC_MIGRATION_NULLIFIER = 0x12345678`) must be replaced with properly derived values before production. *(Source: `constants.nr`)*
 
 ## Spec Open Items
 

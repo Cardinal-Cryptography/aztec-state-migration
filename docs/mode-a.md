@@ -18,7 +18,7 @@ The flow has two phases:
 
 Both private notes and public balances use the same lock-and-claim mechanism. The `MigrationNote` is identical in both cases; only the app-level operations that precede the lock and follow the claim differ.
 
-**Prerequisite:** The old and new app contracts must agree on the `MigrationNote` format and the migration storage slot constant (`MIGRATION_MODE_A_STORAGE_SLOT`). Mode A migration notes are committed under a fixed migration slot and do not depend on the app's general public storage layout. (Identical storage layouts are required for Mode B public state migration, not Mode A.)
+**Prerequisite:** The old and new app contracts must agree on the `MigrationNote` format and the migration storage slot constant (`MIGRATION_NOTE_STORAGE_SLOT`). Mode A migration notes are committed under a fixed migration slot and do not depend on the app's general public storage layout. (Identical storage layouts are required for Mode B public state migration, not Mode A.)
 
 ## Lock Flow (Library Level)
 
@@ -29,7 +29,7 @@ The library function `lock_migration_notes` (`noir/aztec-state-migration/src/mod
 1. Assert that `mpk` (migration public key) is on the Grumpkin curve.
 2. For each element in `migration_data`:
    a. Construct a `MigrationNote` via `MigrationNote::new(note_creator, mpk, destination_rollup, migration_data[i])`. The constructor hashes the packed data: `migration_data_hash = poseidon2_hash(migration_data.pack())`.
-   b. Commit the note to the note hash tree under `MIGRATION_MODE_A_STORAGE_SLOT` via `create_note`.
+   b. Commit the note to the note hash tree under `MIGRATION_NOTE_STORAGE_SLOT` via `create_note`.
    c. Emit a `MigrationDataEvent { migration_data: migration_data[i] }` encrypted to the `notes_owner` via `emit_event_in_private` + `deliver_to` (AES128 ECDH encryption).
 
 ### MigrationNote
@@ -70,7 +70,7 @@ The library function `migrate_notes_mode_a` (`noir/aztec-state-migration/src/mod
 
 1. **Note inclusion (per note):** For each `MigrationNoteProofData` element, reconstruct the `MigrationNote` and compute its hash via `MigrationNote::compute_note_hash`. Then call `note_proof_data.verify_note_inclusion(old_app, note_hash, note_hash_tree_root)`, which silos with the old app address (`compute_siloed_note_hash`), applies uniqueness (`compute_unique_note_hash` with nonce), and verifies the Merkle proof against the note hash tree root. Returns the unique note hash.
 2. **Nullifier emission (per note):** Emit a nullifier via `MigrationNote::compute_nullifier` keyed to the note's randomness (see [Nullifier Derivation](#nullifier-derivation)).
-3. **Signature verification:** Compute `notes_hash = poseidon2_hash(note_hashes)` over all verified note hashes, then call `signature.verify_migration_signature::<CLAIM_DOMAIN_A>(...)` (see [Authentication](#authentication)).
+3. **Signature verification:** Compute `notes_hash = poseidon2_hash(note_hashes)` over all verified note hashes, then call `signature.verify_migration_signature::<DOM_SEP__CLAIM_A>(...)` (see [Authentication](#authentication)).
 4. **Block hash verification (enqueued public call):** Compute `block_hash = block_header.hash()`, then enqueue a public call to `MigrationArchiveRegistry.verify_migration_mode_a(block_number, block_hash)` to confirm the block hash matches one registered on-chain (bridged from L1).
 
 ### Two-Step Archive Verification
@@ -96,7 +96,7 @@ Migration claims are authenticated via Schnorr signatures over a Poseidon2 messa
 **Signed message:**
 
 ```
-msg = poseidon2_hash([CLAIM_DOMAIN_A, old_rollup, current_rollup, notes_hash, recipient, new_app_address])
+msg = poseidon2_hash([DOM_SEP__CLAIM_A, old_rollup, current_rollup, notes_hash, recipient, new_app_address])
 ```
 
 **Verification** (`signature.nr`, function `verify_migration_signature`):
@@ -109,16 +109,14 @@ schnorr::verify_signature(mpk, signature.bytes, msg.to_be_bytes::<32>())
 
 | Field | Purpose |
 |-------|---------|
-| `CLAIM_DOMAIN_A` | Domain separator (prevents replay across migration modes) |
+| `DOM_SEP__CLAIM_A` | Domain separator (prevents replay across migration modes) |
 | `old_rollup` | Old rollup version from `block_header.global_variables.version` |
 | `current_rollup` | New rollup version from `context.version()` |
 | `notes_hash` | `poseidon2_hash(note_hashes)` over all note hashes being claimed |
 | `recipient` | Recipient address on new rollup |
 | `new_app_address` | New app contract address (`context.this_address()`) |
 
-**Key derivation:** The migration secret key (MSK) is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])` (`ts/aztec-state-migration/keys.ts`, export `deriveMasterMigrationSecretKey`). The MSK stays entirely off-chain -- it is used only for deriving `mpk` and signing. The circuit receives `mpk` directly.
-
-> **Production requirement:** `CLAIM_DOMAIN_A` currently reuses `MIGRATION_MODE_A_STORAGE_SLOT`. A distinct domain separator should be assigned before production deployment. *(Source: `constants.nr:6`)*
+**Key derivation:** The migration secret key (MSK) is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])` (`ts/aztec-state-migration/keys.ts`, export `deriveMasterMigrationSecretKey`). The MSK stays entirely off-chain -- it is used only for deriving `mpk` and signing. The circuit receives `mpk` directly.
 
 ## Nullifier Derivation
 
@@ -165,7 +163,7 @@ Both entrypoints accept `nodeOrUrl: string | AztecNode` and namespace their stor
 
 ### Key Persistence
 
-`MigrationAccountWithSecretKey` stores the account secret key in memory. `MigrationEmbeddedWallet` persists account metadata (secret key, salt, signing key, account type) to its backing store via `WalletDB` -- IndexedDB in the browser, LMDB in Node. The migration secret key (MSK) is derived deterministically from the account secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])` and can be re-derived at any time, so it does not require separate persistence.
+`MigrationAccountWithSecretKey` stores the account secret key in memory. `MigrationEmbeddedWallet` persists account metadata (secret key, salt, signing key, account type) to its backing store via `WalletDB` -- IndexedDB in the browser, LMDB in Node. The migration secret key (MSK) is derived deterministically from the account secret key via `sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])` and can be re-derived at any time, so it does not require separate persistence.
 
 Production wallets should protect the account secret key (the MSK derivation source) via hardware-backed storage, encrypted keystores, or similar mechanisms. The current `MigrationAccountWithSecretKey` implementation is designed for testing and development.
 

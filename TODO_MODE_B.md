@@ -39,11 +39,9 @@ Public state migration is fully implemented for Mode B with four composable func
 
 **Production:** Should enforce `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
 
-## 7. Make registered_keys Immutable in MigrationKeyRegistry
+## ~~7. Make registered_keys Immutable in MigrationKeyRegistry~~ (Done)
 
-**Current:** `registered_keys` storage can be updated. A user who re-registers with different keys after snapshot height H could invalidate their own migration or cause inconsistencies.
-
-**Production:** Make `registered_keys` entries immutable once set — a key registration should be a one-time operation that cannot be overwritten. No need for keynote nullifier non-inclusion proof.
+`registered_keys` now uses `Owned<PrivateImmutable<MigrationKeyNote>>` in `noir/contracts/migration-key-registry/src/main.nr`, enforcing write-once semantics via `initialize()`. A second call to `register()` by the same user reverts.
 
 ## ~~8. Decompose aztec-state-migration lib into Separate Validation Functions~~ (Done)
 

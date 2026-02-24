@@ -101,7 +101,7 @@ The migration keypair is used **only** to authorize migration claims. It is not 
 - **Viewing key leak:** attacker can see your balances (privacy loss), but cannot spend
 - **Migration key leak:** attacker can claim your tokens on the new rollup during migration (fund loss, scoped to migration)
 
-**Key derivation:** `msk` is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])`. No random generation or explicit persistence needed -- the key can be re-derived from the account secret at any time. `mpk` is the corresponding Grumpkin curve point.
+**Key derivation:** `msk` is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])`. No random generation or explicit persistence needed -- the key can be re-derived from the account secret at any time. `mpk` is the corresponding Grumpkin curve point.
 
 ### Claim authorization signature
 
@@ -114,7 +114,7 @@ sig = schnorr_sign(msk, msg)
 ```
 
 - `notes_hash` is the Poseidon2 hash of all note hashes being claimed in the batch.
-- `CLAIM_DOMAIN` provides **domain separation** -- each mode uses a distinct domain tag (`CLAIM_DOMAIN_A`, `CLAIM_DOMAIN_B`, `CLAIM_DOMAIN_B_PUBLIC`) to prevent signatures from being reused across modes.
+- `CLAIM_DOMAIN` provides **domain separation** -- each mode uses a distinct domain tag (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`, `DOM_SEP__CLAIM_B_PUBLIC`) to prevent signatures from being reused across modes.
 - `recipient` is the new-rollup address that will receive the migrated tokens.
 
 On claim, the migration circuit:
@@ -168,7 +168,7 @@ This makes "knowledge of the migration secret key + nullifier hiding key" the au
 
 For public state (non-owned), no signature or key note proof is needed -- the data is publicly visible and anyone can trigger the migration. The circuit only verifies the data existed in the public data tree at snapshot height H.
 
-For **owned** public state, the same Schnorr signature and key note proof are required, using a separate domain tag (`CLAIM_DOMAIN_B_PUBLIC`). The signature binds the data hash (instead of note hashes) to the migration context.
+For **owned** public state, the same Schnorr signature and key note proof are required, using a separate domain tag (`DOM_SEP__CLAIM_B_PUBLIC`). The signature binds the data hash (instead of note hashes) to the migration context.
 
 ### Wallet guidance
 
@@ -376,7 +376,7 @@ The tables below list library functions first, then app-level interfaces.
 | `migrate_notes_mode_b` | `mode_b/ops` | `full_proof_data: [FullNoteProofData; N], block_header, signature, key_note, nhk, migration_archive_registry, old_app, ...` | Verify Mode B inclusion + non-nullification proofs, check Schnorr signature, verify key note |
 | `migrate_public_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, migration_archive_registry, old_app` | Verify public data tree inclusion at snapshot height, emit nullifiers |
 | `migrate_public_map_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys, migration_archive_registry, old_app` | Derive map storage slot via `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, delegate to `migrate_public_state_mode_b` |
-| `migrate_public_map_owned_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys, signature, key_note, old_owner, recipient` | Owned map migration with Schnorr auth |
+| `migrate_public_map_owned_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys, signature, key_note, old_owner, recipient, migration_archive_registry, old_app` | Owned map migration with Schnorr auth |
 
 > **Note:** Mode B library functions accept an `expected_storage_slot` parameter to bind the proof to a specific storage location, preventing slot substitution attacks.
 

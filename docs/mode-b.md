@@ -140,14 +140,14 @@ The circuit uses `schnorr::verify_signature(mpk, signature, msg)` with a domain-
 
 ```
 notes_hash = poseidon2_hash([note_hash_1, ..., note_hash_N])
-msg = poseidon2_hash([CLAIM_DOMAIN_B, old_rollup, current_rollup, notes_hash, recipient, new_app])
+msg = poseidon2_hash([DOM_SEP__CLAIM_B, old_rollup, current_rollup, notes_hash, recipient, new_app])
 sig = schnorr_sign(msk, msg)   // off-chain
 schnorr_verify(sig, mpk, msg)  // in-circuit
 ```
 
 The message binds the claim to a specific recipient and app contract, preventing front-running. `msk` stays entirely off-chain -- only used for signing. The `mpk` is obtained from the `MigrationKeyNote` proven in the same circuit.
 
-For public state migration with ownership, a separate domain `CLAIM_DOMAIN_B_PUBLIC` is used, and `notes_hash` is replaced by `public_state_hash` (the Poseidon2 hash of the packed public state fields, computed via `PublicStateProofData.public_state_hash()`).
+For public state migration with ownership, a separate domain `DOM_SEP__CLAIM_B_PUBLIC` is used, and `notes_hash` is replaced by `public_state_hash` (the Poseidon2 hash of the packed public state fields, computed via `PublicStateProofData.public_state_hash()`).
 
 ### Address Verification and Nullifier Derivation
 
@@ -181,8 +181,6 @@ nullifier = poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot
 
 Since public state has no randomness, the nullifier is derived from the old app contract address and the base storage slot. One nullifier is emitted per `PublicStateProofData` (per storage struct), covering all consecutive field slots S through S+N-1. The `base_storage_slot` uniquely identifies the struct, so a per-field nullifier is not needed.
 
-> **Production requirement:** `DOM_SEP__PUBLIC_MIGRATION_NULLIFIER` is a placeholder value `0x12345678`. A properly derived value must be assigned before production deployment. *(Source: `constants.nr:16`)*
-
 ## Snapshot Height
 
 Mode B uses a single global `snapshot_height` -- the block number at which all proofs are anchored. This differs from Mode A, which allows proofs against any registered archive root.
@@ -206,13 +204,11 @@ Mode B supports migrating public storage values via Merkle proofs against the pu
 
 2. **`migrate_public_map_state_mode_b`** -- For map-based public storage. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, then delegates to `migrate_public_state_mode_b`.
 
-3. **`migrate_public_map_owned_state_mode_b`** -- For owned map entries. Adds Schnorr signature verification (domain `CLAIM_DOMAIN_B_PUBLIC`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
+3. **`migrate_public_map_owned_state_mode_b`** -- For owned map entries. Adds Schnorr signature verification (domain `DOM_SEP__CLAIM_B_PUBLIC`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
 
 A shared helper `derive_map_storage_slot` derives nested map slots by iterating `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each key.
 
 The TS library provides `buildPublicDataProof` and `buildPublicMapDataProof` to construct the `PublicStateProofData` from the Aztec node's public data tree witnesses.
-
-> **Production requirement:** `CLAIM_DOMAIN_B_PUBLIC` is a placeholder value `0xdeafbeef`. A properly derived domain separator must be assigned before production deployment. *(Source: `constants.nr:13`)*
 
 ## Key Registry
 
@@ -257,7 +253,7 @@ Mode B places heavier demands on the wallet than Mode A because there is no coop
 
 **Proof building (public state).** For public state migration, the wallet builds proofs against the public data tree using `buildPublicDataProof(node, blockNumber, data, contractAddress, baseSlot, dataAbiType)` for standalone values or `buildPublicMapDataProof(...)` for map-based storage. These functions query the Aztec node for public data tree witnesses and construct the `PublicStateProofData` structure.
 
-**Signing.** The wallet signs claim messages via `signMigrationModeB(signer, oldVersion, newVersion, notes, recipient, newApp)` for private note migration, or `signPublicStateMigrationModeB(signer, oldVersion, newVersion, data, abiType, recipient, newApp)` for owned public state migration. Each uses a distinct domain separator (`CLAIM_DOMAIN_B` and `CLAIM_DOMAIN_B_PUBLIC` respectively).
+**Signing.** The wallet signs claim messages via `signMigrationModeB(signer, oldVersion, newVersion, notes, recipient, newApp)` for private note migration, or `signPublicStateMigrationModeB(signer, oldVersion, newVersion, data, abiType, recipient, newApp)` for owned public state migration. Each uses a distinct domain separator (`DOM_SEP__CLAIM_B` and `DOM_SEP__CLAIM_B_PUBLIC` respectively).
 
 **Archive bridging and snapshot setup.** As with Mode A, the wallet bridges the archive root via `migrateArchiveRootOnL1(...)` + `waitForL1ToL2Message(...)`. Additionally, Mode B requires setting the snapshot height via `set_snapshot_height` on the archive registry, which anchors all subsequent proofs to a fixed block. In a production scenario, snapshot height would be set by governance rather than by individual wallets.
 

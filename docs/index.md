@@ -23,8 +23,6 @@ This project implements two migration modes, both anchored by L1 archive roots t
 
 This migration covers **native application state only** -- token balances and contract storage that live entirely on the Aztec L2. L1-bridged assets (tokens held in Ethereum bridge contracts) require coordination with the bridge protocol's L1 portal contracts and are not covered by this migration mechanism. See [Non-Native Assets](non-native-assets.md) for an analysis of constraints, approaches, and open design questions.
 
-> **Note on NFTs:** An NFT migration contract exists in the codebase and implements both Mode A and Mode B for NFTs. However, this documentation focuses on the fungible token migration pattern. The same migration library functions generalize to NFTs.
-
 ## Glossary
 
 - **Rollup** -- An L2 chain that settles to L1.
@@ -47,7 +45,7 @@ This migration covers **native application state only** -- token balances and co
 | [Mode B](mode-b.md) | Emergency snapshot migration, proof chains, public state migration, and key registry |
 | [Integration Guide](integration-guide.md) | TypeScript SDK, wallet classes, proof data types, and developer workflows |
 | [Non-Native Assets](non-native-assets.md) | Constraints and approaches for migrating L1-bridged tokens (not implemented) |
-| [Constants Reference](constants.md) | Domain separators, security constants, placeholder values, and production requirements |
+| [Constants Reference](constants.md) | Domain separators and security constants |
 | [Threat Model](threat-model.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
 | [Operations](operations.md) | Testing setup, dual-rollup environment, compilation, troubleshooting, and version info |
 

@@ -96,14 +96,13 @@ The following types represent the proof structures exchanged between the Noir li
 - `PublicStateSlotProofData` (Noir) vs `PublicDataSlotProof` (TS)
 - `PublicStateProofData` (Noir) vs `PublicDataProof` (TS)
 - `MigrationKeyNote` (Noir) vs `KeyNote` (TS)
-- `MIGRATION_MODE_A_STORAGE_SLOT` (Noir) vs `MIGRATION_NOTE_SLOT` (TS) -- same value, different names
 
 ## TS Client Data Flow -- Mode A
 
 The Mode A (cooperative lock-and-claim) client flow follows this sequence:
 
 1. **Derive migration key:** `deriveMasterMigrationSecretKey(secretKey)` returns a `GrumpkinScalar` used for signing.
-2. **Sign the claim message:** `signMigrationModeA(signer, oldRollupVersion, newRollupVersion, migrationNotes, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([CLAIM_DOMAIN_A, oldVersion, newVersion, notesHash, recipient, newApp])`.
+2. **Sign the claim message:** `signMigrationModeA(signer, oldRollupVersion, newRollupVersion, migrationNotes, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([DOM_SEP__CLAIM_A, oldVersion, newVersion, notesHash, recipient, newApp])`.
 3. **Build migration note proofs:** `buildMigrationNoteProof(node, blockNumber, noteDao, migrationDataEvent)` builds a `MigrationNoteProofData<T>` that includes the note inclusion proof with the original migration data from the encrypted event.
 4. **Build block header:** `buildArchiveProof(node, blockHash)` or `buildBlockHeader(node, blockReference)` produces the Noir-compatible block header for archive verification.
 5. **Submit transaction** to the new rollup's app contract.
@@ -117,7 +116,7 @@ The Mode A (cooperative lock-and-claim) client flow follows this sequence:
 The Mode B (emergency snapshot) private note migration flow:
 
 1. **Derive migration key:** `deriveMasterMigrationSecretKey(secretKey)` -- same as Mode A.
-2. **Sign the claim message:** `signMigrationModeB(signer, oldRollupVersion, newRollupVersion, notes, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([CLAIM_DOMAIN_B, oldVersion, newVersion, notesHash, recipient, newApp])`.
+2. **Sign the claim message:** `signMigrationModeB(signer, oldRollupVersion, newRollupVersion, notes, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, notesHash, recipient, newApp])`.
 3. **Build note proofs:** Use `MigrationBaseWallet.buildFullNoteProofs(blockNumber, notes, noteMapper)` to construct combined inclusion and non-nullification proofs (`FullProofData<Note>`). This internally calls `buildNoteProof` + `buildNullifierProof` for each note.
 4. **Build archive proof:** `buildArchiveProof(node, blockHash)` -- same as Mode A.
 5. **Submit transaction** to the new rollup's app contract.
@@ -143,7 +142,7 @@ Public state migration uses a separate set of proof builders:
    - `buildPublicMapDataProof(node, blockNumber, data, contractAddress, baseSlot, mapKeys, dataAbiType)` -- For values inside `Map` storage. Derives the storage slot from `baseSlot` and `mapKeys` via `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each nesting level.
    - `buildPublicDataSlotProof(node, blockNumber, contractAddress, storageSlot)` -- Low-level single-slot proof builder.
 
-2. **Sign for owned entries:** `signPublicStateMigrationModeB(signer, oldRollupVersion, newRollupVersion, data, abiType, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([CLAIM_DOMAIN_B_PUBLIC, oldVersion, newVersion, dataHash, recipient, newApp])` where `dataHash = poseidon2_hash(pack(data))`.
+2. **Sign for owned entries:** `signPublicStateMigrationModeB(signer, oldRollupVersion, newRollupVersion, data, abiType, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([DOM_SEP__CLAIM_B_PUBLIC, oldVersion, newVersion, dataHash, recipient, newApp])` where `dataHash = poseidon2_hash(pack(data))`.
 
 3. **Submit transaction** to the new rollup's app contract.
 
@@ -183,14 +182,13 @@ For the end-to-end wallet flow in each migration mode, see the Wallet Integratio
 The master migration secret key (MSK) is derived from the account's secret key:
 
 ```
-msk = sha512ToGrumpkinScalar([secretKey, MSK_M_GEN])
+msk = sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])
 ```
 
 The migration public key (MPK) is the corresponding Grumpkin curve point.
 
-**Constants** (defined only in TS `constants.ts` -- key derivation is entirely TS-side):
-- `MSK_M_GEN = 2137` -- Domain separator for MSK derivation.
-- `NHK_MASK_DOMAIN = 1670` -- Domain separator for nullifier hiding key masking. The `getMaskedNhk` implementation currently uses `mask = Fq.ZERO` (masking not yet enforced).
+**Constants** (defined in TS `constants.ts` -- key derivation is entirely TS-side):
+- `DOM_SEP__MSK_M_GEN` -- Domain separator for MSK derivation. Poseidon2 hash of `"migration-secret-key"`.
 
 > **Known limitation:** TS constants (`constants.ts`) and Noir constants (`constants.nr`) are maintained independently with no cross-validation. Changes to domain separators or storage slots must be synchronized manually.
 
@@ -203,7 +201,6 @@ The top-level `index.ts` exports the following (wallet classes are NOT included)
 - **Keys:** `deriveMasterMigrationSecretKey`, `signMigrationModeA`, `signMigrationModeB`, `signPublicStateMigrationModeB`
 - **Proofs:** `buildNoteProof`, `buildArchiveProof`, `buildBlockHeader`
 - **Bridge:** `waitForBlockProof`, `migrateArchiveRootOnL1`, `waitForL1ToL2Message`
-- **Constants:** All from `constants.ts` (re-exported via `export *`)
 - **Noir helpers:** `blockHeaderToNoir` (via `noir-helpers/index.ts`)
 - **Polling:** `poll`, `PollOptions` (type)
 - **Types:** `NoteProofData` (type), `ArchiveProofData` (type), `L1MigrationResult` (type)
@@ -268,26 +265,6 @@ The Solidity function `migrateArchiveRootAtBlock(uint256 oldVersion, uint256 blo
 ### On-Curve Assertion
 
 `register()` (in `MigrationKeyRegistry`) and `lock_migration_notes()` (in `noir/aztec-state-migration/src/mode_a/ops.nr`) include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. If an invalid key is provided, the transaction will revert with `"mpk not on Grumpkin curve"`. Ensure the migration public key is a valid Grumpkin point before calling these functions.
-
-### MIGRATION_DATA_FIELD_INDEX
-
-`MIGRATION_DATA_FIELD_INDEX = 5` is defined in `ts/aztec-state-migration/constants.ts`. This refers to the index of `migration_data_hash` in the **serialized** `note.items` array produced by `#[derive(Serialize)]`, where `EmbeddedCurvePoint` (`mpk`) expands into three fields (`x`, `y`, `is_infinite`):
-
-```
-Serialized note.items:
-[note_creator, mpk.x, mpk.y, mpk.is_infinite, destination_rollup, migration_data_hash]
- index 0       1      2       3                 4                   5
-```
-
-This is a different layout from the `compute_note_hash()` preimage, which omits `is_infinite` and appends `storage_slot` and `randomness`:
-
-```
-Hash preimage:
-[note_creator, mpk.x, mpk.y, destination_rollup, migration_data_hash, storage_slot, randomness]
- index 0       1      2       3                   4                    5             6
-```
-
-The constant value `5` is correct for the serialized array. It is not currently used in active code but is available for integrators who need to access `migration_data_hash` from a raw `note.items` array.
 
 ## Deployment Checklist
 
