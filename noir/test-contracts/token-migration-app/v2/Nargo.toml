@@ -1,0 +1,13 @@
+[package]
+name = "token_migration_app_v2"
+type = "contract"
+authors = [""]
+compiler_version = ">=0.18.0"
+
+[dependencies]
+aztec = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "aztec" }
+balance_set = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "balance-set" }
+uint_note = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "uint-note" }
+compressed_string = { git = "https://github.com/AztecProtocol/aztec-nr/", tag = "v4.0.0-devnet.2-patch.0", directory = "compressed-string" }
+aztec_state_migration = { path = "../../../aztec-state-migration" }
+token_migration_app_v1 = { path = "../v1" }
