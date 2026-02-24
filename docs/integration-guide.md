@@ -267,7 +267,7 @@ The Solidity function `migrateArchiveRootAtBlock(uint256 oldVersion, uint256 blo
 
 ### On-Curve Assertion
 
-`register()` (in `MigrationKeyRegistry`) and `lock_migration_notes()` (in `aztec-state-migration/src/mode_a/ops.nr`) include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. If an invalid key is provided, the transaction will revert with `"mpk not on Grumpkin curve"`. Ensure the migration public key is a valid Grumpkin point before calling these functions.
+`register()` (in `MigrationKeyRegistry`) and `lock_migration_notes()` (in `noir/aztec-state-migration/src/mode_a/ops.nr`) include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. If an invalid key is provided, the transaction will revert with `"mpk not on Grumpkin curve"`. Ensure the migration public key is a valid Grumpkin point before calling these functions.
 
 ### MIGRATION_DATA_FIELD_INDEX
 

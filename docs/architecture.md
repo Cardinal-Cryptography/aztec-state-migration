@@ -49,7 +49,7 @@ Module structure (`noir/aztec-state-migration/src/`):
 | `mode_b/ops` | `migrate_notes_mode_b`, `migrate_public_state_mode_b`, `migrate_public_map_state_mode_b`, `migrate_public_map_owned_state_mode_b` |
 | `note_proof_data` | `NoteProofData<T>` (shared by both modes) |
 | `signature` | `MigrationSignature` (Schnorr signature wrapper) |
-| `constants` | Domain separators (`DOM_SEP__*`) |
+| `constants` | Domain separators (`DOM_SEP__*`). See [Constants Reference](constants.md) for the full list and production requirements. |
 
 ### `MigrationArchiveRegistry` (Noir contract, new rollup)
 

@@ -31,6 +31,22 @@ The remaining challenge is **liquidity**: the L1 collateral still resides in the
 
 A single L1 portal contract serves both the old and new rollups. The collateral is pooled.
 
+```
+Old Rollup L2            L1 Portal (shared)           New Rollup L2
++---------------+     +-----------------------+     +------------------+
+| burn/lock     |     |  ERC20 pool: T total  |     | mint on claim    |
+| tokens on L2  |     |                       |     |                  |
++-------+-------+     |  old_allowance = T    |     +--------+---------+
+        |              |  new_allowance = 0    |              |
+        |              +-----------+-----------+              |
+        |                          |                          |
+        |     counter update (L2-to-L1 Outbox message)       |
+        |              +-----------+-----------+              |
+        |              |  old_allowance = T-M  |<-----counter: M migrated
+        |              |  new_allowance = M    |              |
+        |              +-----------------------+              |
+```
+
 - **Turnstile accounting.** The portal must track how much of the pool is logically assigned to each rollup to enforce its turnstile (the mechanism ensuring L2 token supply never exceeds L1 collateral held by the portal). As tokens are migrated, the portal increases the new rollup's withdrawal allowance and decreases the old rollup's.
 - **Counter update.** The new rollup periodically sends an L2-to-L1 message containing the cumulative "total amount migrated so far." When consumed on L1, the portal adjusts its internal accounting.
 - **Tradeoff.** Simple liquidity management (one pool), but the portal must safely verify withdrawals for two rollup versions and enforce correct crediting for each.
@@ -87,6 +103,15 @@ Mode B is significantly harder for non-native assets. Because Mode B relies on a
 To prevent this, the old L1 portal must stop honoring withdrawal messages after the snapshot height. However, a blanket freeze would strand users who legitimately burned their tokens for L1 withdrawal before H (those tokens no longer exist at H and cannot be claimed via Mode B).
 
 The correct approach is a **block-height cutoff**:
+
+```
+Old Rollup blocks:  ... | H-2 | H-1 |  H  | H+1 | H+2 | ...
+                                       ^
+                               snapshot height
+                     <-- honor withdrawals --><-- reject -->
+                     (tokens burned before H)  (tokens exist at H,
+                                                claimable via Mode B)
+```
 
 - **Honor** withdrawal messages originating from old-rollup blocks at or before H. These represent tokens that were already burned on L2 before the snapshot -- they are not in the note hash tree at H and cannot be double-claimed via Mode B.
 - **Reject** withdrawal messages originating from old-rollup blocks after H. These tokens existed at H and are eligible for Mode B migration -- honoring both the L1 withdrawal and the Mode B claim would be a double-spend.

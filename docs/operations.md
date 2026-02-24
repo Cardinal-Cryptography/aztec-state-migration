@@ -46,6 +46,20 @@ The Solidity and Noir components follow separate Aztec release tracks. This vers
 
 Per-language formatting commands are available for debugging: `yarn noir:fmt`, `yarn sol:fmt`, `yarn ts:fmt` (and their `:check` variants).
 
+## Documentation Preview
+
+The docs use Jekyll with the Cayman theme, served via GitHub Pages. To preview locally:
+
+```bash
+cd docs
+bundle install
+bundle exec jekyll serve
+```
+
+Open `http://localhost:4000` in your browser. Changes to `.md` files are live-reloaded.
+
+Requires Ruby and Bundler. If not installed, see [Jekyll installation](https://jekyllrb.com/docs/installation/).
+
 ## Unit Tests
 
 Run Noir unit tests with:

@@ -18,7 +18,7 @@ The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users
 - **Mode A:** public + private balances (lock then claim)
 - **Mode B:** private balances + public state at snapshot height H
 
-**Out of Scope:** L1-bridged assets and any forced-exit / bridge flows.
+**Out of Scope:** L1-bridged assets require L1 portal contract modifications and are not covered by this specification. See [Non-Native Assets](../non-native-assets.md) for constraints and approaches.
 
 ## Goals & Non-Goals
 
@@ -168,7 +168,7 @@ This makes "knowledge of the migration secret key + nullifier hiding key" the au
 
 For public state (non-owned), no signature or key note proof is needed -- the data is publicly visible and anyone can trigger the migration. The circuit only verifies the data existed in the public data tree at snapshot height H.
 
-For **owned** public state (e.g., `Map<AztecAddress, PublicMutable<T>>`), the same Schnorr signature and key note proof are required, using a separate domain tag (`CLAIM_DOMAIN_B_PUBLIC`). The signature binds the data hash (instead of note hashes) to the migration context.
+For **owned** public state, the same Schnorr signature and key note proof are required, using a separate domain tag (`CLAIM_DOMAIN_B_PUBLIC`). The signature binds the data hash (instead of note hashes) to the migration context.
 
 ### Wallet guidance
 
@@ -191,9 +191,9 @@ An external registry works for all existing accounts without protocol changes an
 
 ## Batching multiple notes
 
-Both Mode A and Mode B circuits accept arrays of note proof data (`[MigrationNoteProofData; N]` and `[FullNoteProofData; N]` respectively) and loop over all N notes in a single proof. The reference app contract sets `N = 1`, but the library circuits support arbitrary batch sizes.
+Both Mode A and Mode B circuits accept arrays of note proof data (`[MigrationNoteProofData; N]` and `[FullNoteProofData; N]` respectively) and loop over all N notes in a single proof. Apps choose N based on their needs; the library circuits support arbitrary batch sizes.
 
-For Mode A, `lock_migration_notes` already creates one `MigrationNote` per element in the input array, and emits a `MigrationDataEvent` for each. The TS client retrieves events filtered by `txHash` to match them to the correct lock transaction.
+For Mode A, `lock_migration_notes` already creates one `MigrationNote` per element in the input array, and emits a `MigrationDataEvent` for each.
 
 ## Data Structures & Hashing
 
@@ -213,7 +213,7 @@ Membership proof is over the unique note hash inserted into TokenV1's balance sl
 
 ## Proof Data Types
 
-The migration system uses a three-tier composition (Library, Application, and Client SDK): the Noir `aztec_state_migration` library provides core verification logic, app contracts wrap library functions with app-specific state handling, and a TypeScript `aztec-state-migration` package provides client-side proof building. The proof data types below are defined in the Noir library and have corresponding TypeScript representations in the TS client.
+The migration system uses a three-tier composition (Library, Application, and Client SDK): the Noir `aztec_state_migration` library provides core verification logic, app contracts wrap library functions with app-specific state handling, and a client SDK provides proof building and transaction construction. The proof data types below are defined in the Noir library and have corresponding representations in the client SDK.
 
 ### `NoteProofData<T>`
 

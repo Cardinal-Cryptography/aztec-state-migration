@@ -33,7 +33,7 @@ Mode B library decomposition:
 - **Public state migration** is composed of `migrate_public_state_mode_b` -> `migrate_public_map_state_mode_b` -> `migrate_public_map_owned_state_mode_b`, each adding one concern (slot derivation, ownership authentication).
 - **Proof data types** are separate modules: `KeyNoteProofData`, `NonNullificationProofData`, `PublicStateProofData`, `NoteProofData`.
 
-`migrate_notes_mode_b` accepts `[FullNoteProofData<Note>; N]` and loops over all N notes in a single proof. The reference app contract sets `N = 1`, but the library circuit supports arbitrary batch sizes.
+`migrate_notes_mode_b` accepts `[FullNoteProofData<Note>; N]` and loops over all N notes in a single proof. Apps choose N based on their needs; the library circuit supports arbitrary batch sizes.
 
 ## Proof Chain
 
@@ -204,7 +204,7 @@ Mode B supports migrating public storage values via Merkle proofs against the pu
 
 1. **`migrate_public_state_mode_b`** -- Base function for standalone public storage values. Verifies each packed field exists in the public data tree at the correct storage slot, emits a migration nullifier per struct, and enqueues block hash verification.
 
-2. **`migrate_public_map_state_mode_b`** -- For `Map<K, PublicMutable<T>>`. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, then delegates to `migrate_public_state_mode_b`.
+2. **`migrate_public_map_state_mode_b`** -- For map-based public storage. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, then delegates to `migrate_public_state_mode_b`.
 
 3. **`migrate_public_map_owned_state_mode_b`** -- For owned map entries. Adds Schnorr signature verification (domain `CLAIM_DOMAIN_B_PUBLIC`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
 
@@ -297,7 +297,7 @@ If step 2 completes after H, the key note will not be in the note hash tree at t
 
 The following limitations apply to the current proof-of-concept implementation and are **NOT suitable for production** without changes:
 
-- **No supply cap enforcement.** The reference app contract mints freely on successful migration. Production should enforce a `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
+- **No supply cap enforcement.** The PoC app contract mints freely on successful migration. Production should enforce a `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
 - **Snapshot height governance has no access control** beyond write-once (`initialize()`). See [Snapshot Height](#snapshot-height) for production considerations.
 - **Identical storage layout assumed** between old and new rollup contracts for public state migration. If the storage layout changes, slot indices will not match.
 - **Reference app simplifications:** No access control on `mint()`/`burn()`, no `#[only_self]` on public struct init functions. Production apps must add access control.

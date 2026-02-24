@@ -47,6 +47,7 @@ This migration covers **native application state only** -- token balances and co
 | [Mode B](mode-b.md) | Emergency snapshot migration, proof chains, public state migration, and key registry |
 | [Integration Guide](integration-guide.md) | TypeScript SDK, wallet classes, proof data types, and developer workflows |
 | [Non-Native Assets](non-native-assets.md) | Constraints and approaches for migrating L1-bridged tokens (not implemented) |
+| [Constants Reference](constants.md) | Domain separators, security constants, placeholder values, and production requirements |
 | [Threat Model](threat-model.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
 | [Operations](operations.md) | Testing setup, dual-rollup environment, compilation, troubleshooting, and version info |
 

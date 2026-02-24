@@ -29,7 +29,7 @@ Trust assumptions, threat scenarios, mitigations, and known PoC limitations for 
 msg = poseidon2_hash([CLAIM_DOMAIN, old_rollup, current_rollup, notes_hash, recipient, new_app_address])
 ```
 
-A front-runner cannot change the recipient without invalidating the signature. See `aztec-state-migration/src/signature.nr`, function `verify_migration_signature`.
+A front-runner cannot change the recipient without invalidating the signature. See `noir/aztec-state-migration/src/signature.nr`, function `verify_migration_signature`.
 
 ### Double-claim
 
@@ -83,7 +83,7 @@ Each domain produces a different message hash, so a signature valid under one do
 
 The current implementation is a proof-of-concept. The following limitations must be addressed before production use:
 
-- **No supply cap enforcement.** The reference app contract mints freely on each successful migration. A compromised archive root or bug could allow unlimited minting. Production should enforce a `mintable_supply` cap matching the total locked/snapshot supply.
+- **No supply cap enforcement.** The PoC app contract mints freely on each successful migration. A compromised archive root or bug could allow unlimited minting. Production should enforce a `mintable_supply` cap matching the total locked/snapshot supply.
 
 - **`old_rollup_app_address` is a deployment-time configuration.** The migration circuit reads `old_rollup_app_address` from the new app's immutable public storage. This is not an unchecked witness -- it is constrained by the rollup's public state tree. However, if configured incorrectly at deployment, migrations will silently fail (archive root mismatch). Production should verify this address via an on-chain registry.
 
@@ -91,13 +91,13 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **Snapshot height governance has no access control beyond write-once (critical).** The first caller to `set_snapshot_height` wins. An incorrect snapshot height permanently bricks Mode B for affected users. Production must restrict this to governance.
 
-- **The reference app contract has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. Production apps must restrict minting to verified migration proofs only.
+- **The PoC app contract has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. Production apps must restrict minting to verified migration proofs only.
 
 - **In-memory key storage.** The TS client stores migration keys in memory. Production should use secure storage (hardware wallet, encrypted keystore).
 
 - **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently. See `NOTE` comments in the NFT example contract for details.
 
-- **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `aztec-state-migration/src/mode_a/ops.nr`).
+- **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `noir/aztec-state-migration/src/mode_a/ops.nr`).
 
 > **Production requirement:** Placeholder domain separators (`CLAIM_DOMAIN_A = MIGRATION_MODE_A_STORAGE_SLOT`, `CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef`, `DOM_SEP__PUBLIC_MIGRATION_NULLIFIER = 0x12345678`) must be replaced with properly derived values before production. *(Source: `constants.nr`)*
 

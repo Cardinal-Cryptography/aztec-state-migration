@@ -22,7 +22,7 @@ Both private notes and public balances use the same lock-and-claim mechanism. Th
 
 ## Lock Flow (Library Level)
 
-The library function `lock_migration_notes` (`aztec-state-migration/src/mode_a/ops.nr`, function `lock_migration_notes`) creates one `MigrationNote` per element in the `migration_data` array and emits a corresponding encrypted event for each.
+The library function `lock_migration_notes` (`noir/aztec-state-migration/src/mode_a/ops.nr`, function `lock_migration_notes`) creates one `MigrationNote` per element in the `migration_data` array and emits a corresponding encrypted event for each.
 
 **Steps:**
 
@@ -34,7 +34,7 @@ The library function `lock_migration_notes` (`aztec-state-migration/src/mode_a/o
 
 ### MigrationNote
 
-`MigrationNote` (`aztec-state-migration/src/mode_a/migration_note.nr`) uses `#[custom_note]` because ownership is determined by `mpk`, not by a standard Aztec owner address. The note hash intentionally excludes the standard `owner` parameter.
+`MigrationNote` (`noir/aztec-state-migration/src/mode_a/migration_note.nr`) uses `#[custom_note]` because ownership is determined by `mpk`, not by a standard Aztec owner address. The note hash intentionally excludes the standard `owner` parameter.
 
 **Fields:**
 
@@ -56,17 +56,15 @@ note_hash = poseidon2_hash_with_separator(
 
 ### MigrationDataEvent
 
-`MigrationDataEvent<T>` (`aztec-state-migration/src/mode_a/migration_data_event.nr`) delivers the original migration data (before hashing) to the recipient. Only the hash is stored in the note; the full data travels via this event so the claimer can reconstruct it on the new rollup.
+`MigrationDataEvent<T>` (`noir/aztec-state-migration/src/mode_a/migration_data_event.nr`) delivers the original migration data (before hashing) to the recipient. Only the hash is stored in the note; the full data travels via this event so the claimer can reconstruct it on the new rollup.
 
 The `#[event]` macro does not support generic structs, so `MigrationDataEvent` implements `EventInterface` manually with `#[derive(Serialize)]`.
-
-On the TS side, `getMigrationDataEvents()` on the migration wallet retrieves decrypted events. Events are matched to lock transactions by `txHash`.
 
 > **Known limitation:** Events do not include a note-identifying hash (e.g., `migration_note_hash`), so wallet clients match events to notes via `txHash` filtering. The full note hash requires randomness from `create_note`, which is not available at event emission time. *(Source: `migration_data_event.nr:13`)*
 
 ## Claim Flow (Library Level)
 
-The library function `migrate_notes_mode_a` (`aztec-state-migration/src/mode_a/ops.nr`, function `migrate_notes_mode_a`) verifies locked notes and authorizes the claim on the new rollup.
+The library function `migrate_notes_mode_a` (`noir/aztec-state-migration/src/mode_a/ops.nr`, function `migrate_notes_mode_a`) verifies locked notes and authorizes the claim on the new rollup.
 
 **Verification chain:**
 
@@ -88,8 +86,8 @@ This separation allows block registration to happen once per block, with multipl
 
 Public balance migration reuses the same `MigrationNote` and claim circuit as private migration. The difference is in the app-level wrappers:
 
-- **Lock (old rollup):** The app contract calls `lock_migration_notes` to create a `MigrationNote`, then applies its own state transition (e.g., decrementing a public balance). If the state transition fails, the entire transaction reverts.
-- **Claim (new rollup):** The app contract calls `migrate_notes_mode_a` (same library function as private claim), then applies its own state transition (e.g., incrementing a public balance).
+- **Lock (old rollup):** The app contract calls `lock_migration_notes` to create a `MigrationNote`, then applies its own app-specific state transition. If the state transition fails, the entire transaction reverts.
+- **Claim (new rollup):** The app contract calls `migrate_notes_mode_a` (same library function as private claim), then applies its own app-specific state transition.
 
 ## Authentication
 
@@ -138,9 +136,7 @@ Where `note_hash` is the note hash of the `MigrationNote` being claimed, and `ra
 
 The library function `migrate_notes_mode_a` accepts `[MigrationNoteProofData<T>; N]` and loops over all N notes. The signature covers the hash of all N note hashes, so the entire batch is authenticated atomically.
 
-However, the reference app contract sets `N = 1`. This is sufficient for the example because `lock_migration_notes_mode_a` consolidates multiple balance notes into a single `migration_data_hash` (the total amount), producing one `MigrationNote` per lock call.
-
-Apps that create multiple `MigrationNote` instances per lock (e.g., locking distinct asset types) would set a larger N. The library circuit is ready; only the app contract's array size and TS client need updating.
+Apps choose N based on their consolidation strategy. A common pattern is N = 1, where the app consolidates multiple balance notes into a single `migration_data_hash` before calling `lock_migration_notes`. Apps that create multiple `MigrationNote` instances per lock (e.g., locking distinct asset types) would set a larger N.
 
 ## Wallet Integration
 
@@ -186,13 +182,13 @@ Wallet implementations should handle the following scenarios:
 
 The following limitations apply to the current proof-of-concept implementation and are **not suitable for production**:
 
-1. **No supply cap enforcement.** The reference app contract mints freely on each successful migration. A production deployment should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup.
+1. **No supply cap enforcement.** The PoC app contract mints freely on each successful migration. A production deployment should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup.
 
 2. **`old_rollup_app_address` is a deployment-time configuration.** The address is read from the app contract's immutable public storage (set at deployment). If configured incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [threat model](threat-model.md) for details.
 
 3. **L1 relay is permissionless.** Anyone can call `Migrator.sol`'s `migrateArchiveRoot()` to bridge an archive root snapshot. An attacker could spam calls to fill L1-to-L2 message trees or increase costs. Consider rate limiting or requiring a small bond.
 
-4. **No access control on `mint()` / `burn()`.** The reference app contract has no access control on `mint()` and `burn()` functions. A production token contract would restrict minting to authorized callers (e.g., migration-only minting).
+4. **No access control on `mint()` / `burn()`.** The PoC app contract has no access control on `mint()` and `burn()` functions. A production token contract would restrict minting to authorized callers (e.g., migration-only minting).
 
 ## See Also
 
