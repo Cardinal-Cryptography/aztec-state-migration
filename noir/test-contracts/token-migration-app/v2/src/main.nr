@@ -255,10 +255,10 @@ pub contract TokenMigrationAppV2 {
         amount: u128,
         mpk: Point,
         signature: MigrationSignature,
-        note_proof_data: [MigrationNoteProofData<u128>; 1],
+        note_proof_data: MigrationNoteProofData<u128>,
         block_header: BlockHeader,
     ) {
-        let amount_from_data = note_proof_data[0].data;
+        let amount_from_data = note_proof_data.data;
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
         let recipient = self.msg_sender();
@@ -271,7 +271,7 @@ pub contract TokenMigrationAppV2 {
             signature,
             recipient,
             old_app,
-            note_proof_data,
+            [note_proof_data],
             block_header,
         );
 
@@ -296,10 +296,10 @@ pub contract TokenMigrationAppV2 {
         amount: u128,
         mpk: Point,
         signature: MigrationSignature,
-        note_proof_data: [MigrationNoteProofData<u128>; 1],
+        note_proof_data: MigrationNoteProofData<u128>,
         block_header: BlockHeader,
     ) {
-        let amount_from_data = note_proof_data[0].data;
+        let amount_from_data = note_proof_data.data;
         assert(amount_from_data == amount, "Migration data hash mismatch");
 
         let recipient = self.msg_sender();
@@ -311,7 +311,7 @@ pub contract TokenMigrationAppV2 {
             signature,
             recipient,
             old_app,
-            note_proof_data,
+            [note_proof_data],
             block_header,
         );
 
@@ -334,7 +334,7 @@ pub contract TokenMigrationAppV2 {
     fn migrate_mode_b(
         amount: u128,
         signature: MigrationSignature,
-        full_proof_data: [FullNoteProofData<UintNote>; 1],
+        full_proof_data: FullNoteProofData<UintNote>,
         block_header: BlockHeader,
         notes_owner: AztecAddress,
         public_keys: PublicKeys,
@@ -349,9 +349,7 @@ pub contract TokenMigrationAppV2 {
         let balances_expected_storage_slot =
             STORAGE_LAYOUT_TokenMigrationAppV1.fields.private_balances.slot;
 
-        let sum = full_proof_data.fold(0, |acc, full_note_proof_data| {
-            acc + full_note_proof_data.note_proof_data.data.value
-        });
+        let sum = full_proof_data.note_proof_data.data.value;
         assert(sum == amount, "Sum of migrated notes does not match the specified amount");
 
         migrate_notes_mode_b(
@@ -360,7 +358,7 @@ pub contract TokenMigrationAppV2 {
             signature,
             recipient,
             old_app,
-            full_proof_data,
+            [full_proof_data],
             balances_expected_storage_slot,
             block_header,
             notes_owner,
