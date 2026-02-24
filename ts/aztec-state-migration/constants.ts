@@ -1,32 +1,49 @@
-// TODO: Generate these constants from the same source as the Noir
-
-/** Domain separator used to derive the master migration secret key via `sha512ToGrumpkinScalar`. */
-export const MSK_M_GEN = 2137;
-
-/** Domain separator for masking the nullifier hiding key during cross-rollup migration. */
-export const NHK_MASK_DOMAIN = 1670;
+import { Fr } from "@aztec/foundation/curves/bn254";
 
 /**
- * Storage slot for migration notes on the old rollup.
- * Computed as `poseidon2_hash([0x6d6967726174696f6e5f6d6f64655f61])` ("migration-mode-a" in ASCII).
+ * The migration note storage slot.
+ * poseidon2_hash of "migration-note-storage-slot" as ASCII
  */
-export const MIGRATION_NOTE_SLOT =
-  0x28ca34e829f0cda691d3713e01bb3a812dc678348c01617bbe9bd8549bd76edan;
+export const MIGRATION_NOTE_STORAGE_SLOT = Fr.fromHexString(
+  "0x0294c128d5f7b0748fae26c425756ea918f5dd12d0290b9b7122b906f223d0a0",
+);
 
 /**
- * Domain separator for Mode A (cooperative lock-and-migrate) claim signatures.
- * Equal to {@link MIGRATION_NOTE_SLOT}.
+ * Domain separator for the cooperative lock-and-migrate claim.
+ * poseidon2_hash of "claim-a" as ASCII
  */
-export const CLAIM_DOMAIN_A = MIGRATION_NOTE_SLOT;
+export const DOM_SEP__CLAIM_A = Fr.fromHexString(
+  "0x1c1a039006ce83af29c6be17585398f89fa06534bcc02b27ceb022d1c8bbcc97",
+);
 
 /**
- * Domain separator for Mode B (emergency snapshot) claim signatures.
- * Computed as `poseidon2_hash([0x6d6967726174696f6e5f6d6f64655f62])` ("migration-mode-b" in ASCII).
+ * Domain separator for the emergency snapshot migration claim.
+ * poseidon2_hash of "claim-b" as ASCII
  */
-export const CLAIM_DOMAIN_B =
-  0x18ca708ad6dca829b497a77f901adeefeb108751ceae07b68c22499a1da0e40en;
+export const DOM_SEP__CLAIM_B = Fr.fromHexString(
+  "0x03f16d1bba391bbe5f63cbc632fd523eed5b257a45c8a52f467a20802a6ef1b9",
+);
 
-export const CLAIM_DOMAIN_B_PUBLIC = 0xdeafbeef;
+/**
+ * Domain separator for the public state migration claim.
+ * poseidon2_hash of "claim-b-public" as ASCII
+ */
+export const DOM_SEP__CLAIM_B_PUBLIC = Fr.fromHexString(
+  "0x0ebf03b524ab55cfc8880ef828a1c08a5b1d2ab56b6d55c9dd5311499b673e8f",
+);
 
-/** Zero-based index of the `migration_data` field inside a `MigrationNote`. */
-export const MIGRATION_DATA_FIELD_INDEX = 5;
+/**
+ * Domain separator for the public state migration nullifier.
+ * poseidon2_hash of "public-migration-nullifier" as ASCII
+ */
+export const DOM_SEP__PUBLIC_MIGRATION_NULLIFIER = Fr.fromHexString(
+  "0x2c8f77defafd390c3bca3a011ea9631b85664689f69554383079978aa2fdfb40",
+);
+
+/**
+ * Domain separator used to derive the master migration secret key via `sha512ToGrumpkinScalar`.
+ * poseidon2_hash of "migration-secret-key" as ASCII
+ */
+export const DOM_SEP__MSK_M_GEN = Fr.fromHexString(
+  "0x2f92f9f19f1d3ffbe610b6bfc1c4a8103ed9cea7748cda0c6b248eb7ba25f962",
+);

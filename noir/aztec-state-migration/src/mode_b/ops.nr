@@ -1,4 +1,4 @@
-use crate::{constants::{CLAIM_DOMAIN_B, CLAIM_DOMAIN_B_PUBLIC}, signature::MigrationSignature};
+use crate::{constants::{DOM_SEP__CLAIM_B, DOM_SEP__CLAIM_B_PUBLIC}, signature::MigrationSignature};
 use super::{
     FullNoteProofData, key_note_proof_data::KeyNoteProofData,
     public_state_proof_data::PublicStateProofData,
@@ -117,7 +117,7 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let current_rollup = context.version();
     let new_app = context.this_address();
 
-    signature.verify_migration_signature::<CLAIM_DOMAIN_B>(
+    signature.verify_migration_signature::<DOM_SEP__CLAIM_B>(
         old_rollup,
         current_rollup,
         notes_hash,
@@ -143,11 +143,11 @@ pub fn migrate_notes_mode_b<Note: NoteHash, let N: u32>(
     let block_hash = block_header.hash();
 
     // ============================================================
-    // 6. Enqueue public verification of block hash against snapshot
+    // 6. Verification of block hash against snapshot
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_b(block_hash)
-        .enqueue(context);
+        .call(context);
 }
 
 /// Verify a single note's inclusion in the note hash tree and non-nullification
@@ -222,11 +222,11 @@ pub fn migrate_public_state_mode_b<T: Packable>(
     let block_hash = block_header.hash();
 
     // ============================================================
-    // 3. Enqueue public verification of block hash against snapshot
+    // 3. Verification of block hash against snapshot
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_b(block_hash)
-        .enqueue(context);
+        .call(context);
 }
 
 pub fn migrate_public_map_state_mode_b<K: ToField, T: Packable, let N: u32>(
@@ -287,7 +287,7 @@ pub fn migrate_public_map_owned_state_mode_b<K: ToField, T: Packable, let N: u32
     let current_rollup = context.version();
     let new_app = context.this_address();
 
-    signature.verify_migration_signature::<CLAIM_DOMAIN_B_PUBLIC>(
+    signature.verify_migration_signature::<DOM_SEP__CLAIM_B_PUBLIC>(
         old_rollup,
         current_rollup,
         public_state_hash,

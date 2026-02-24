@@ -20,9 +20,6 @@ export {
   waitForL1ToL2Message,
 } from "./bridge.js";
 
-// Constants
-export * from "./constants.js";
-
 // Noir helpers
 export * from "./noir-helpers/index.js";
 

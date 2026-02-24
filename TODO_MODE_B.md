@@ -12,7 +12,7 @@ The message binds the claim to a specific recipient and app contract, preventing
 
 ## ~~2. Unchecked Siloed Nullifier Witness~~ (Done)
 
-`migrate_note()` in `mode_b/ops.nr` now computes both `inner_nullifier` and `siloed_nullifier` in-circuit from `nsk_app` (derived from the user's master nullifier secret key `nsk`). Address verification also proves `nsk` matches the note owner by deriving `npk_m` via EC scalar mul and recomputing the owner address.
+`migrate_note()` in `mode_b/ops.nr` now computes both `inner_nullifier` and `siloed_nullifier` in-circuit from `nhk_app` (derived from the user's nullifier hiding key `nhk`). Address verification also proves `nhk` matches the note owner by deriving `npk_m` via EC scalar mul and recomputing the owner address.
 
 ## ~~3. Single Note Migration~~ (Done)
 
@@ -25,7 +25,7 @@ Public state migration is fully implemented for Mode B with four composable func
 - **`migrate_public_state_mode_b`** — Migrate a standalone public storage value (e.g. `PublicImmutable`, `PublicMutable`). Verifies data existed in the public data tree at snapshot height H via `PublicStateProofData`.
 - **`migrate_public_map_state_mode_b`** — Migrate a value from a `Map<K, PublicMutable<T>>`. Derives the storage slot from `base_storage_slot` and `map_keys` via `poseidon2_hash`, then delegates to `migrate_public_state_mode_b`.
 - **`migrate_public_map_owned_state_mode_b`** — Migrate an owned map entry. Adds Schnorr signature verification (domain `CLAIM_DOMAIN_B_PUBLIC`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
-- **`derive_map_storage_slot`** — Shared helper that derives nested map slots by iterating `poseidon2_hash([slot, key])` for each key.
+- **`derive_map_storage_slot`** — Shared helper that derives nested map slots by iterating `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each key.
 
 ## 5. Snapshot Height Governance (MigrationArchiveRegistry)
 
@@ -39,11 +39,9 @@ Public state migration is fully implemented for Mode B with four composable func
 
 **Production:** Should enforce `mintable_supply` cap set at activation, ideally matching the total supply of the old rollup's token at snapshot height H.
 
-## 7. Make registered_keys Immutable in MigrationKeyRegistry
+## ~~7. Make registered_keys Immutable in MigrationKeyRegistry~~ (Done)
 
-**Current:** `registered_keys` storage can be updated. A user who re-registers with different keys after snapshot height H could invalidate their own migration or cause inconsistencies.
-
-**Production:** Make `registered_keys` entries immutable once set — a key registration should be a one-time operation that cannot be overwritten. No need for keynote nullifier non-inclusion proof.
+`registered_keys` now uses `Owned<PrivateImmutable<MigrationKeyNote>>` in `noir/contracts/migration-key-registry/src/main.nr`, enforcing write-once semantics via `initialize()`. A second call to `register()` by the same user reverts.
 
 ## ~~8. Decompose aztec-state-migration lib into Separate Validation Functions~~ (Done)
 

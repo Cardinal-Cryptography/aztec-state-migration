@@ -1,10 +1,10 @@
 import { Fr, GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { sha512ToGrumpkinScalar } from "@aztec/foundation/crypto/sha512";
 import {
-  CLAIM_DOMAIN_A,
-  CLAIM_DOMAIN_B,
-  CLAIM_DOMAIN_B_PUBLIC,
-  MSK_M_GEN,
+  DOM_SEP__CLAIM_A,
+  DOM_SEP__CLAIM_B,
+  DOM_SEP__CLAIM_B_PUBLIC,
+  DOM_SEP__MSK_M_GEN,
 } from "./constants.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { NoteDao } from "@aztec/stdlib/note";
@@ -18,19 +18,19 @@ import {
 
 /**
  * Derive the master migration secret key from an account's secret key.
- * Uses `sha512ToGrumpkinScalar` with {@link MSK_M_GEN} as a domain separator.
+ * Uses `sha512ToGrumpkinScalar` with {@link DOM_SEP__MSK_M_GEN} as a domain separator.
  *
  * @param secretKey - The account's master secret key.
  * @returns A Grumpkin scalar used as the migration signing / encryption key.
  */
 export function deriveMasterMigrationSecretKey(secretKey: Fr): GrumpkinScalar {
-  return sha512ToGrumpkinScalar([secretKey, MSK_M_GEN]);
+  return sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN]);
 }
 
 /**
  * Produce a Schnorr signature over a Mode A (cooperative lock-and-migrate) claim message.
  *
- * The signed payload is `poseidon2_hash([CLAIM_DOMAIN_A, oldVersion, newVersion, notesHash, recipient, newApp])`.
+ * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_A, oldVersion, newVersion, notesHash, recipient, newApp])`.
  *
  * @param signer - Signing callback (typically {@link BaseMigrationAccount.migrationKeySigner}).
  * @param oldRollupVersion - Version field from the old rollup's block header.
@@ -50,7 +50,7 @@ export async function signMigrationModeA(
 ): Promise<MigrationSignature> {
   const notesHash = await poseidon2Hash(migrationNotes.map((n) => n.noteHash));
   const msg = await poseidon2Hash([
-    CLAIM_DOMAIN_A,
+    DOM_SEP__CLAIM_A,
     oldRollupVersion,
     newRollupVersion,
     notesHash,
@@ -63,7 +63,7 @@ export async function signMigrationModeA(
 /**
  * Produce a Schnorr signature over a Mode B (emergency snapshot) private note claim message.
  *
- * The signed payload is `poseidon2_hash([CLAIM_DOMAIN_B, oldVersion, newVersion, notesHash, recipient, newApp])`.
+ * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, notesHash, recipient, newApp])`.
  *
  * @param signer - Signing callback (typically {@link BaseMigrationAccount.migrationKeySigner}).
  * @param oldRollupVersion - Version field from the old rollup's block header.
@@ -83,7 +83,7 @@ export async function signMigrationModeB(
 ): Promise<MigrationSignature> {
   const notesHash = await poseidon2Hash(notes.map((n) => n.noteHash));
   const msg = await poseidon2Hash([
-    CLAIM_DOMAIN_B,
+    DOM_SEP__CLAIM_B,
     oldRollupVersion,
     newRollupVersion,
     notesHash,
@@ -99,7 +99,7 @@ export async function signMigrationModeB(
  * The data is packed to `Fr[]` via {@link encodeValue} (matching Noir's `Packable::pack()` field ordering),
  * then hashed with `poseidon2_hash` to produce `dataHash`.
  *
- * The signed payload is `poseidon2_hash([CLAIM_DOMAIN_B_PUBLIC, oldVersion, newVersion, dataHash, recipient, newApp])`.
+ * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B_PUBLIC, oldVersion, newVersion, dataHash, recipient, newApp])`.
  *
  * @param signer - Signing callback (typically {@link BaseMigrationAccount.migrationKeySigner}).
  * @param oldRollupVersion - Version field from the old rollup's block header.
@@ -122,7 +122,7 @@ export async function signPublicStateMigrationModeB(
   const packedData = encodeValue(data, abiType);
   const dataHash = await poseidon2Hash(packedData);
   const msg = await poseidon2Hash([
-    CLAIM_DOMAIN_B_PUBLIC,
+    DOM_SEP__CLAIM_B_PUBLIC,
     oldRollupVersion,
     newRollupVersion,
     dataHash,

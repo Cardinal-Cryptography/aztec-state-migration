@@ -1,5 +1,5 @@
 use crate::{
-    constants::{CLAIM_DOMAIN_A, MIGRATION_MODE_A_STORAGE_SLOT},
+    constants::{DOM_SEP__CLAIM_A, MIGRATION_NOTE_STORAGE_SLOT},
     signature::MigrationSignature,
 };
 use super::{
@@ -59,7 +59,7 @@ where
         create_note(
             context,
             notes_owner,
-            MIGRATION_MODE_A_STORAGE_SLOT,
+            MIGRATION_NOTE_STORAGE_SLOT,
             migration_note,
         )
             .deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
@@ -122,7 +122,7 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     let old_rollup = block_header.global_variables.version;
     let new_app_address = context.this_address();
 
-    signature.verify_migration_signature::<CLAIM_DOMAIN_A>(
+    signature.verify_migration_signature::<DOM_SEP__CLAIM_A>(
         old_rollup,
         current_rollup,
         notes_hash,
@@ -137,12 +137,12 @@ pub fn migrate_notes_mode_a<T: Packable, let N: u32>(
     let block_hash = block_header.hash();
 
     // ============================================================
-    // 4. Enqueue public check: block hash must match the one
+    // 4. Verification: block hash must match the one
     //    registered in MigrationArchiveRegistry (bridged from L1)
     // ============================================================
     MigrationArchiveRegistry::at(migration_archive_registry)
         .verify_migration_mode_a(block_header.global_variables.block_number, block_hash)
-        .enqueue(context);
+        .call(context);
 }
 
 /// Verify a single MigrationNote's inclusion and emit its nullifier.
@@ -160,7 +160,7 @@ fn migrate_note<T: Packable>(
 
     let note_hash = migration_note.compute_note_hash(
         AztecAddress::zero(), // (owner is ignored by #[custom_note] - mpk serves as ownership proof)
-        MIGRATION_MODE_A_STORAGE_SLOT,
+        MIGRATION_NOTE_STORAGE_SLOT,
         note_proof_data.randomness,
     );
 
