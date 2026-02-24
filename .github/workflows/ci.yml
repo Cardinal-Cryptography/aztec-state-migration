@@ -56,6 +56,10 @@ jobs:
         run: yarn noir:compile && yarn noir:codegen
       - name: Compile Solidity contracts
         run: yarn sol:compile
+      - name: Run hash compatibility check
+        run: bash e2e-tests/hash-compatibility.sh
+      - name: Run noir/aztec unit tests
+        run: aztec test
       - name: Start dual-rollup infrastructure
         run: yarn test:setup
       - name: Test - Migration Key Registry
