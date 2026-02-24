@@ -1,3 +1,5 @@
+use aztec::protocol::hash::poseidon2_hash;
+
 // poseidon2_hash of "migration-note-storage-slot" as ASCII
 pub global MIGRATION_NOTE_STORAGE_SLOT: Field =
     0x0294c128d5f7b0748fae26c425756ea918f5dd12d0290b9b7122b906f223d0a0;
@@ -17,3 +19,34 @@ pub global DOM_SEP__CLAIM_B_PUBLIC: Field =
 // poseidon2_hash of "public-migration-nullifier" as ASCII
 pub global DOM_SEP__PUBLIC_MIGRATION_NULLIFIER: Field =
     0x2c8f77defafd390c3bca3a011ea9631b85664689f69554383079978aa2fdfb40;
+
+fn str_to_fields<let N: u32>(s: str<N>) -> [Field; N] {
+    let bytes = s.as_bytes();
+    bytes.map(|b: u8| b as Field)
+}
+
+#[test]
+fn test_constants() {
+    // Just a sanity check to make sure the constants are what we expect.
+    assert(
+        MIGRATION_NOTE_STORAGE_SLOT == poseidon2_hash(str_to_fields("migration-note-storage-slot")),
+        "MIGRATION_NOTE_STORAGE_SLOT does not match the expected value",
+    );
+    assert(
+        DOM_SEP__CLAIM_A == poseidon2_hash(str_to_fields("claim-a")),
+        "DOM_SEP__CLAIM_A does not match the expected value",
+    );
+    assert(
+        DOM_SEP__CLAIM_B == poseidon2_hash(str_to_fields("claim-b")),
+        "DOM_SEP__CLAIM_B does not match the expected value",
+    );
+    assert(
+        DOM_SEP__CLAIM_B_PUBLIC == poseidon2_hash(str_to_fields("claim-b-public")),
+        "DOM_SEP__CLAIM_B_PUBLIC does not match the expected value",
+    );
+    assert(
+        DOM_SEP__PUBLIC_MIGRATION_NULLIFIER
+            == poseidon2_hash(str_to_fields("public-migration-nullifier")),
+        "DOM_SEP__PUBLIC_MIGRATION_NULLIFIER does not match the expected value",
+    );
+}
