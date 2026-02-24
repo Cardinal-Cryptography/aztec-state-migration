@@ -130,7 +130,7 @@ async function main() {
   }
 
   // Build proofs via wallet, combining note proofs with event data
-  const migrationNoteProofs = await oldUserWallet.buildMigrationNoteProofs(
+  const [migrationNoteProof] = await oldUserWallet.buildMigrationNoteProofs(
     provenBlockNumber,
     lockNotesAndData,
   );
@@ -158,10 +158,9 @@ async function main() {
 
   await newAppUser.methods
     .migrate_mode_a(
-      LOCK_AMOUNT,
       mpk.toNoirStruct(),
       signature,
-      migrationNoteProofs,
+      migrationNoteProof,
       blockHeader,
     )
     .send({ from: newUserManager.address });
@@ -272,7 +271,7 @@ async function main() {
     );
   }
 
-  const publicMigrationNoteProofs =
+  const [publicMigrationNoteProof] =
     await oldUserWallet.buildMigrationNoteProofs(
       publicProvenBlockNumber,
       filteredNotes,
@@ -302,10 +301,9 @@ async function main() {
 
   await newAppUser.methods
     .migrate_to_public_mode_a(
-      PUBLIC_LOCK_AMOUNT,
       mpk.toNoirStruct(),
       publicSignature,
-      publicMigrationNoteProofs,
+      publicMigrationNoteProof,
       publicBlockHeader,
     )
     .send({ from: newUserManager.address });

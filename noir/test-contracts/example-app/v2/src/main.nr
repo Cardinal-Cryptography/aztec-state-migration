@@ -119,31 +119,21 @@ pub contract ExampleMigrationAppV2 {
 
     /// Claim a Mode A migration on the new rollup.
     ///
-    /// Verifies the MigrationNote inclusion proof via `migrate_notes_mode_a`,
-    /// checks that `amount` matches the locked `migration_data` hash, and mints
-    /// the equivalent tokens to the caller.
+    /// Verifies the MigrationNote inclusion proof via `migrate_notes_mode_a`
+    /// and mints the equivalent tokens to the caller.
     #[external("private")]
     fn migrate_mode_a(
-        // Amount is not strictly needed for the migration (the proof of the MigrationNote is sufficient),
-        // but including it in the arguments allows the contract to verify it matches the migration data hash,
-        // and mint the correct amount of tokens to the user.
-        amount: u128,
-        // Authentication
         mpk: Point,
         signature: MigrationSignature,
-        //
-        note_proof_data: [MigrationNoteProofData<u128>; 1],
-        //
+        note_proof_data: MigrationNoteProofData<u128>,
         block_header: BlockHeader,
     ) {
-        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].data`
-        let amount_from_data = note_proof_data[0].data;
-        // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
-        assert(amount_from_data == amount, "Migration data hash mismatch");
+        // 1. Extract the amount from the proof data
+        let amount = note_proof_data.data;
 
+        // 2. Verify the proof and mark the MigrationNote as migrated
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-
         migrate_notes_mode_a(
             self.context,
             self.storage.archive_root_address.read(),
@@ -151,11 +141,11 @@ pub contract ExampleMigrationAppV2 {
             signature,
             recipient,
             old_app,
-            note_proof_data,
+            [note_proof_data],
             block_header,
         );
 
-        // 4. If successful, mint the migrated tokens to the user on the new rollup
+        // 3. If successful, mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(self.msg_sender()).add(amount).deliver(
             MessageDelivery.ONCHAIN_CONSTRAINED,
         );
@@ -166,18 +156,15 @@ pub contract ExampleMigrationAppV2 {
     /// Same verification as migrate(), but mints to public balance instead of private.
     #[external("private")]
     fn migrate_to_public_mode_a(
-        amount: u128,
         mpk: Point,
         signature: MigrationSignature,
-        note_proof_data: [MigrationNoteProofData<u128>; 1],
+        note_proof_data: MigrationNoteProofData<u128>,
         block_header: BlockHeader,
     ) {
-        // FIXME: No need for `amount` argument; duplicate of `note_proof_data[0].data`
-        let amount_from_data = note_proof_data[0].data;
-        // 1. Compute migration_data (must match what was stored in MigrationNote on old rollup)
-        assert(amount_from_data == amount, "Migration data hash mismatch");
+        // 1. Extract the amount from the proof data
+        let amount = note_proof_data.data;
 
-        // 2. Call Migrator to verify the proof and mark the MigrationNote as migrated
+        // 2. Verify the proof and mark the MigrationNote as migrated
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
         migrate_notes_mode_a(
@@ -187,7 +174,7 @@ pub contract ExampleMigrationAppV2 {
             signature,
             recipient,
             old_app,
-            note_proof_data,
+            [note_proof_data],
             block_header,
         );
 
@@ -205,25 +192,16 @@ pub contract ExampleMigrationAppV2 {
     /// Claim a Mode B (emergency snapshot) migration on the new rollup.
     ///
     /// Verifies note inclusion and non-nullification at the snapshot height via
-    /// `migrate_notes_mode_b`, checks the sum of note values matches `amount`,
-    /// and mints the equivalent tokens to the caller.
+    /// `migrate_notes_mode_b` and mints the equivalent tokens to the caller.
     #[external("private")]
     fn migrate_mode_b(
-        amount: u128,
-        // Authentication
         signature: MigrationSignature,
-        //
-        full_proof_data: [FullNoteProofData<UintNote>; 1],
-        //
+        full_proof_data: FullNoteProofData<UintNote>,
         block_header: BlockHeader,
-        //
         notes_owner: AztecAddress,
-        //
         public_keys: PublicKeys,
         partial_address: Field,
-        //
         key_note: KeyNoteProofData,
-        //
         nhk: Scalar,
     ) {
         let recipient = self.msg_sender();
@@ -232,18 +210,16 @@ pub contract ExampleMigrationAppV2 {
         // of the V1 contract on the old rollup. We import V1's storage layout to get the correct slot.
         let balances_expected_storage_slot =
             STORAGE_LAYOUT_ExampleMigrationAppV1.fields.balances.slot;
-        let sum = full_proof_data.fold(0, |acc, full_note_proof_data| {
-            acc + full_note_proof_data.note_proof_data.data.value
-        });
-        assert(sum == amount, "Sum of migrated notes does not match the specified amount");
-        // 1. Call MigratorModeB to verify all proofs
+        // 1. Extract the amount from the proof data
+        let amount = full_proof_data.note_proof_data.data.value;
+        // 2. Call MigratorModeB to verify all proofs
         migrate_notes_mode_b(
             self.context,
             self.storage.archive_root_address.read(),
             signature,
             recipient,
             old_app,
-            full_proof_data,
+            [full_proof_data],
             balances_expected_storage_slot,
             block_header,
             notes_owner,
@@ -253,7 +229,7 @@ pub contract ExampleMigrationAppV2 {
             nhk,
         );
 
-        // 2. Mint the migrated tokens to the user on the new rollup
+        // 3. Mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 

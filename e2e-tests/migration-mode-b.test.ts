@@ -250,9 +250,8 @@ async function main() {
 
   await newAppUser.methods
     .migrate_mode_b(
-      migrateAmount,
       signature,
-      [noteProof],
+      noteProof,
       blockHeader,
       oldUserManager.address,
       publicKeys,
@@ -305,14 +304,11 @@ async function main() {
     newApp.address,
   );
 
-  const amount = nullifiedNoteProof.note_proof_data.data.value;
-
   try {
     let res = await newAppUser.methods
       .migrate_mode_b(
-        amount,
         nullifiedNoteSig,
-        [nullifiedNoteProof],
+        nullifiedNoteProof,
         blockHeader,
         oldUserManager.address,
         publicKeys,
