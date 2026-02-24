@@ -13,7 +13,10 @@ import {
   NonNullificationProofData,
   KeyNote,
 } from "../mode-b/types.js";
-import { MigrationNoteProofData } from "../mode-a/types.js";
+import {
+  MigrationNoteAndData,
+  MigrationNoteProofData,
+} from "../mode-a/types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import type { NotesFilter, PXE } from "@aztec/pxe/server";
 import { buildArchiveProof, buildNoteProof } from "../proofs.js";
@@ -27,13 +30,14 @@ import {
   signPublicStateMigrationModeB as signPubStateModeB,
 } from "../keys.js";
 import { PublicKeys } from "@aztec/stdlib/keys";
-import { PrivateEvent, PrivateEventFilter } from "@aztec/aztec.js/wallet";
 import { AbiType, EventSelector } from "@aztec/stdlib/abi";
 import { MigrationKeyRegistryContractArtifact } from "../noir-contracts/MigrationKeyRegistry.js";
 import { buildMigrationNoteProof } from "../mode-a/proofs.js";
 import { Logger } from "@aztec/foundation/log";
 import { BlockHash } from "@aztec/stdlib/block";
-
+import { TxHash } from "@aztec/stdlib/tx";
+import { poseidon2HashWithSeparator } from "@aztec/foundation/crypto/sync";
+import { DomainSeparator } from "@aztec/constants";
 /**
  * Abstract wallet that adds migration-specific helpers (signing, proof building,
  * key access) on top of the standard Aztec {@link BaseWallet}.
@@ -182,36 +186,36 @@ export abstract class MigrationBaseWallet extends BaseWallet {
   }
 
   /**
-   * Fetch Mode A migration notes from the PXE, filtering on the well-known
-   * {@link MIGRATION_NOTE_STORAGE_SLOT} storage slot.
+   * Fetch Mode A migration notes and migration data from the PXE,
+   * filtering on the well-known {@link MIGRATION_NOTE_STORAGE_SLOT} storage slot.
    *
-   * FIXME: Currently, it returns ALL migraton notes created by the user,
-   * meaning that also those which have been already migrated are
-   * nullfied on the new rollup. We should add some filter options
-   * which by default filter out already migrated notes.
-   *
-   * @param filter - Additional note filters (owner, contract address, etc.).
-   * @returns The matching migration notes.
+   * @typeParam T - The shape of the migration data (e.g. `bigint` for token amounts).
+   * @param contractAddress - The old rollup contract address (used for filtering and event decoding).
+   * @param owner - The note owner to filter by.
+   * @param abiType - The ABI type of the migration data (used for event decoding).
+   * @param scopes - Optional additional scope addresses to filter by (in addition to the owner).
+   * @returns An array of note+data pairs, where each note is a migration note and each data is the decoded migration data from the corresponding event.
    */
-  async getMigrationNotes(filter: NotesFilter): Promise<NoteDao[]> {
-    return this.getNotes({
-      ...filter,
+  async getMigrationNotesAndData<T>(
+    contractAddress: AztecAddress,
+    owner: AztecAddress,
+    abiType: AbiType,
+    scopes?: AztecAddress[],
+  ): Promise<MigrationNoteAndData<T>[]> {
+    // get all migration notes for the user
+    const allNotes = await this.getNotes({
+      contractAddress,
+      owner,
+      scopes: scopes ?? [owner],
       storageSlot: MIGRATION_NOTE_STORAGE_SLOT,
     });
-  }
-
-  /**
-   * Fetch Mode A migration data events from the PXE, filtering on the well-known
-   * `MigrationDataEvent` selector.
-   *
-   * @param eventFilter - Additional note filters (owner, contract address, etc.).
-   * @param eventDef - The event metadata definition.
-   * @returns The matching migration notes.
-   */
-  async getMigrationDataEvents<T>(
-    abiType: AbiType,
-    eventFilter: PrivateEventFilter,
-  ): Promise<PrivateEvent<T>[]> {
+    // group events by txHash
+    const noteByTxHash: Map<string, NoteDao[]> = new Map();
+    allNotes.map((n) => {
+      const currentNotes = noteByTxHash.get(n.txHash.toString()) ?? [];
+      noteByTxHash.set(n.txHash.toString(), [...currentNotes, n]);
+    });
+    // prepare event definition for MigrationDataEvent
     const eventSelector =
       await EventSelector.fromSignature("MigrationDataEvent");
     const eventDefWithSelector = {
@@ -219,9 +223,62 @@ export abstract class MigrationBaseWallet extends BaseWallet {
       abiType,
       fieldNames: ["migration_data"],
     };
-    return this.getPrivateEvents(eventDefWithSelector, eventFilter);
+    let notesAndData: MigrationNoteAndData<T>[] = [];
+    // for each txHash, get the corresponding MigrationDataEvent and pair it with the notes
+    for (const [txHash, notes] of noteByTxHash) {
+      const events = await this.getPrivateEvents<T>(eventDefWithSelector, {
+        contractAddress,
+        scopes: scopes ?? [owner],
+        txHash: TxHash.fromString(txHash),
+      });
+      if (events.length != notes.length) {
+        throw new Error(
+          `Mismatched number of events (${events.length}) and notes (${notes.length}) for tx ${txHash}.`,
+        );
+      }
+      for (let i = 0; i < notes.length; i++) {
+        notesAndData.push({
+          note: notes[i],
+          data: events[i].event,
+        });
+      }
+    }
+    return notesAndData;
   }
 
+  /**
+   * Filter out notes that have already been migrated
+   * (i.e. whose nullifier exists on the new rollup).
+   *
+   * @param contractAddress - The new rollup contract address (used for nullifier siloing).
+   * @param notes - The notes to check.
+   * @returns Only the notes that have NOT been migrated yet.
+   */
+  async filterOutMigratedNotes<T extends { note: NoteDao }>(
+    contractAddress: AztecAddress,
+    notes: T[],
+  ): Promise<T[]> {
+    const results = await Promise.all(
+      notes.map(async (note) => {
+        // Inner nullifier: poseidon2([noteHash, randomness], NOTE_NULLIFIER)
+        const innerNullifier = poseidon2HashWithSeparator(
+          [note.note.noteHash, note.note.randomness],
+          DomainSeparator.NOTE_NULLIFIER,
+        );
+        // Silo with contract address (as the kernel does on-chain)
+        const siloedNullifier = poseidon2HashWithSeparator(
+          [contractAddress, innerNullifier],
+          DomainSeparator.SILOED_NULLIFIER,
+        );
+        const witness = await this.aztecNode.getNullifierMembershipWitness(
+          "latest",
+          siloedNullifier,
+        );
+        return { note, migrated: witness !== undefined };
+      }),
+    );
+    return results.filter(({ migrated }) => !migrated).map(({ note }) => note);
+  }
   /**
    * Build note-hash inclusion proofs for a batch of notes.
    *
@@ -252,17 +309,11 @@ export abstract class MigrationBaseWallet extends BaseWallet {
    */
   async buildMigrationNoteProofs<T>(
     blockNumber: BlockNumber,
-    migrationNotes: NoteDao[],
-    migrationDataEvents: PrivateEvent<T>[],
+    migrationNotesAndData: MigrationNoteAndData<T>[],
   ): Promise<MigrationNoteProofData<T>[]> {
     return Promise.all(
-      migrationDataEvents.map((event, i) =>
-        buildMigrationNoteProof(
-          this.aztecNode,
-          blockNumber,
-          migrationNotes[i],
-          event,
-        ),
+      migrationNotesAndData.map(({ note, data }) =>
+        buildMigrationNoteProof(this.aztecNode, blockNumber, note, data),
       ),
     );
   }
