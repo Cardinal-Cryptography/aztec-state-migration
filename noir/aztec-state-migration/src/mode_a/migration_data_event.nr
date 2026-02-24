@@ -10,9 +10,6 @@ use aztec::protocol::traits::Serialize;
 /// See https://github.com/AztecProtocol/aztec-packages/blob/c6b2615d5119cf306e8b9c903fb00dad08560d32/noir-projects/aztec-nr/aztec/src/macros/utils.nr#L154
 #[derive(Serialize)]
 pub struct MigrationDataEvent<T> {
-    // TODO: consider including a hash of the migration data here as well,
-    // to wallet clients can easily filter for relevant events.
-    // pub migration_note_hash: Field,
     pub migration_data: T,
 }
 

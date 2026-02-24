@@ -15,14 +15,14 @@ import { buildNoteProof } from "../index.js";
  * @param node - Aztec node client to query the note hash tree.
  * @param blockNumber - Block number at which to prove inclusion.
  * @param noteDao - The migration note DAO to prove.
- * @param migration_data_event - The private event carrying the decoded migration data for this note.
- * @typeParam T - The shape of the migration data (e.g. `u128` for token amounts).
+ * @param migrationData - The decoded migration data for this note.
+ * @typeParam T - The shape of the migration data (e.g. `bigint` for token amounts).
  */
 export async function buildMigrationNoteProof<T>(
   node: AztecNode,
   blockNumber: BlockNumber,
   noteDao: NoteDao,
-  migration_data_event: PrivateEvent<T>,
+  migrationData: T,
 ): Promise<MigrationNoteProofData<T>> {
   const noteProof = await buildNoteProof(
     node,
@@ -32,6 +32,6 @@ export async function buildMigrationNoteProof<T>(
   );
   return {
     ...noteProof,
-    data: migration_data_event.event,
+    data: migrationData,
   };
 }
