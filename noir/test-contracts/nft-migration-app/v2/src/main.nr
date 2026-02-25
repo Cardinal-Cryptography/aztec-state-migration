@@ -117,8 +117,9 @@ pub contract NftMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
             mpk,
-            |builder| builder.with_note(note_proof_data).finish(recipient, signature),
-        );
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
 
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
@@ -148,8 +149,9 @@ pub contract NftMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
             mpk,
-            |builder| builder.with_note(note_proof_data).finish(recipient, signature),
-        );
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
         NftMigrationAppV2::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
@@ -185,13 +187,10 @@ pub contract NftMigrationAppV2 {
             old_app,
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
-                    .with_note(full_proof_data, expected_storage_slot)
-                    .finish(recipient, signature)
-            },
-        );
+        )
+            .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+            .with_note(full_proof_data, expected_storage_slot)
+            .finish(recipient, signature);
 
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
@@ -223,18 +222,10 @@ pub contract NftMigrationAppV2 {
         let base_storage_slot = STORAGE_LAYOUT_NftMigrationAppV1.fields.public_owners.slot;
 
         // 1. Verify public state existed at snapshot height
-        MigrationModeB::new(
-            self.context,
-            old_app,
-            archive_registry,
-            block_header,
-            |b| {
-                b
-                    .with_owner(old_owner, key_note)
-                    .with_public_map_state(proof_data, base_storage_slot, [token_id])
-                    .finish(recipient, signature)
-            },
-        );
+        MigrationModeB::new(self.context, old_app, archive_registry, block_header)
+            .with_owner(old_owner, key_note)
+            .with_public_map_state(proof_data, base_storage_slot, [token_id])
+            .finish(recipient, signature);
 
         // 2. Mint to authenticated recipient
         NftMigrationAppV2::at(self.context.this_address())

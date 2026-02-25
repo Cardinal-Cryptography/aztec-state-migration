@@ -137,8 +137,9 @@ pub contract ExampleMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
             mpk,
-            |b| b.with_note(note_proof_data).finish(recipient, signature),
-        );
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
 
         // 3. If successful, mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(self.msg_sender()).add(amount).deliver(
@@ -168,8 +169,9 @@ pub contract ExampleMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
             mpk,
-            |b| b.with_note(note_proof_data).finish(recipient, signature),
-        );
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
 
         // 3. Mint to PUBLIC balance (instead of private)
         let recipient = self.msg_sender();
@@ -211,13 +213,10 @@ pub contract ExampleMigrationAppV2 {
             old_app,
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
-                    .with_note(full_proof_data, balances_expected_storage_slot)
-                    .finish(recipient, signature)
-            },
-        );
+        )
+            .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+            .with_note(full_proof_data, balances_expected_storage_slot)
+            .finish(recipient, signature);
 
         // 3. Mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
@@ -235,13 +234,10 @@ pub contract ExampleMigrationAppV2 {
             self.storage.old_rollup_app_address.read(),
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .without_owner()
-                    .with_public_state(struct_single_proof_data, struct_single_slot)
-                    .finish()
-            },
-        );
+        )
+            .without_owner()
+            .with_public_state(struct_single_proof_data, struct_single_slot)
+            .finish();
 
         ExampleMigrationAppV2::at(self.context.this_address())
             .init_struct_single(struct_single)
@@ -261,13 +257,10 @@ pub contract ExampleMigrationAppV2 {
             self.storage.old_rollup_app_address.read(),
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .without_owner()
-                    .with_public_map_state(struct_in_map_proof_data, struct_in_map_slot, [map_key])
-                    .finish()
-            },
-        );
+        )
+            .without_owner()
+            .with_public_map_state(struct_in_map_proof_data, struct_in_map_slot, [map_key])
+            .finish();
         ExampleMigrationAppV2::at(self.context.this_address())
             .init_struct_map(map_key, struct_in_map)
             .enqueue(self.context);
@@ -290,17 +283,10 @@ pub contract ExampleMigrationAppV2 {
             self.storage.old_rollup_app_address.read(),
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .with_owner(old_owner, key_note)
-                    .with_public_map_state(
-                        owned_struct_map_proof_data,
-                        owner_struct_map_slot,
-                        [old_owner],
-                    )
-                    .finish(recipient, signature)
-            },
-        );
+        )
+            .with_owner(old_owner, key_note)
+            .with_public_map_state(owned_struct_map_proof_data, owner_struct_map_slot, [old_owner])
+            .finish(recipient, signature);
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_map(recipient, owned_struct)
             .enqueue(self.context);
@@ -324,17 +310,14 @@ pub contract ExampleMigrationAppV2 {
             self.storage.old_rollup_app_address.read(),
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .with_owner(old_owner, key_note)
-                    .with_public_map_state(
-                        owned_struct_nested_map_proof_data,
-                        owned_struct_nested_map_slot,
-                        [map_key, old_owner.to_field()],
-                    )
-                    .finish(recipient, signature)
-            },
-        );
+        )
+            .with_owner(old_owner, key_note)
+            .with_public_map_state(
+                owned_struct_nested_map_proof_data,
+                owned_struct_nested_map_slot,
+                [map_key, old_owner.to_field()],
+            )
+            .finish(recipient, signature);
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_nested_map(recipient, map_key, owned_struct)
             .enqueue(self.context);
