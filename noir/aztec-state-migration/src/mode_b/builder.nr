@@ -99,6 +99,14 @@ impl MigrationModeB {
         self
     }
 
+    fn _finish(self) -> MigrationFinished {
+        let block_hash = self.block_header.hash();
+        MigrationArchiveRegistry::at(self.migration_archive_registry)
+            .verify_migration_mode_b(block_hash)
+            .call(self.context);
+        MigrationFinished {}
+    }
+
     pub fn without_owner(self) -> MigrationWithoutOwnerModeB {
         MigrationWithoutOwnerModeB { inner: self }
     }
@@ -155,11 +163,7 @@ impl MigrationWithoutOwnerModeB {
     }
 
     pub fn finish(self) -> MigrationFinished {
-        let block_hash = self.inner.block_header.hash();
-        MigrationArchiveRegistry::at(self.inner.migration_archive_registry)
-            .verify_migration_mode_b(block_hash)
-            .call(self.inner.context);
-        MigrationFinished {}
+        self.inner._finish()
     }
 
     pub fn with_owner(
@@ -227,11 +231,7 @@ impl MigrationWithOwnedStateModeB {
             self.mpk,
         );
 
-        let block_hash = self.inner.block_header.hash();
-        MigrationArchiveRegistry::at(self.inner.migration_archive_registry)
-            .verify_migration_mode_b(block_hash)
-            .call(self.inner.context);
-        MigrationFinished {}
+        self.inner._finish()
     }
 
     pub fn with_notes_owner(
@@ -283,25 +283,7 @@ impl MigrationWithOwnedNotesModeB {
         recipient: AztecAddress,
         signature: MigrationSignature,
     ) -> MigrationFinished {
-        let old_rollup = self.inner.inner.block_header.global_variables.version;
-        let new_app = self.inner.inner.context.this_address();
-
-        let final_hash = self.inner.hasher.finish();
-
-        signature.verify_migration_signature::<DOM_SEP__CLAIM_B>(
-            old_rollup,
-            self.inner.inner.current_rollup,
-            final_hash,
-            recipient,
-            new_app,
-            self.inner.mpk,
-        );
-
-        let block_hash = self.inner.inner.block_header.hash();
-        MigrationArchiveRegistry::at(self.inner.inner.migration_archive_registry)
-            .verify_migration_mode_b(block_hash)
-            .call(self.inner.inner.context);
-        MigrationFinished {}
+        self.inner.finish(recipient, signature)
     }
 
     /// Verify a single note's inclusion in the note hash tree and non-nullification
