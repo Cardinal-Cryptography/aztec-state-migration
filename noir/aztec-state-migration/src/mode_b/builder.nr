@@ -32,26 +32,19 @@ pub struct MigrationModeB {
     current_rollup: Field,
 }
 
+pub struct MigrationWithoutOwnerModeB {
+    inner: MigrationModeB,
+}
+
 pub struct MigrationWithOwnedStateModeB {
-    context: &mut PrivateContext,
-    old_app: AztecAddress,
-    migration_archive_registry: AztecAddress,
-    block_header: BlockHeader,
-    current_rollup: Field,
+    inner: MigrationModeB,
+    hasher: Poseidon2Hasher,
     owner: AztecAddress,
     mpk: Point,
-    hasher: Poseidon2Hasher,
 }
 
 pub struct MigrationWithOwnedNotesModeB {
-    context: &mut PrivateContext,
-    old_app: AztecAddress,
-    migration_archive_registry: AztecAddress,
-    block_header: BlockHeader,
-    current_rollup: Field,
-    owner: AztecAddress,
-    mpk: Point,
-    hasher: Poseidon2Hasher,
+    inner: MigrationWithOwnedStateModeB,
     nhk_app: Field,
 }
 
@@ -76,8 +69,8 @@ impl MigrationModeB {
         );
     }
 
-    pub fn with_public_state<T: Packable>(
-        self,
+    fn _with_public_state<T: Packable>(
+        mut self,
         proof_data: PublicStateProofData<T, <T as Packable>::N>,
         base_storage_slot: Field,
     ) -> Self {
@@ -90,8 +83,8 @@ impl MigrationModeB {
         self
     }
 
-    pub fn with_public_map_state<T: Packable, K: ToField, let N: u32>(
-        self,
+    fn _with_public_map_state<T: Packable, K: ToField, let N: u32>(
+        mut self,
         proof_data: PublicStateProofData<T, <T as Packable>::N>,
         base_storage_slot: Field,
         map_keys: [K; N],
@@ -106,12 +99,8 @@ impl MigrationModeB {
         self
     }
 
-    pub fn finish(self) -> MigrationFinished {
-        let block_hash = self.block_header.hash();
-        MigrationArchiveRegistry::at(self.migration_archive_registry)
-            .verify_migration_mode_b(block_hash)
-            .call(self.context);
-        MigrationFinished {}
+    pub fn without_owner(self) -> MigrationWithoutOwnerModeB {
+        MigrationWithoutOwnerModeB { inner: self }
     }
 
     pub fn with_owner(
@@ -126,11 +115,7 @@ impl MigrationModeB {
             self.block_header.state.partial.note_hash_tree.root,
         );
         MigrationWithOwnedStateModeB {
-            context: self.context,
-            old_app: self.old_app,
-            migration_archive_registry: self.migration_archive_registry,
-            block_header: self.block_header,
-            current_rollup: self.current_rollup,
+            inner: self,
             owner,
             mpk: key_note.data.mpk,
             hasher: Poseidon2Hasher::default(),
@@ -149,20 +134,74 @@ impl MigrationModeB {
     }
 }
 
-impl MigrationWithOwnedStateModeB {
+impl MigrationWithoutOwnerModeB {
+    pub fn with_public_state<T: Packable>(
+        mut self,
+        proof_data: PublicStateProofData<T, <T as Packable>::N>,
+        base_storage_slot: Field,
+    ) -> Self {
+        let _ = self.inner._with_public_state(proof_data, base_storage_slot);
+        self
+    }
+
     pub fn with_public_map_state<T: Packable, K: ToField, let N: u32>(
         mut self,
         proof_data: PublicStateProofData<T, <T as Packable>::N>,
         base_storage_slot: Field,
         map_keys: [K; N],
     ) -> Self {
-        let derived_storage_slot = derive_map_storage_slot(base_storage_slot, map_keys);
-        proof_data.migrate_public_state(
-            self.context,
-            derived_storage_slot,
-            self.old_app,
-            self.block_header.state.partial.public_data_tree.root,
-        );
+        let _ = self.inner._with_public_map_state(proof_data, base_storage_slot, map_keys);
+        self
+    }
+
+    pub fn finish(self) -> MigrationFinished {
+        let block_hash = self.inner.block_header.hash();
+        MigrationArchiveRegistry::at(self.inner.migration_archive_registry)
+            .verify_migration_mode_b(block_hash)
+            .call(self.inner.context);
+        MigrationFinished {}
+    }
+
+    pub fn with_owner(
+        self,
+        owner: AztecAddress,
+        key_note: KeyNoteProofData,
+    ) -> MigrationWithOwnedStateModeB {
+        self.inner.with_owner(owner, key_note)
+    }
+
+    pub fn with_notes_owner(
+        self,
+        owner: AztecAddress,
+        key_note: KeyNoteProofData,
+        public_keys: PublicKeys,
+        partial_address: Field,
+        nhk: Scalar,
+    ) -> MigrationWithOwnedNotesModeB {
+        self.inner.with_owner(owner, key_note).with_notes_owner(public_keys, partial_address, nhk)
+    }
+}
+
+impl MigrationWithOwnedStateModeB {
+    pub fn with_public_state<T: Packable>(
+        mut self,
+        proof_data: PublicStateProofData<T, <T as Packable>::N>,
+        base_storage_slot: Field,
+    ) -> Self {
+        self.inner = self.inner._with_public_state(proof_data, base_storage_slot);
+        for d in proof_data.data.pack() {
+            self.hasher.write(d);
+        }
+        self
+    }
+
+    pub fn with_public_map_state<T: Packable, K: ToField, let N: u32>(
+        mut self,
+        proof_data: PublicStateProofData<T, <T as Packable>::N>,
+        base_storage_slot: Field,
+        map_keys: [K; N],
+    ) -> Self {
+        let _ = self.inner._with_public_map_state(proof_data, base_storage_slot, map_keys);
         for d in proof_data.data.pack() {
             self.hasher.write(d);
         }
@@ -174,24 +213,24 @@ impl MigrationWithOwnedStateModeB {
         recipient: AztecAddress,
         signature: MigrationSignature,
     ) -> MigrationFinished {
-        let old_rollup = self.block_header.global_variables.version;
-        let new_app = self.context.this_address();
+        let old_rollup = self.inner.block_header.global_variables.version;
+        let new_app = self.inner.context.this_address();
 
         let final_hash = self.hasher.finish();
 
         signature.verify_migration_signature::<DOM_SEP__CLAIM_B>(
             old_rollup,
-            self.current_rollup,
+            self.inner.current_rollup,
             final_hash,
             recipient,
             new_app,
             self.mpk,
         );
 
-        let block_hash = self.block_header.hash();
-        MigrationArchiveRegistry::at(self.migration_archive_registry)
+        let block_hash = self.inner.block_header.hash();
+        MigrationArchiveRegistry::at(self.inner.migration_archive_registry)
             .verify_migration_mode_b(block_hash)
-            .call(self.context);
+            .call(self.inner.context);
         MigrationFinished {}
     }
 
@@ -220,21 +259,11 @@ impl MigrationWithOwnedStateModeB {
 
         // Derive nhk_app for the old app contract:
         let nhk_app = poseidon2_hash_with_separator(
-            [nhk.hi, nhk.lo, self.old_app.to_field()],
+            [nhk.hi, nhk.lo, self.inner.old_app.to_field()],
             DOM_SEP__NHK_M,
         );
 
-        MigrationWithOwnedNotesModeB {
-            context: self.context,
-            old_app: self.old_app,
-            migration_archive_registry: self.migration_archive_registry,
-            block_header: self.block_header,
-            current_rollup: self.current_rollup,
-            owner: self.owner,
-            mpk: self.mpk,
-            hasher: self.hasher,
-            nhk_app,
-        }
+        MigrationWithOwnedNotesModeB { inner: self, nhk_app }
     }
 }
 
@@ -245,7 +274,7 @@ impl MigrationWithOwnedNotesModeB {
         expected_storage_slot: Field,
     ) -> Self {
         let note_hash = self.migrate_note(proof_data, expected_storage_slot);
-        self.hasher.write(note_hash);
+        self.inner.hasher.write(note_hash);
         self
     }
 
@@ -254,24 +283,24 @@ impl MigrationWithOwnedNotesModeB {
         recipient: AztecAddress,
         signature: MigrationSignature,
     ) -> MigrationFinished {
-        let old_rollup = self.block_header.global_variables.version;
-        let new_app = self.context.this_address();
+        let old_rollup = self.inner.inner.block_header.global_variables.version;
+        let new_app = self.inner.inner.context.this_address();
 
-        let final_hash = self.hasher.finish();
+        let final_hash = self.inner.hasher.finish();
 
         signature.verify_migration_signature::<DOM_SEP__CLAIM_B>(
             old_rollup,
-            self.current_rollup,
+            self.inner.inner.current_rollup,
             final_hash,
             recipient,
             new_app,
-            self.mpk,
+            self.inner.mpk,
         );
 
-        let block_hash = self.block_header.hash();
-        MigrationArchiveRegistry::at(self.migration_archive_registry)
+        let block_hash = self.inner.inner.block_header.hash();
+        MigrationArchiveRegistry::at(self.inner.inner.migration_archive_registry)
             .verify_migration_mode_b(block_hash)
-            .call(self.context);
+            .call(self.inner.inner.context);
         MigrationFinished {}
     }
 
@@ -289,11 +318,11 @@ impl MigrationWithOwnedNotesModeB {
         // 1. Compute Note hash and verify inclusion in note hash tree
         // ============================================================
 
-        let note_hash = note_proof_data.note_hash(self.owner, expected_storage_slot);
+        let note_hash = note_proof_data.note_hash(self.inner.owner, expected_storage_slot);
         let note_unique = note_proof_data.verify_note_inclusion(
-            self.old_app,
+            self.inner.inner.old_app,
             note_hash,
-            self.block_header.state.partial.note_hash_tree.root,
+            self.inner.inner.block_header.state.partial.note_hash_tree.root,
         );
 
         // ============================================================
@@ -302,9 +331,9 @@ impl MigrationWithOwnedNotesModeB {
 
         let _ = non_nullification_proof_data.verify_nullifier_non_inclusion(
             self.nhk_app,
-            self.old_app,
+            self.inner.inner.old_app,
             note_unique,
-            self.block_header.state.partial.nullifier_tree.root,
+            self.inner.inner.block_header.state.partial.nullifier_tree.root,
         );
 
         // ============================================================
@@ -314,7 +343,7 @@ impl MigrationWithOwnedNotesModeB {
             [note_unique, note_proof_data.randomness],
             DOM_SEP__NOTE_NULLIFIER,
         );
-        self.context.push_nullifier(migration_nullifier);
+        self.inner.inner.context.push_nullifier(migration_nullifier);
 
         note_hash
     }

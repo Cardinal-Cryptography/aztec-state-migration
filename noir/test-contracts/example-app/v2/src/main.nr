@@ -225,16 +225,11 @@ pub contract ExampleMigrationAppV2 {
 
     #[external("private")]
     fn migrate_to_public_struct_mode_b(
-        // the number of occupied slots (2) is asserted in the migration function:
-        // std::static_assert(<T as Packable>::N == N),
-        // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
-        // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         struct_single_proof_data: PublicStateProofData<SomeStruct, 2>,
         block_header: BlockHeader,
     ) {
-        // in this example we use struct to show that we can migrate any public state, not just balances.
-        // In a real token contract, this would likely still be `amount: u128`.
         let struct_single = struct_single_proof_data.data;
+        let struct_single_slot = STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_single.slot;
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
@@ -242,10 +237,8 @@ pub contract ExampleMigrationAppV2 {
             block_header,
             |b| {
                 b
-                    .with_public_state(
-                        struct_single_proof_data,
-                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_single.slot,
-                    )
+                    .without_owner()
+                    .with_public_state(struct_single_proof_data, struct_single_slot)
                     .finish()
             },
         );
@@ -257,15 +250,12 @@ pub contract ExampleMigrationAppV2 {
 
     #[external("private")]
     fn migrate_to_public_struct_map_mode_b(
-        // the number of occupied slots (2) is asserted in the migration function:
-        // std::static_assert(<T as Packable>::N == N),
-        // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
-        // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         struct_in_map_proof_data: PublicStateProofData<SomeStruct, 2>,
         block_header: BlockHeader,
         map_key: Field,
     ) {
         let struct_in_map = struct_in_map_proof_data.data;
+        let struct_in_map_slot = STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_map.slot;
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
@@ -273,11 +263,8 @@ pub contract ExampleMigrationAppV2 {
             block_header,
             |b| {
                 b
-                    .with_public_map_state(
-                        struct_in_map_proof_data,
-                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_map.slot,
-                        [map_key],
-                    )
+                    .without_owner()
+                    .with_public_map_state(struct_in_map_proof_data, struct_in_map_slot, [map_key])
                     .finish()
             },
         );
@@ -288,10 +275,6 @@ pub contract ExampleMigrationAppV2 {
 
     #[external("private")]
     fn migrate_to_public_owned_struct_map_mode_b(
-        // the number of occupied slots (2) is asserted in the migration function:
-        // std::static_assert(<T as Packable>::N == N),
-        // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
-        // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         owned_struct_map_proof_data: PublicStateProofData<SomeStruct, 2>,
         block_header: BlockHeader,
         old_owner: AztecAddress,
@@ -300,6 +283,8 @@ pub contract ExampleMigrationAppV2 {
     ) {
         let recipient = self.msg_sender();
         let owned_struct = owned_struct_map_proof_data.data;
+        let owner_struct_map_slot =
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_map.slot;
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
@@ -310,7 +295,7 @@ pub contract ExampleMigrationAppV2 {
                     .with_owner(old_owner, key_note)
                     .with_public_map_state(
                         owned_struct_map_proof_data,
-                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_map.slot,
+                        owner_struct_map_slot,
                         [old_owner],
                     )
                     .finish(recipient, signature)
@@ -323,10 +308,6 @@ pub contract ExampleMigrationAppV2 {
 
     #[external("private")]
     fn migrate_to_public_owned_struct_nested_map_mode_b(
-        // the number of occupied slots (2) is asserted in the migration function:
-        // std::static_assert(<T as Packable>::N == N),
-        // where in this example T=SomeStruct and N=<SomeStruct as Packable>::N.
-        // The app developer will get compile-time errors if the proof data length doesn't match the struct packing.
         owned_struct_nested_map_proof_data: PublicStateProofData<SomeStruct, 2>,
         block_header: BlockHeader,
         old_owner: AztecAddress,
@@ -335,9 +316,9 @@ pub contract ExampleMigrationAppV2 {
         map_key: Field,
     ) {
         let recipient = self.msg_sender();
-        // in this example we use struct to show that we can migrate any public state, not just balances.
-        // In a real token contract, this would likely still be `amount: u128`.
         let owned_struct = owned_struct_nested_map_proof_data.data;
+        let owned_struct_nested_map_slot =
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_nested_map.slot;
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
@@ -348,7 +329,7 @@ pub contract ExampleMigrationAppV2 {
                     .with_owner(old_owner, key_note)
                     .with_public_map_state(
                         owned_struct_nested_map_proof_data,
-                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_nested_map.slot,
+                        owned_struct_nested_map_slot,
                         [map_key, old_owner.to_field()],
                     )
                     .finish(recipient, signature)

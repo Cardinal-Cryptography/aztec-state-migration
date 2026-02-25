@@ -50,6 +50,10 @@ impl PublicStateSlotProofData {
     }
 }
 
+/// Proof data for migrating public state from the old rollup.
+///
+/// `N` must equal `<T as Packable>::N` (the number of storage slots `T` occupies).
+/// This is enforced at compile time via `static_assert` in `migrate_public_state`.
 #[derive(Packable, Serialize, Deserialize)]
 pub struct PublicStateProofData<T, let N: u32> {
     pub data: T,
