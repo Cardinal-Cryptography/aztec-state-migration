@@ -79,7 +79,7 @@ impl MigrationModeA {
     }
 
     /// Verify a single MigrationNote's inclusion and emit its nullifier.
-    fn migrate_note<T: Packable>(mut self, note_proof_data: MigrationNoteProofData<T>) -> Field {
+    fn migrate_note<T: Packable>(self, note_proof_data: MigrationNoteProofData<T>) -> Field {
         // Reconstruct the MigrationNote and compute its hash
         let migration_note = MigrationNote::new(
             self.old_app,
