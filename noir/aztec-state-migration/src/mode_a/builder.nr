@@ -22,28 +22,23 @@ pub struct MigrationModeA {
     hasher: Poseidon2Hasher,
 }
 
-pub struct MigrationFinished;
-
 impl MigrationModeA {
-    pub fn new<Env>(
+    pub fn new(
         context: &mut PrivateContext,
         old_app: AztecAddress,
         migration_archive_registry: AztecAddress,
         block_header: BlockHeader,
         mpk: Point,
-        builder: fn[Env](MigrationModeA) -> MigrationFinished,
-    ) {
-        let _ = builder(
-            Self {
-                context,
-                old_app,
-                migration_archive_registry,
-                block_header,
-                mpk,
-                current_rollup: context.version(),
-                hasher: Poseidon2Hasher::default(),
-            },
-        );
+    ) -> Self {
+        Self {
+            context,
+            old_app,
+            migration_archive_registry,
+            block_header,
+            mpk,
+            current_rollup: context.version(),
+            hasher: Poseidon2Hasher::default(),
+        }
     }
 
     pub fn with_note<T: Packable>(mut self, note_proof_data: MigrationNoteProofData<T>) -> Self {
@@ -52,11 +47,7 @@ impl MigrationModeA {
         self
     }
 
-    pub fn finish(
-        self,
-        recipient: AztecAddress,
-        signature: MigrationSignature,
-    ) -> MigrationFinished {
+    pub fn finish(self, recipient: AztecAddress, signature: MigrationSignature) {
         let old_rollup = self.block_header.global_variables.version;
         let new_app = self.context.this_address();
 
@@ -75,7 +66,6 @@ impl MigrationModeA {
         MigrationArchiveRegistry::at(self.migration_archive_registry)
             .verify_migration_mode_a(self.block_header.global_variables.block_number, block_hash)
             .call(self.context);
-        MigrationFinished {}
     }
 
     /// Verify a single MigrationNote's inclusion and emit its nullifier.

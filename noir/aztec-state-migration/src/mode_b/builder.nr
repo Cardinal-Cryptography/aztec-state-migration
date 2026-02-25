@@ -48,25 +48,20 @@ pub struct MigrationWithOwnedNotesModeB {
     nhk_app: Field,
 }
 
-pub struct MigrationFinished;
-
 impl MigrationModeB {
-    pub fn new<Env>(
+    pub fn new(
         context: &mut PrivateContext,
         old_app: AztecAddress,
         migration_archive_registry: AztecAddress,
         block_header: BlockHeader,
-        builder: fn[Env](MigrationModeB) -> MigrationFinished,
-    ) {
-        let _ = builder(
-            Self {
-                context,
-                old_app,
-                migration_archive_registry,
-                block_header,
-                current_rollup: context.version(),
-            },
-        );
+    ) -> Self {
+        Self {
+            context,
+            old_app,
+            migration_archive_registry,
+            block_header,
+            current_rollup: context.version(),
+        }
     }
 
     fn _with_public_state<T: Packable>(
@@ -99,12 +94,11 @@ impl MigrationModeB {
         self
     }
 
-    fn _finish(self) -> MigrationFinished {
+    fn _finish(self) {
         let block_hash = self.block_header.hash();
         MigrationArchiveRegistry::at(self.migration_archive_registry)
             .verify_migration_mode_b(block_hash)
             .call(self.context);
-        MigrationFinished {}
     }
 
     pub fn without_owner(self) -> MigrationWithoutOwnerModeB {
@@ -162,7 +156,7 @@ impl MigrationWithoutOwnerModeB {
         self
     }
 
-    pub fn finish(self) -> MigrationFinished {
+    pub fn finish(self) {
         self.inner._finish()
     }
 
@@ -212,11 +206,7 @@ impl MigrationWithOwnedStateModeB {
         self
     }
 
-    pub fn finish(
-        self,
-        recipient: AztecAddress,
-        signature: MigrationSignature,
-    ) -> MigrationFinished {
+    pub fn finish(self, recipient: AztecAddress, signature: MigrationSignature) {
         let old_rollup = self.inner.block_header.global_variables.version;
         let new_app = self.inner.context.this_address();
 
@@ -278,11 +268,7 @@ impl MigrationWithOwnedNotesModeB {
         self
     }
 
-    pub fn finish(
-        self,
-        recipient: AztecAddress,
-        signature: MigrationSignature,
-    ) -> MigrationFinished {
+    pub fn finish(self, recipient: AztecAddress, signature: MigrationSignature) {
         self.inner.finish(recipient, signature)
     }
 

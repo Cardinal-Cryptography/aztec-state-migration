@@ -264,8 +264,9 @@ pub contract TokenMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
             mpk,
-            |b| b.with_note(note_proof_data).finish(recipient, signature),
-        );
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
 
         // Mint the migrated tokens to the user's private balance
         self.storage.private_balances.at(recipient).add(amount).deliver(
@@ -303,8 +304,9 @@ pub contract TokenMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
             mpk,
-            |b| b.with_note(note_proof_data).finish(recipient, signature),
-        );
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
 
         // Mint to PUBLIC balance via enqueued call
         TokenMigrationAppV2::at(self.context.this_address())
@@ -348,13 +350,10 @@ pub contract TokenMigrationAppV2 {
             old_app,
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
-                    .with_note(full_proof_data, balances_expected_storage_slot)
-                    .finish(recipient, signature)
-            },
-        );
+        )
+            .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+            .with_note(full_proof_data, balances_expected_storage_slot)
+            .finish(recipient, signature);
 
         // Mint the migrated tokens to the user's private balance
         self.storage.private_balances.at(recipient).add(amount).deliver(
@@ -395,13 +394,10 @@ pub contract TokenMigrationAppV2 {
             old_app,
             self.storage.archive_root_address.read(),
             block_header,
-            |b| {
-                b
-                    .with_owner(old_owner, key_note)
-                    .with_public_map_state(proof_data, base_storage_slot, [old_owner])
-                    .finish(recipient, signature)
-            },
-        );
+        )
+            .with_owner(old_owner, key_note)
+            .with_public_map_state(proof_data, base_storage_slot, [old_owner])
+            .finish(recipient, signature);
 
         // Mint to PUBLIC balance via enqueued call
         TokenMigrationAppV2::at(self.context.this_address())
