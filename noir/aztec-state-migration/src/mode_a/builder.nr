@@ -12,8 +12,6 @@ use migration_archive_registry::MigrationArchiveRegistry::MigrationArchiveRegist
 use poseidon::poseidon2::Poseidon2Hasher;
 use std::{embedded_curve_ops::EmbeddedCurvePoint as Point, hash::Hasher};
 
-pub struct MigrationFinished;
-
 pub struct MigrationModeA {
     context: &mut PrivateContext,
     old_app: AztecAddress,
@@ -23,6 +21,8 @@ pub struct MigrationModeA {
     current_rollup: Field,
     hasher: Poseidon2Hasher,
 }
+
+pub struct MigrationFinished;
 
 impl MigrationModeA {
     pub fn new<Env>(

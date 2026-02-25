@@ -145,11 +145,7 @@ impl MigrationModeB {
         partial_address: Field,
         nhk: Scalar,
     ) -> MigrationWithOwnedNotesModeB {
-        self.with_owner(owner, key_note).with_notes_owner(
-            public_keys,
-            partial_address,
-            nhk,
-        )
+        self.with_owner(owner, key_note).with_notes_owner(public_keys, partial_address, nhk)
     }
 }
 
@@ -167,7 +163,9 @@ impl MigrationWithOwnedStateModeB {
             self.old_app,
             self.block_header.state.partial.public_data_tree.root,
         );
-        self.hasher.write(proof_data.public_state_hash());
+        for d in proof_data.data.pack() {
+            self.hasher.write(d);
+        }
         self
     }
 

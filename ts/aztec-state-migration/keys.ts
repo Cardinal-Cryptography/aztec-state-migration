@@ -119,7 +119,7 @@ export async function signPublicStateMigrationModeB(
   newAppAddress: AztecAddress,
 ): Promise<MigrationSignature> {
   const packedData = encodeValue(data, abiType);
-  const dataHash = await poseidon2Hash([await poseidon2Hash(packedData)]);
+  const dataHash = await poseidon2Hash(packedData);
   const msg = await poseidon2Hash([
     DOM_SEP__CLAIM_B,
     oldRollupVersion,
