@@ -12,7 +12,7 @@ pub contract ExampleMigrationAppV1 {
         protocol::{address::AztecAddress, traits::{Deserialize, Packable, Serialize}},
         state_vars::{Map, Owned, PublicMutable},
     };
-    use aztec_state_migration::{mode_a::lock_migration_notes, Point};
+    use aztec_state_migration::{mode_a::MigrationLock, Point};
     use balance_set::BalanceSet;
 
     // Only Packable needed for Migration
@@ -113,7 +113,9 @@ pub contract ExampleMigrationAppV1 {
 
         self.storage.balances.at(note_owner).sub(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 
-        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
+        MigrationLock::new(self.context, mpk, note_owner, destination_rollup)
+            .lock_state(amount)
+            .finish();
     }
 
     /// Lock a public token balance for migration to a new rollup.
@@ -127,7 +129,9 @@ pub contract ExampleMigrationAppV1 {
     fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.msg_sender();
 
-        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
+        MigrationLock::new(self.context, mpk, note_owner, destination_rollup)
+            .lock_state(amount)
+            .finish();
 
         // 3. Enqueue public balance decrement (executes after private phase)
         //    If this fails (insufficient balance), the entire tx reverts including the MigrationNote

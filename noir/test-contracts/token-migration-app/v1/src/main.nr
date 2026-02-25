@@ -18,7 +18,7 @@ pub contract TokenMigrationAppV1 {
         protocol::address::AztecAddress,
         state_vars::{Map, Owned, PublicImmutable, PublicMutable},
     };
-    use aztec_state_migration::{mode_a::lock_migration_notes, Point};
+    use aztec_state_migration::{mode_a::MigrationLock, Point};
     use balance_set::BalanceSet;
     use compressed_string::FieldCompressedString;
     // Gas-optimized max notes for initial transfer call
@@ -227,7 +227,9 @@ pub contract TokenMigrationAppV1 {
         self.storage.private_balances.at(note_owner).sub(amount).deliver(
             MessageDelivery.ONCHAIN_CONSTRAINED,
         );
-        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
+        MigrationLock::new(self.context, mpk, note_owner, destination_rollup)
+            .lock_state(amount)
+            .finish();
     }
 
     /// Lock public tokens for migration to a new rollup.
@@ -243,7 +245,9 @@ pub contract TokenMigrationAppV1 {
     #[external("private")]
     fn lock_public_for_migration(amount: u128, destination_rollup: Field, mpk: Point) {
         let note_owner = self.msg_sender();
-        lock_migration_notes(self.context, note_owner, destination_rollup, mpk, [amount]);
+        MigrationLock::new(self.context, mpk, note_owner, destination_rollup)
+            .lock_state(amount)
+            .finish();
         TokenMigrationAppV1::at(self.context.this_address())
             .decrease_public_balance_internal(note_owner, amount)
             .enqueue(self.context);

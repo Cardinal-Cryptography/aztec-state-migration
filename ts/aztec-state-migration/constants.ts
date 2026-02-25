@@ -25,14 +25,6 @@ export const DOM_SEP__CLAIM_B = Fr.fromHexString(
 );
 
 /**
- * Domain separator for the public state migration claim.
- * poseidon2_hash of "claim-b-public" as ASCII
- */
-export const DOM_SEP__CLAIM_B_PUBLIC = Fr.fromHexString(
-  "0x0ebf03b524ab55cfc8880ef828a1c08a5b1d2ab56b6d55c9dd5311499b673e8f",
-);
-
-/**
  * Domain separator for the public state migration nullifier.
  * poseidon2_hash of "public-migration-nullifier" as ASCII
  */

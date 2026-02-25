@@ -19,12 +19,8 @@ pub contract ExampleMigrationAppV2 {
     use aztec::protocol::abis::block_header::BlockHeader;
     use aztec_state_migration::{
         MigrationSignature,
-        mode_a::{migrate_notes_mode_a, MigrationNoteProofData},
-        mode_b::{
-            FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
-            migrate_public_map_owned_state_mode_b, migrate_public_map_state_mode_b,
-            migrate_public_state_mode_b, PublicStateProofData,
-        },
+        mode_a::{MigrationModeA, MigrationNoteProofData},
+        mode_b::{FullNoteProofData, KeyNoteProofData, MigrationModeB, PublicStateProofData},
         Point,
         Scalar,
     };
@@ -134,15 +130,14 @@ pub contract ExampleMigrationAppV2 {
         // 2. Verify the proof and mark the MigrationNote as migrated
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        migrate_notes_mode_a(
+
+        MigrationModeA::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            mpk,
-            signature,
-            recipient,
             old_app,
-            [note_proof_data],
+            self.storage.archive_root_address.read(),
             block_header,
+            mpk,
+            |b| b.with_note(note_proof_data).finish(recipient, signature),
         );
 
         // 3. If successful, mint the migrated tokens to the user on the new rollup
@@ -167,15 +162,13 @@ pub contract ExampleMigrationAppV2 {
         // 2. Verify the proof and mark the MigrationNote as migrated
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        migrate_notes_mode_a(
+        MigrationModeA::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            mpk,
-            signature,
-            recipient,
             old_app,
-            [note_proof_data],
+            self.storage.archive_root_address.read(),
             block_header,
+            mpk,
+            |b| b.with_note(note_proof_data).finish(recipient, signature),
         );
 
         // 3. Mint to PUBLIC balance (instead of private)
@@ -212,21 +205,18 @@ pub contract ExampleMigrationAppV2 {
             STORAGE_LAYOUT_ExampleMigrationAppV1.fields.balances.slot;
         // 1. Extract the amount from the proof data
         let amount = full_proof_data.note_proof_data.data.value;
-        // 2. Call MigratorModeB to verify all proofs
-        migrate_notes_mode_b(
+        // 2. Call MigrationModeB to verify all proofs
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            signature,
-            recipient,
             old_app,
-            [full_proof_data],
-            balances_expected_storage_slot,
+            self.storage.archive_root_address.read(),
             block_header,
-            notes_owner,
-            public_keys,
-            partial_address,
-            key_note,
-            nhk,
+            |b| {
+                b
+                    .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+                    .with_note(full_proof_data, balances_expected_storage_slot)
+                    .finish(recipient, signature)
+            },
         );
 
         // 3. Mint the migrated tokens to the user on the new rollup
@@ -245,16 +235,21 @@ pub contract ExampleMigrationAppV2 {
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
         let struct_single = struct_single_proof_data.data;
-        migrate_public_state_mode_b(
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
             self.storage.old_rollup_app_address.read(),
-            struct_single_proof_data,
-            // The `base_storage_slot` should reflect the `struct_single` field in the storage layout
-            // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_single.slot,
+            self.storage.archive_root_address.read(),
             block_header,
+            |b| {
+                b
+                    .with_public_state(
+                        struct_single_proof_data,
+                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_single.slot,
+                    )
+                    .finish()
+            },
         );
+
         ExampleMigrationAppV2::at(self.context.this_address())
             .init_struct_single(struct_single)
             .enqueue(self.context);
@@ -270,19 +265,21 @@ pub contract ExampleMigrationAppV2 {
         block_header: BlockHeader,
         map_key: Field,
     ) {
-        // in this example we use struct to show that we can migrate any public state, not just balances.
-        // In a real token contract, this would likely still be `amount: u128`.
         let struct_in_map = struct_in_map_proof_data.data;
-        migrate_public_map_state_mode_b(
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
             self.storage.old_rollup_app_address.read(),
-            struct_in_map_proof_data,
-            // The `expected_storage_slot` should reflect the `struct_map` field in the storage layout
-            // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_map.slot,
+            self.storage.archive_root_address.read(),
             block_header,
-            [map_key],
+            |b| {
+                b
+                    .with_public_map_state(
+                        struct_in_map_proof_data,
+                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.struct_map.slot,
+                        [map_key],
+                    )
+                    .finish()
+            },
         );
         ExampleMigrationAppV2::at(self.context.this_address())
             .init_struct_map(map_key, struct_in_map)
@@ -302,23 +299,22 @@ pub contract ExampleMigrationAppV2 {
         key_note: KeyNoteProofData,
     ) {
         let recipient = self.msg_sender();
-        // in this example we use struct to show that we can migrate any public state, not just balances.
-        // In a real token contract, this would likely still be `amount: u128`.
         let owned_struct = owned_struct_map_proof_data.data;
-        migrate_public_map_owned_state_mode_b(
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
             self.storage.old_rollup_app_address.read(),
-            owned_struct_map_proof_data,
-            // The `expected_storage_slot` should reflect the `owned_struct_map` field in the storage layout
-            // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_map.slot,
+            self.storage.archive_root_address.read(),
             block_header,
-            [old_owner],
-            old_owner,
-            signature,
-            recipient,
-            key_note,
+            |b| {
+                b
+                    .with_owner(old_owner, key_note)
+                    .with_public_map_state(
+                        owned_struct_map_proof_data,
+                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_map.slot,
+                        [old_owner],
+                    )
+                    .finish(recipient, signature)
+            },
         );
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_map(recipient, owned_struct)
@@ -342,20 +338,21 @@ pub contract ExampleMigrationAppV2 {
         // in this example we use struct to show that we can migrate any public state, not just balances.
         // In a real token contract, this would likely still be `amount: u128`.
         let owned_struct = owned_struct_nested_map_proof_data.data;
-        migrate_public_map_owned_state_mode_b(
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
             self.storage.old_rollup_app_address.read(),
-            owned_struct_nested_map_proof_data,
-            // The `expected_storage_slot` should reflect the `owned_struct_nested_map` field in the storage layout
-            // of the contract on the old rollup.
-            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_nested_map.slot,
+            self.storage.archive_root_address.read(),
             block_header,
-            [map_key, old_owner.to_field()],
-            old_owner,
-            signature,
-            recipient,
-            key_note,
+            |b| {
+                b
+                    .with_owner(old_owner, key_note)
+                    .with_public_map_state(
+                        owned_struct_nested_map_proof_data,
+                        STORAGE_LAYOUT_ExampleMigrationAppV1.fields.owned_struct_nested_map.slot,
+                        [map_key, old_owner.to_field()],
+                    )
+                    .finish(recipient, signature)
+            },
         );
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_nested_map(recipient, map_key, owned_struct)

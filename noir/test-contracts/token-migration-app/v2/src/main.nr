@@ -16,19 +16,13 @@ pub contract TokenMigrationAppV2 {
         context::PrivateContext,
         macros::{functions::{external, initializer, internal, only_self, view}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol::{
-            abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys,
-            traits::ToField,
-        },
+        protocol::{abis::block_header::BlockHeader, address::AztecAddress, public_keys::PublicKeys},
         state_vars::{Map, Owned, PublicImmutable, PublicMutable},
     };
     use aztec_state_migration::{
         MigrationSignature,
-        mode_a::{migrate_notes_mode_a, MigrationNoteProofData},
-        mode_b::{
-            FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
-            migrate_public_map_owned_state_mode_b, PublicStateProofData,
-        },
+        mode_a::{MigrationModeA, MigrationNoteProofData},
+        mode_b::{FullNoteProofData, KeyNoteProofData, MigrationModeB, PublicStateProofData},
         Point,
         Scalar,
     };
@@ -264,15 +258,13 @@ pub contract TokenMigrationAppV2 {
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
 
-        migrate_notes_mode_a(
+        MigrationModeA::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            mpk,
-            signature,
-            recipient,
             old_app,
-            [note_proof_data],
+            self.storage.archive_root_address.read(),
             block_header,
+            mpk,
+            |b| b.with_note(note_proof_data).finish(recipient, signature),
         );
 
         // Mint the migrated tokens to the user's private balance
@@ -304,15 +296,14 @@ pub contract TokenMigrationAppV2 {
 
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        migrate_notes_mode_a(
+
+        MigrationModeA::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            mpk,
-            signature,
-            recipient,
             old_app,
-            [note_proof_data],
+            self.storage.archive_root_address.read(),
             block_header,
+            mpk,
+            |b| b.with_note(note_proof_data).finish(recipient, signature),
         );
 
         // Mint to PUBLIC balance via enqueued call
@@ -352,20 +343,17 @@ pub contract TokenMigrationAppV2 {
         let sum = full_proof_data.note_proof_data.data.value;
         assert(sum == amount, "Sum of migrated notes does not match the specified amount");
 
-        migrate_notes_mode_b(
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            signature,
-            recipient,
             old_app,
-            [full_proof_data],
-            balances_expected_storage_slot,
+            self.storage.archive_root_address.read(),
             block_header,
-            notes_owner,
-            public_keys,
-            partial_address,
-            key_note,
-            nhk,
+            |b| {
+                b
+                    .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+                    .with_note(full_proof_data, balances_expected_storage_slot)
+                    .finish(recipient, signature)
+            },
         );
 
         // Mint the migrated tokens to the user's private balance
@@ -399,18 +387,20 @@ pub contract TokenMigrationAppV2 {
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
 
-        migrate_public_map_owned_state_mode_b(
+        // Use V1's storage layout to get the correct slot on the old rollup
+        let base_storage_slot = STORAGE_LAYOUT_TokenMigrationAppV1.fields.public_balances.slot;
+
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
             old_app,
-            proof_data,
-            STORAGE_LAYOUT_TokenMigrationAppV1.fields.public_balances.slot,
+            self.storage.archive_root_address.read(),
             block_header,
-            [old_owner.to_field()],
-            old_owner,
-            signature,
-            recipient,
-            key_note,
+            |b| {
+                b
+                    .with_owner(old_owner, key_note)
+                    .with_public_map_state(proof_data, base_storage_slot, [old_owner])
+                    .finish(recipient, signature)
+            },
         );
 
         // Mint to PUBLIC balance via enqueued call
