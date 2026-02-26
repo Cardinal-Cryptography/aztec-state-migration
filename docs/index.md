@@ -27,10 +27,10 @@ This migration covers **native application state only** -- token balances and co
 
 | Document | Description |
 |----------|-------------|
-| [Migration Specification](spec/migration-spec.md) | Formal protocol design covering Mode A, Mode B, proof requirements, and API definitions |
-| [Architecture](architecture.md) | System overview, deployment topology, component catalog, and three-tier composition |
+| [General Specification](spec/migration-spec.md) | Formal protocol design covering shared concepts, Mode A, Mode B, proof requirements, and API definitions |
 | [Mode A Specification](spec/mode-a-spec.md) | Cooperative lock-and-claim flow, authentication, nullifier derivation, and limitations |
 | [Mode B Specification](spec/mode-b-spec.md) | Emergency snapshot migration, proof chains, public state migration, and key registry |
+| [Architecture](architecture.md) | System overview, deployment topology, component catalog, and three-tier composition |
 | [Integration Guide](integration-guide.md) | TypeScript SDK, wallet classes, proof data types, and developer workflows |
 | [Non-Native Assets](non-native-assets.md) | Constraints and approaches for migrating L1-bridged tokens (not implemented) |
 | [Security](security.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
@@ -39,5 +39,5 @@ This migration covers **native application state only** -- token balances and co
 ## Where to Start
 
 - **App developer integrating the TS library?** Start with the [Integration Guide](integration-guide.md), then [Operations](operations.md) for local setup.
-- **Protocol reviewer or auditor?** Start with the [Migration Specification](spec/migration-spec.md) and the [Security](security.md).
+- **Protocol reviewer or auditor?** Start with the [General Specification](spec/migration-spec.md) and the [Security](security.md).
 - **Understanding the system?** See the [Architecture](architecture.md) for the deployment topology and component catalog.

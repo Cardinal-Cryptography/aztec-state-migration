@@ -136,7 +136,7 @@ Private migration functions can then access deployment configuration directly, w
 
 ## See Also
 
-- [Migration Specification](spec/migration-spec.md) -- Protocol specification including nullifier formulas and API tables
+- [General Specification](spec/migration-spec.md) -- Protocol specification including nullifier formulas and API tables
 - [Mode A Specification](spec/mode-a-spec.md) -- Cooperative lock-and-claim migration flow
 - [Mode B Specification](spec/mode-b-spec.md) -- Emergency snapshot migration flow
 - [Integration Guide](integration-guide.md) -- TS SDK, wallet classes, proof data types

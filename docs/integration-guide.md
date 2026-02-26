@@ -281,7 +281,7 @@ Before running a migration, the following deployment steps are required:
 
 ## See Also
 
-- [Migration Specification](spec/migration-spec.md) -- Proof data type field details, API tables
+- [General Specification](spec/migration-spec.md) -- Proof data type field details, API tables
 - [Mode A Specification](spec/mode-a-spec.md) -- Cooperative lock-and-claim migration flow
 - [Mode B Specification](spec/mode-b-spec.md) -- Emergency snapshot migration flow (private and public)
 - [Operations](operations.md) -- Testing, setup, troubleshooting

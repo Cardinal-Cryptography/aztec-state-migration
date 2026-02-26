@@ -202,5 +202,5 @@ Note: The TS library (`bridge.ts`) only wraps `migrateArchiveRoot`. Integrators 
 ## See Also
 
 - [Architecture](architecture.md) -- System overview and component relationships
-- [Migration Specification](spec/migration-spec.md) -- Protocol specification
+- [General Specification](spec/migration-spec.md) -- Protocol specification
 - [Integration Guide](integration-guide.md) -- TS SDK, proof types, developer workflow
