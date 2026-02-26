@@ -9,6 +9,18 @@ use aztec::{
 };
 use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 
+/// Migration lock for Mode A (cooperative) migration.
+///
+/// ## Usage:
+/// ```
+///   MigrationLock::new(context, mpk, owner, destination_rollup)
+///       .lock_state(migration_data)   // repeat for each piece of migration data
+///       .finish();                    // finalize migration (no-op)
+///```
+///
+/// The `.finish()` method is a no-op.
+/// It's included to surpress warnings about unused variables and
+/// to maintain a consistent builder pattern with `MigrationModeA`.
 pub struct MigrationLock {
     context: &mut PrivateContext,
     mpk: Point,

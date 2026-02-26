@@ -24,6 +24,49 @@ use std::{
     hash::Hasher,
 };
 
+/// Mode B (emergency snapshot) migration builder.
+///
+/// ## Usage:
+///
+/// ### Unowned public state:
+///```
+///   MigrationModeB::new(context, old_app, archive_registry, block_header)
+///       .without_owner()
+///       .with_public_state(proof, slot)               // repeat for each unowned public state
+///       .with_public_map_state(mpa_proof, map_slot, keys)     // repeat for each unowned public map state
+///       .finish();
+///```
+///
+/// ### Owned public state:
+///```
+///   MigrationModeB::new(...)
+///       .with_owner(owner, key_note)
+///       .with_public_state(proof, slot)                   // repeat for each owned public state
+///       .with_public_map_state(map_proof, map_slot, keys) // repeat for each owned public map state
+///       .finish(recipient, signature);
+///```
+///
+/// ### Private notes:
+///```
+///   MigrationModeB::new(...)
+///       .with_notes_owner(owner, key_note, public_keys, partial_address, nhk)
+///       .with_note(proof, slot)           // repeat for each note
+///       .finish(recipient, signature);
+///```
+///
+/// ### Or mix and match as needed (e.g. owned public state and private notes).
+///```
+///   MigrationModeB::new(...)
+///       .with_owner(owner, key_note)
+///       .with_public_state(public_state_proof, public_state_slot)
+///       .with_notes_owner(public_keys, partial_address, nhk)
+///       .with_note(note_proof, note_slot)
+///       .finish(recipient, signature);
+///```
+///
+/// ## Important:
+/// Ensure that at the end of the builder chain, you call `finish(...)`
+/// to trigger block hash verification and signature verification (if applicable).
 pub struct MigrationModeB {
     context: &mut PrivateContext,
     old_app: AztecAddress,
