@@ -32,8 +32,8 @@ use std::{
 ///```
 ///   MigrationModeB::new(context, old_app, archive_registry, block_header)
 ///       .without_owner()
-///       .with_public_state(proof, slot)               // repeat for each unowned public state
-///       .with_public_map_state(mpa_proof, map_slot, keys)     // repeat for each unowned public map state
+///       .with_public_state(proof, slot)                       // repeat for each unowned public state
+///       .with_public_map_state(map_proof, map_slot, [key])    // keys for a single entry; use [k1, k2] for nested maps
 ///       .finish();
 ///```
 ///
@@ -41,8 +41,8 @@ use std::{
 ///```
 ///   MigrationModeB::new(...)
 ///       .with_owner(owner, key_note)
-///       .with_public_state(proof, slot)                   // repeat for each owned public state
-///       .with_public_map_state(map_proof, map_slot, keys) // repeat for each owned public map state
+///       .with_public_state(proof, slot)                       // repeat for each owned public state
+///       .with_public_map_state(map_proof, map_slot, [key])    // keys for a single entry; use [k1, k2] for nested maps
 ///       .finish(recipient, signature);
 ///```
 ///
