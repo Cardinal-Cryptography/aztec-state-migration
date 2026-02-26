@@ -110,9 +110,9 @@ Migration claims must be authorized in a way that does **not** depend on success
 The migration keypair is used **only** to authorize migration claims. It is not used as an Aztec account transaction signing key.
 
 **Security comparison with other Aztec keys:**
-- **Signing key leak:** attacker can spend your funds on the current rollup
-- **Nullifier key leak:** attacker can link your transactions (privacy loss), but cannot spend
-- **Viewing key leak:** attacker can see your balances (privacy loss), but cannot spend
+- **Signing key leak:** attacker can spend your funds on the current rollup (assuming they also have the nullifier key),
+- **Nullifier key leak:** attacker can link your transactions (privacy loss), but cannot spend (unless they also have the signing key),
+- **Viewing key leak:** attacker can see your balances (privacy loss), but cannot spend (unless they also have the signing key)
 - **Migration key leak:** attacker can claim your tokens on the new rollup during migration (fund loss, scoped to migration)
 
 ### Where `mpk` comes from
@@ -121,7 +121,7 @@ Mode A and Mode B use different sources for the migration public key.
 
 #### Mode A: `mpk` is carried in the lock note
 
-In Mode A the user creates a MigrationNote on the old rollup. The note preimage includes the full `mpk` (Grumpkin point), so the migration circuit can verify the signature directly against the `mpk` embedded in the proven note.
+In Mode A the user creates a `MigrationNote` on the old rollup. The note preimage includes the full `mpk` (Grumpkin point), so the migration circuit can verify the signature directly against the `mpk` embedded in the proven note.
 
 Mode A does not require a separate identity registry. See [Mode A Specification](mode-a-spec.md) for the full lock-and-claim flow.
 
@@ -134,6 +134,7 @@ Mode B uses a shared **MigrationKeyRegistry** contract on the old rollup:
 - Users call `register(mpk)` which creates a `MigrationKeyNote` containing the full `mpk` point, bound to the caller's address.
 - The note is stored in the old rollup's **note hash tree**, provable via Merkle inclusion proof at any block height.
 
+
 **Key note verification (new rollup claim):**
 
 - The claimant provides a `KeyNoteProofData` containing the `MigrationKeyNote` preimage, nonce, and sibling path.
@@ -143,6 +144,8 @@ Mode B uses a shared **MigrationKeyRegistry** contract on the old rollup:
 
 **Important constraint:** if a user did not register their `mpk` before snapshot height H, they cannot claim in Mode B. See [Mode B Specification](mode-b-spec.md) for key registry details and snapshot timing.
 
+Luckily registration is required to be done just once per user, not once per every app.
+
 ### Mode B ownership binding for private notes
 
 Even for private notes, Mode B must bind a claim to the rightful owner. Otherwise, anyone who learns a note's preimage (for example a sender, a compromised device, or any system that had access to the plaintext note) could claim it on the new rollup.
@@ -151,7 +154,7 @@ Mode B therefore requires:
 
 - The user's nullifier hiding key `nhk` as a witness -- from which `npk_m` is derived via EC scalar multiplication and the owner address is recomputed from the full public key set and partial address.
 - A proof that the owner's `MigrationKeyNote` (containing `mpk`) exists in the note hash tree at height H.
-- A valid Schnorr signature under the corresponding `mpk`.
+- A valid Schnorr signature generated using the `msk` key.
 
 This makes "knowledge of the migration secret key + nullifier hiding key" the authorization condition for claiming private notes.
 
@@ -161,18 +164,12 @@ For public state (non-owned), no signature or key note proof is needed -- the da
 
 For **owned** public state, the same Schnorr signature and key note proof are required, using a separate domain tag (`DOM_SEP__CLAIM_B_PUBLIC`). The signature binds the data hash (instead of note hashes) to the migration context.
 
-### Wallet guidance
-
-Wallets should:
-
-- derive `msk` deterministically from the account secret key
-- encourage or automate registry registration well before any planned snapshot migration.
 
 ### Future work: protocol-level identity commitments
 
 The [forum post](https://forum.aztec.network/t/request-for-grant-proposals-application-state-migration/8298/2?u=adamgagol) discusses several approaches to embed migration keys at the protocol level:
 
-- Salt-based commitment: New accounts deploy with salt = h(actual_salt, h(`mpk`, root)), embedding the
+- Salt-based commitment: New accounts deploy with salt = `h(actual_salt, h(mpk, root))`, embedding the
   migration key in address derivation. No registry transaction needed.
 - Protocol-level field: A dedicated `mpk` field in account data or address preimage.
 
