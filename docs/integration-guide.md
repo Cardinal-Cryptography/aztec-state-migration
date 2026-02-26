@@ -175,7 +175,7 @@ The wallet classes handle proof construction and note management:
 
 These methods combine multiple lower-level proof-building functions into higher-level wrapper methods. Integrators should prefer these over calling `buildNoteProof`, `buildNullifierProof`, etc. directly.
 
-For the end-to-end wallet flow in each migration mode, see the Wallet Integration sections in [Mode A](mode-a.md#wallet-integration) and [Mode B](mode-b.md#wallet-integration).
+For the end-to-end wallet flow in each migration mode, see the Wallet Integration sections in [Mode A Specification](spec/mode-a-spec.md#wallet-integration) and [Mode B Specification](spec/mode-b-spec.md#wallet-integration).
 
 ## Key Derivation
 
@@ -282,6 +282,6 @@ Before running a migration, the following deployment steps are required:
 ## See Also
 
 - [Migration Specification](spec/migration-spec.md) -- Proof data type field details, API tables
-- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
-- [Mode B](mode-b.md) -- Emergency snapshot migration flow (private and public)
+- [Mode A Specification](spec/mode-a-spec.md) -- Cooperative lock-and-claim migration flow
+- [Mode B Specification](spec/mode-b-spec.md) -- Emergency snapshot migration flow (private and public)
 - [Operations](operations.md) -- Testing, setup, troubleshooting

@@ -11,7 +11,13 @@ The core migration [specification](spec/migration-spec.md) and reference impleme
 
 For non-native assets, L2 balances are accounting entries representing claims on actual collateral locked in an L1 portal contract. Migrating the L2 state alone is insufficient -- the L1 collateral must also be securely reassigned to prevent undercollateralization and double-spending. This coupling between L1 custody and L2 accounting is the fundamental reason non-native assets are harder to migrate.
 
-**Portal prerequisite.** All approaches below require the L1 portal contract to be designed with migration in mind (e.g., through upgradeability, pause mechanisms, or pre-programmed migration hooks). If a portal is entirely immutable and unaware of version upgrades, automated L2 migration is impossible -- users must manually withdraw to L1 and re-deposit to the new rollup.
+**Portal prerequisite.** All approaches below require the L1 portal contract (the contract that locks tokens on L1, for them to be minted on the L2) to be designed with migration in mind (e.g., through upgradeability, pause mechanisms, or pre-programmed migration hooks). If a portal is entirely immutable and unaware of version upgrades, automated L2 migration is impossible -- users must manually withdraw to L1 and re-deposit to the new rollup. 
+
+**Security Tradeoff.** We would like to emphasize the above tradeoff very explicitly: migrating Non-native (bridged) assets is only possible in the presence of an Owner/Admin role of the token Portal on the L1. This uncovers a security tradeoff:
+- If the Portal contract is immutable, and has no role with admin rights, then rescuing funds on L2 in case of vulnerabilities or liveness issues might become unsafe or even impossible. The only option is to let the user bridge back to L1.
+- If the Portal contract has a role with admin rights, then rescuing funds is possible, but at the same time users must trust the entity behind the admin role.
+
+**Recommendation.** Given the above tradeoff, and the technical high complexity of safely moving Non-native assets via a dedicated migration, we recommend handling Non-native asset migration by letting the users bridge the funds back to L1. Even in the presence of a Portal Ownership role, we believe this is still the best default migration mode that avoids several different possible pitfalls. Other migration modes should be best left for extreme emergencies.
 
 ## The Core Challenges
 
@@ -111,6 +117,6 @@ The portal freeze and liquidity reassignment are high-stakes governance actions 
 ## See Also
 
 - [Migration Specification](spec/migration-spec.md) -- Core protocol design (native assets)
-- [Mode A](mode-a.md) -- Cooperative lock-and-claim flow
-- [Mode B](mode-b.md) -- Emergency snapshot migration flow
+- [Mode A Specification](spec/mode-a-spec.md) -- Cooperative lock-and-claim flow
+- [Mode B Specification](spec/mode-b-spec.md) -- Emergency snapshot migration flow
 - [Security](security.md) -- Trust assumptions and PoC limitations
