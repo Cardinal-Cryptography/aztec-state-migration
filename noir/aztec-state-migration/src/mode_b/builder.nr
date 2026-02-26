@@ -64,9 +64,44 @@ use std::{
 ///       .finish(recipient, signature);
 ///```
 ///
-/// ## Important:
-/// Ensure that at the end of the builder chain, you call `finish(...)`
+/// # Important:
+///
+/// Ensure that at the end of the builder chain, you call **`finish(...)`**
 /// to trigger block hash verification and signature verification (if applicable).
+///
+/// ## Custom Notes:
+/// For custom notes, the **`compute_nullifier`** method **must** follow the canonical formula:
+/// ```
+/// fn compute_nullifier(
+///     self,
+///     context: &mut PrivateContext,
+///     owner: AztecAddress,
+///     note_hash_for_nullification: Field,
+/// ) -> Field {
+///     let owner_npk_m = get_public_keys(owner).npk_m;
+///     let owner_npk_m_hash = owner_npk_m.hash();
+///     let secret = context.request_nhk_app(owner_npk_m_hash);
+///     poseidon2_hash_with_separator(
+///         [note_hash_for_nullification, secret],
+///         DOM_SEP__NOTE_NULLIFIER,
+///     )
+/// }
+/// ```
+///
+/// If the nullifier does not match this formula, there is a risk of
+/// malicious actors migrating already nullified notes.
+///
+/// For certainty, you can use the provided helper function `assert_note_has_canonical_nullifier`
+/// in your tests to verify that your custom note's nullifier is correctly computed.
+/// ```
+/// use aztec_state_migration::mode_b::assert_note_has_canonical_nullifier;
+///
+/// #[test]
+/// unconstrained fn assert_canonical_nullifier() {
+///     let note = NFTNote { token_id: 0x12345 };
+///     assert_note_has_canonical_nullifier(note);
+/// }
+/// ```
 pub struct MigrationModeB {
     context: &mut PrivateContext,
     old_app: AztecAddress,

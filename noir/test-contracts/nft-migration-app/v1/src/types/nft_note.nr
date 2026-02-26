@@ -10,6 +10,7 @@ use aztec::{
         traits::{Hash, Packable, Serialize, ToField},
     },
 };
+use aztec_state_migration::mode_b::assert_note_has_canonical_nullifier;
 
 /// A private note representing a token id associated to an account.
 /// Copied from defi-wonderland/aztec-standards to ensure identical note hash computation.
@@ -64,4 +65,10 @@ impl NoteHash for NFTNote {
             DOM_SEP__NOTE_NULLIFIER,
         ))
     }
+}
+
+#[test]
+unconstrained fn assert_canonical_nullifier() {
+    let note = NFTNote { token_id: 0x12345 };
+    assert_note_has_canonical_nullifier(note);
 }

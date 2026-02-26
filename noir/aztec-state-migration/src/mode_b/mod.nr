@@ -6,6 +6,8 @@ pub(crate) mod non_nullification_proof_data;
 pub use non_nullification_proof_data::NonNullificationProofData;
 pub(crate) mod public_state_proof_data;
 pub use public_state_proof_data::PublicStateProofData;
+mod custom_note_test;
+pub use custom_note_test::assert_note_has_canonical_nullifier;
 
 use crate::note_proof_data::NoteProofData;
 use aztec::protocol::traits::Serialize;
