@@ -1,3 +1,5 @@
+mod non_canonical_note;
+pub use non_canonical_note::NonCanonicalNote;
 use aztec::macros::aztec;
 
 /// V1 of the example migration-aware token contract.
@@ -6,11 +8,12 @@ use aztec::macros::aztec;
 /// and Mode A lock functions for migration.
 #[aztec]
 pub contract ExampleMigrationAppV1 {
+    use crate::non_canonical_note::NonCanonicalNote;
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
         protocol::{address::AztecAddress, traits::{Deserialize, Packable, Serialize}},
-        state_vars::{Map, Owned, PublicMutable},
+        state_vars::{Map, Owned, PrivateMutable, PublicMutable},
     };
     use aztec_state_migration::{mode_a::MigrationLock, Point};
     use balance_set::BalanceSet;
@@ -36,6 +39,8 @@ pub contract ExampleMigrationAppV1 {
         owned_struct_map: Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>,
         //
         owned_struct_nested_map: Map<Field, Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>, Context>,
+        //
+        non_canonical_note: Owned<PrivateMutable<NonCanonicalNote, Context>, Context>,
     }
 
     #[external("public")]
@@ -164,6 +169,14 @@ pub contract ExampleMigrationAppV1 {
         self.storage.owned_struct_nested_map.at(map_key).at(self.msg_sender()).write(some_struct);
     }
 
+    #[external("private")]
+    fn init_non_canonical_note(foo: Field) {
+        let note = NonCanonicalNote::new(foo);
+        self.storage.non_canonical_note.at(self.msg_sender()).initialize(note).deliver(
+            MessageDelivery.ONCHAIN_CONSTRAINED,
+        );
+    }
+
     #[external("utility")]
     unconstrained fn get_struct_single() -> SomeStruct {
         self.storage.struct_single.read()
@@ -185,5 +198,10 @@ pub contract ExampleMigrationAppV1 {
         owner: AztecAddress,
     ) -> SomeStruct {
         self.storage.owned_struct_nested_map.at(map_key).at(owner).read()
+    }
+
+    #[external("utility")]
+    unconstrained fn get_non_canonical_note(owner: AztecAddress) -> NonCanonicalNote {
+        self.storage.non_canonical_note.at(owner).view_note()
     }
 }

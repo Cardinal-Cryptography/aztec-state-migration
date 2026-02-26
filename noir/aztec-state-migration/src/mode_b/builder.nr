@@ -5,6 +5,7 @@ use super::{
 };
 use aztec::{
     context::PrivateContext,
+    keys::getters::get_public_keys,
     note::note_interface::NoteHash,
     protocol::{
         abis::block_header::BlockHeader,
@@ -40,28 +41,28 @@ use std::{
 /// ### Owned public state:
 ///```
 ///   MigrationModeB::new(...)
-///       .with_owner(owner, key_note)
+///       .with_owner(owner, key_note, recipient)
 ///       .with_public_state(proof, slot)                       // repeat for each owned public state
 ///       .with_public_map_state(map_proof, map_slot, [key])    // keys for a single entry; use [k1, k2] for nested maps
-///       .finish(recipient, signature);
+///       .finish(signature);
 ///```
 ///
 /// ### Private notes:
 ///```
 ///   MigrationModeB::new(...)
-///       .with_notes_owner(owner, key_note, public_keys, partial_address, nhk)
+///       .with_notes_owner(owner, key_note, recipient, public_keys, partial_address, nhk)
 ///       .with_note(proof, slot)           // repeat for each note
-///       .finish(recipient, signature);
+///       .finish(signature);
 ///```
 ///
 /// ### Or mix and match as needed (e.g. owned public state and private notes).
 ///```
 ///   MigrationModeB::new(...)
-///       .with_owner(owner, key_note)
+///       .with_owner(owner, key_note, recipient)
 ///       .with_public_state(public_state_proof, public_state_slot)
 ///       .with_notes_owner(public_keys, partial_address, nhk)
 ///       .with_note(note_proof, note_slot)
-///       .finish(recipient, signature);
+///       .finish(signature);
 ///```
 ///
 /// ## Important:
@@ -84,6 +85,7 @@ pub struct MigrationWithOwnedStateModeB {
     hasher: Poseidon2Hasher,
     owner: AztecAddress,
     mpk: Point,
+    recipient: AztecAddress,
 }
 
 pub struct MigrationWithOwnedNotesModeB {
@@ -152,6 +154,7 @@ impl MigrationModeB {
         self,
         owner: AztecAddress,
         key_note: KeyNoteProofData,
+        recipient: AztecAddress,
     ) -> MigrationWithOwnedStateModeB {
         let _ = key_note.verify_key_note_inclusion(
             self.context,
@@ -161,9 +164,10 @@ impl MigrationModeB {
         );
         MigrationWithOwnedStateModeB {
             inner: self,
+            hasher: Poseidon2Hasher::default(),
             owner,
             mpk: key_note.data.mpk,
-            hasher: Poseidon2Hasher::default(),
+            recipient,
         }
     }
 
@@ -171,11 +175,16 @@ impl MigrationModeB {
         self,
         owner: AztecAddress,
         key_note: KeyNoteProofData,
+        recipient: AztecAddress,
         public_keys: PublicKeys,
         partial_address: Field,
         nhk: Scalar,
     ) -> MigrationWithOwnedNotesModeB {
-        self.with_owner(owner, key_note).with_notes_owner(public_keys, partial_address, nhk)
+        self.with_owner(owner, key_note, recipient).with_notes_owner(
+            public_keys,
+            partial_address,
+            nhk,
+        )
     }
 }
 
@@ -207,19 +216,25 @@ impl MigrationWithoutOwnerModeB {
         self,
         owner: AztecAddress,
         key_note: KeyNoteProofData,
+        recipient: AztecAddress,
     ) -> MigrationWithOwnedStateModeB {
-        self.inner.with_owner(owner, key_note)
+        self.inner.with_owner(owner, key_note, recipient)
     }
 
     pub fn with_notes_owner(
         self,
         owner: AztecAddress,
         key_note: KeyNoteProofData,
+        recipient: AztecAddress,
         public_keys: PublicKeys,
         partial_address: Field,
         nhk: Scalar,
     ) -> MigrationWithOwnedNotesModeB {
-        self.inner.with_owner(owner, key_note).with_notes_owner(public_keys, partial_address, nhk)
+        self.inner.with_owner(owner, key_note, recipient).with_notes_owner(
+            public_keys,
+            partial_address,
+            nhk,
+        )
     }
 }
 
@@ -249,7 +264,7 @@ impl MigrationWithOwnedStateModeB {
         self
     }
 
-    pub fn finish(self, recipient: AztecAddress, signature: MigrationSignature) {
+    pub fn finish(self, signature: MigrationSignature) {
         let old_rollup = self.inner.block_header.global_variables.version;
         let new_app = self.inner.context.this_address();
 
@@ -259,7 +274,7 @@ impl MigrationWithOwnedStateModeB {
             old_rollup,
             self.inner.current_rollup,
             final_hash,
-            recipient,
+            self.recipient,
             new_app,
             self.mpk,
         );
@@ -311,8 +326,8 @@ impl MigrationWithOwnedNotesModeB {
         self
     }
 
-    pub fn finish(self, recipient: AztecAddress, signature: MigrationSignature) {
-        self.inner.finish(recipient, signature)
+    pub fn finish(self, signature: MigrationSignature) {
+        self.inner.finish(signature)
     }
 
     /// Verify a single note's inclusion in the note hash tree and non-nullification
@@ -339,6 +354,13 @@ impl MigrationWithOwnedNotesModeB {
         // ============================================================
         // 2. Compute and verify Note non-nullification
         // ============================================================
+
+        assert_canonical_nullifier(
+            self.inner.inner.context,
+            self.inner.recipient,
+            note_unique,
+            note_proof_data.data,
+        );
 
         let _ = non_nullification_proof_data.verify_nullifier_non_inclusion(
             self.nhk_app,
@@ -370,4 +392,24 @@ fn derive_map_storage_slot<K: ToField, let N: u32>(slot: Field, map_keys: [K; N]
         );
     }
     derived_slot
+}
+
+fn assert_canonical_nullifier<Note: NoteHash>(
+    context: &mut PrivateContext,
+    owner: AztecAddress,
+    note_hash_for_nullification: Field,
+    note: Note,
+) {
+    let owner_npk_m = get_public_keys(owner).npk_m;
+    let owner_npk_m_hash = owner_npk_m.hash();
+    let secret = context.request_nhk_app(owner_npk_m_hash);
+    let canonical_nullifier = poseidon2_hash_with_separator(
+        [note_hash_for_nullification, secret],
+        DOM_SEP__NOTE_NULLIFIER,
+    );
+    let note_nullfier = note.compute_nullifier(context, owner, note_hash_for_nullification);
+    assert(
+        note_nullfier == canonical_nullifier,
+        "Note nullifier does not match canonical nullifier computation",
+    );
 }

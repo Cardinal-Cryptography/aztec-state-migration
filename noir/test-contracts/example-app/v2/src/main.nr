@@ -14,7 +14,7 @@ pub contract ExampleMigrationAppV2 {
             public_keys::PublicKeys,
             traits::{Deserialize, Packable, Serialize, ToField},
         },
-        state_vars::{Map, Owned, PublicImmutable, PublicMutable},
+        state_vars::{Map, Owned, PrivateMutable, PublicImmutable, PublicMutable},
     };
     use aztec::protocol::abis::block_header::BlockHeader;
     use aztec_state_migration::{
@@ -25,7 +25,9 @@ pub contract ExampleMigrationAppV2 {
         Scalar,
     };
     use balance_set::BalanceSet;
-    use example_app_v1::ExampleMigrationAppV1::STORAGE_LAYOUT_ExampleMigrationAppV1;
+    use example_app_v1::{
+        ExampleMigrationAppV1::STORAGE_LAYOUT_ExampleMigrationAppV1, NonCanonicalNote,
+    };
     use uint_note::UintNote;
 
     // Only Packable needed for Migration
@@ -50,6 +52,8 @@ pub contract ExampleMigrationAppV2 {
         owned_struct_map: Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>,
         //
         owned_struct_nested_map: Map<Field, Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>, Context>,
+        //
+        non_canonical_note: Owned<PrivateMutable<NonCanonicalNote, Context>, Context>,
         // --- V2-only fields (not present in V1) ---
         archive_root_address: PublicImmutable<AztecAddress, Context>,
         old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
@@ -214,9 +218,9 @@ pub contract ExampleMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
         )
-            .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+            .with_notes_owner(notes_owner, key_note, recipient, public_keys, partial_address, nhk)
             .with_note(full_proof_data, balances_expected_storage_slot)
-            .finish(recipient, signature);
+            .finish(signature);
 
         // 3. Mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
@@ -284,9 +288,9 @@ pub contract ExampleMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
         )
-            .with_owner(old_owner, key_note)
+            .with_owner(old_owner, key_note, recipient)
             .with_public_map_state(owned_struct_map_proof_data, owner_struct_map_slot, [old_owner])
-            .finish(recipient, signature);
+            .finish(signature);
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_map(recipient, owned_struct)
             .enqueue(self.context);
@@ -311,16 +315,45 @@ pub contract ExampleMigrationAppV2 {
             self.storage.archive_root_address.read(),
             block_header,
         )
-            .with_owner(old_owner, key_note)
+            .with_owner(old_owner, key_note, recipient)
             .with_public_map_state(
                 owned_struct_nested_map_proof_data,
                 owned_struct_nested_map_slot,
                 [map_key, old_owner.to_field()],
             )
-            .finish(recipient, signature);
+            .finish(signature);
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_nested_map(recipient, map_key, owned_struct)
             .enqueue(self.context);
+    }
+
+    #[external("private")]
+    fn migrate_non_canonical_note_mode_b(
+        signature: MigrationSignature,
+        note_proof_data: FullNoteProofData<NonCanonicalNote>,
+        block_header: BlockHeader,
+        notes_owner: AztecAddress,
+        public_keys: PublicKeys,
+        partial_address: Field,
+        key_note: KeyNoteProofData,
+        nhk: Scalar,
+    ) {
+        let recipient = self.msg_sender();
+        let non_canonical_note = note_proof_data.note_proof_data.data;
+        let non_canonical_note_slot =
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.non_canonical_note.slot;
+        MigrationModeB::new(
+            self.context,
+            self.storage.old_rollup_app_address.read(),
+            self.storage.archive_root_address.read(),
+            block_header,
+        )
+            .with_notes_owner(notes_owner, key_note, recipient, public_keys, partial_address, nhk)
+            .with_note(note_proof_data, non_canonical_note_slot)
+            .finish(signature);
+        self.storage.non_canonical_note.at(recipient).initialize(non_canonical_note).deliver(
+            MessageDelivery.ONCHAIN_CONSTRAINED,
+        );
     }
 
     #[external("public")]
