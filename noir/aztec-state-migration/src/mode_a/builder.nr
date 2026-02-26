@@ -12,6 +12,18 @@ use migration_archive_registry::MigrationArchiveRegistry::MigrationArchiveRegist
 use poseidon::poseidon2::Poseidon2Hasher;
 use std::{embedded_curve_ops::EmbeddedCurvePoint as Point, hash::Hasher};
 
+/// Mode A (cooperative) migration builder.
+///
+/// # Usage:
+/// ```
+///   MigrationModeA::new(context, old_app, archive_registry, block_header, mpk)
+///       .with_note(note_proof_data)       // repeat for each note
+///       .finish(recipient, signature);    // finalize migration
+///```
+///
+/// ## Important:
+/// Ensure that at the end of the builder chain, you call `finish(...)`
+/// to trigger block hash verification and signature verification.
 pub struct MigrationModeA {
     context: &mut PrivateContext,
     old_app: AztecAddress,
