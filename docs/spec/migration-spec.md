@@ -5,18 +5,20 @@ title: General Migration Specification
 
 [← Home](../index.md)
 
+
+
+# Problem Statement
+
+The problem we are trying to solve is the one stated in [Request for Grant Proposals: Application State Migration](https://forum.aztec.network/t/request-for-grant-proposals-application-state-migration/8298). Roughly speaking, in the initial phase of Aztec Network, there might be need to upgrade the rollup in a way which does not copy the old state to the upgraded rollup. In other words, the upgraded rollup is essentially a fresh chain with only critical data migrated from the existing one. In particular no app data (contract storage) is moved. The reason for this is explained in the above linked forum, but one of the problems is user addresses. Because of how aztec addresses are technically designed, on a new rollup keeping the same address by the same user might not be possible. For this reasons copying state, like `AztecAddress -> u128` mappings wouldn't make much sense, because on the new rollup the old addresses would not be valid anymore. 
+
+Now the question becomes: if addresses are not preserved, how can users migrate state from the old rollup to new, while preserving safety and privacy. This is what this project is about.
+
 # General Migration Specification
 
-This document covers shared protocol concepts, architecture, and API used by both migration modes. For mode-specific details, see:
+In this project we designed two general ways to solve the above stated problem. We call them `Mode A` and `Mode B`. This document covers shared protocol concepts, architecture, and API used by both migration modes. For mode-specific details, see:
 
 - [Mode A Specification](mode-a-spec.md) -- Cooperative lock-and-claim migration
 - [Mode B Specification](mode-b-spec.md) -- Emergency snapshot migration
-
-## Overview
-
-Migration targets Aztec-native tokens. Throughout the document, **TokenV1** refers to the original token contract on the old rollup, and **TokenV2** refers to its counterpart on the new rollup.
-
-The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users lock or burn balances on the old rollup (Mode A) or prove state at a safe snapshot (Mode B), then claim equivalents on the new rollup using proofs against old rollup block hashes derived from archive roots relayed via L1.
 
 ## Scope
 
@@ -25,17 +27,15 @@ The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users
 
 **Out of Scope:** L1-bridged assets require L1 portal contract modifications and are not covered by this specification. See [Non-Native Assets](../non-native-assets.md) for constraints and approaches.
 
-## Glossary
+<!-- ## Glossary
 
-- **Rollup** -- An L2 chain that settles to L1.
+- **Rollup** -- An L2 chain that settles to L1. We say `old` for the rollup we migrate from and `new` for the updated one that started fresh.
 - **Archive root** -- Merkle root of the rollup's block archive tree; the trust anchor bridged to L1.
 - **Note hash tree** -- Merkle tree storing commitments to private notes.
 - **Nullifier tree** -- Merkle tree tracking spent notes (or claimed migrations); prevents double-claims.
 - **Public data tree** -- Merkle tree storing public contract state.
-- **MigrationNote** -- A note created during Mode A lock to commit migration data.
 - **`mpk` / `msk`** -- Migration public key / migration secret key. A dedicated keypair for authorizing claims.
-- **Snapshot height H** -- The block number at which Mode B proofs are anchored.
-- **Siloing** -- Hashing a note hash with its contract address to prevent cross-contract collisions.
+- **Siloing** -- Hashing a note hash with its contract address to prevent cross-contract collisions. -->
 
 ## Goals & Non-Goals
 
@@ -46,7 +46,7 @@ The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users
 ## Key Design Decisions
 
 1. **Burns/locks are permanent.** No unlock.
-2. **TokenV2 has deployment-time config:** `old_rollup_app_address`, `archive_root_address` (both `PublicImmutable` fields on the app contract). Despite the name, `archive_root_address` stores the address of the `MigrationArchiveRegistry` contract on the new rollup, not an archive root hash. Rollup version identifiers are read dynamically: `old_rollup` from `block_header.global_variables.version` and `current_rollup` from `context.version()`. The `MigrationArchiveRegistry` (a separate shared contract on the new rollup) stores `old_key_registry` (old rollup key registry address, for Mode B key note siloing) and `old_rollup_version` (for L1 message verification).
+2. **TokenV2 has deployment-time config:** `old_rollup_app_address`, `archive_registry_address` (both `PublicImmutable` fields on the app contract). `archive_registry_address` stores the address of the `MigrationArchiveRegistry` contract on the new rollup. Rollup version identifiers are read dynamically: `old_rollup` from `block_header.global_variables.version` and `current_rollup` from `context.version()`. The `MigrationArchiveRegistry` (a separate shared contract on the new rollup) stores `old_key_registry` (old rollup key registry address, for Mode B key note siloing) and `old_rollup_version` (for L1 message verification).
 3. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
 4. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
 

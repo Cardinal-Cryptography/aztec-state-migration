@@ -47,7 +47,7 @@ pub contract TokenMigrationAppV2 {
         public_balances: Map<AztecAddress, PublicMutable<u128, Context>, Context>,
         minter: PublicImmutable<AztecAddress, Context>,
         // --- V2-only fields (not present in V1) ---
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
+        archive_registry_address: PublicImmutable<AztecAddress, Context>,
         old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
     }
 
@@ -58,14 +58,14 @@ pub contract TokenMigrationAppV2 {
         symbol: str<31>,
         decimals: u8,
         minter: AztecAddress,
-        archive_root_address: AztecAddress,
+        archive_registry_address: AztecAddress,
         old_rollup_app_address: AztecAddress,
     ) {
         self.storage.name.initialize(FieldCompressedString::from_string(name));
         self.storage.symbol.initialize(FieldCompressedString::from_string(symbol));
         self.storage.decimals.initialize(decimals);
         self.storage.minter.initialize(minter);
-        self.storage.archive_root_address.initialize(archive_root_address);
+        self.storage.archive_registry_address.initialize(archive_registry_address);
         self.storage.old_rollup_app_address.initialize(old_rollup_app_address);
     }
 
@@ -261,7 +261,7 @@ pub contract TokenMigrationAppV2 {
         MigrationModeA::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
             mpk,
         )
@@ -301,7 +301,7 @@ pub contract TokenMigrationAppV2 {
         MigrationModeA::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
             mpk,
         )
@@ -348,7 +348,7 @@ pub contract TokenMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
@@ -392,7 +392,7 @@ pub contract TokenMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .with_owner(old_owner, key_note)
