@@ -33,6 +33,7 @@
     "test:mode-a": "npx tsx e2e-tests/migration-mode-a.test.ts",
     "test:mode-b": "npx tsx e2e-tests/migration-mode-b.test.ts",
     "test:mode-b:public": "npx tsx e2e-tests/migration-public-mode-b.test.ts",
+    "test:mode-b:non-canonical-nullifier": "npx tsx e2e-tests/migration-mode-b-non-canonical.test.ts",
     "test:registry": "npx tsx e2e-tests/migration-key-registry.test.ts",
     "test:hash": "./e2e-tests/hash-compatibility.sh"
   },

@@ -70,6 +70,8 @@ jobs:
         run: yarn test:mode-b
       - name: Test - Migration Mode B (Public)
         run: yarn test:mode-b:public
+      - name: Test - Migration Mode B (Non-Canonical Nullifier)
+        run: yarn test:mode-b:non-canonical-nullifier
       - name: Tear down infrastructure
         if: always()
         run: yarn test:stop
