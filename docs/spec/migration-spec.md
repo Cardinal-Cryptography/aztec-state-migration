@@ -20,6 +20,10 @@ In this project we designed two general ways to solve the above stated problem. 
 - [Mode A Specification](mode-a-spec.md) -- Cooperative lock-and-claim migration
 - [Mode B Specification](mode-b-spec.md) -- Emergency snapshot migration
 
+The app developers can choose whether they implement just mode A, or just mode B, or both. Also:
+- For mode B the app developers don't really need to prepare for the possibility of a migration. Only when the rollup upgrade happens, they need to deploy an appropriately prepared version of their contract on the new rollup.
+- For mode A, as long as the contract is upgradeable, the app developers also don't need to prepare. Only is the app contract is immutable, then the developer has to deploy the contract with mode A migration in mind.
+
 ## Scope
 
 - **Mode A:** public + private balances (lock then claim)
@@ -27,15 +31,6 @@ In this project we designed two general ways to solve the above stated problem. 
 
 **Out of Scope:** L1-bridged assets require L1 portal contract modifications and are not covered by this specification. See [Non-Native Assets](../non-native-assets.md) for constraints and approaches.
 
-<!-- ## Glossary
-
-- **Rollup** -- An L2 chain that settles to L1. We say `old` for the rollup we migrate from and `new` for the updated one that started fresh.
-- **Archive root** -- Merkle root of the rollup's block archive tree; the trust anchor bridged to L1.
-- **Note hash tree** -- Merkle tree storing commitments to private notes.
-- **Nullifier tree** -- Merkle tree tracking spent notes (or claimed migrations); prevents double-claims.
-- **Public data tree** -- Merkle tree storing public contract state.
-- **`mpk` / `msk`** -- Migration public key / migration secret key. A dedicated keypair for authorizing claims.
-- **Siloing** -- Hashing a note hash with its contract address to prevent cross-contract collisions. -->
 
 ## Goals & Non-Goals
 
@@ -45,10 +40,9 @@ In this project we designed two general ways to solve the above stated problem. 
 
 ## Key Design Decisions
 
-1. **Burns/locks are permanent.** No unlock.
-2. **The new-rollup app contract (AppV2) has deployment-time config:** `old_rollup_app_address`, `archive_registry_address` (both `PublicImmutable` fields on the app contract). `archive_registry_address` stores the address of the `MigrationArchiveRegistry` contract on the new rollup. Rollup version identifiers are read dynamically: `old_rollup` from `block_header.global_variables.version` and `current_rollup` from `context.version()`. The `MigrationArchiveRegistry` (a separate shared contract on the new rollup) stores `old_key_registry` (old rollup key registry address, for Mode B key note siloing) and `old_rollup_version` (for L1 message verification).
-3. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
-4. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
+
+1. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
+2. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
 
 ## Architecture
 
@@ -94,14 +88,15 @@ poseidon2_hash([old_rollup_version, archive_root, proven_block_number])
 
 A convenience function `consume_l1_to_l2_message_and_register_block` combines both steps in a single call.
 
-**Inbox message consumption** requires a `secret` because L1 messages commit to a `secretHash`, and L2 consumption reveals the preimage. For permissionless root syncing, the portal uses a public/deterministic secret (for example `0`). Reusing the same secret across many messages is safe because the message leaf index is part of consumption.
+**Inbox message consumption** requires a `secret` because L1 messages commit to a `secretHash`, and L2 consumption reveals the preimage. For permissionless root syncing, the portal uses a public/deterministic secret (just `0`). Reusing the same secret across many messages is safe because the message leaf index is part of consumption.
 
 **Storage:** MigrationArchiveRegistry stores `block_number → block_hash` for all registered blocks, and for Mode B, a write-once `snapshot_block_hash`. Any migrating app can call `verify_migration_mode_a(block_number, block_hash)` or `verify_migration_mode_b(block_hash)` to check a block hash against the stored value.
 
-**App-level block hash policy:** Each migrating app enforces its own policy on which block hashes it accepts:
+**Snapshot Block in Mode B** In Mode B the app is migrated based on a particular finalized block height from the old rollup. In the PoC implementation this block_height is selected globally for all the apps by a distinguished account on the new rollup. This is completely flexible and can be easily changed to a version where:
+- Each app chooses its own snapshot block.
+- The choice of the snapshot block is decentralized.
 
-- **Mode A:** accept any registered block hash.
-- **Mode B:** accept only the block hash at snapshot height H (stored as `snapshot_block_hash`).
+Picking the snapshot block should be a result of social consensus among the Aztec community, and thus is considered a problem to be solved independently.
 
 ## Identity & Migration Key Registry
 
