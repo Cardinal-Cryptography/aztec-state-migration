@@ -126,15 +126,49 @@ The test scripts read connection URLs from environment variables with defaults:
 
 | Command | Description |
 |---------|-------------|
+### ExampleApp Tests
+
+| Command | Description |
+|---------|-------------|
 | `yarn test:mode-a` | Mode A (cooperative) migration test |
 | `yarn test:mode-b` | Mode B (emergency) private note migration test |
 | `yarn test:mode-b:public` | Mode B public state migration test |
+
+### Token Migration Tests
+
+Run individual Token migration tests (requires sandboxes to be running via `yarn test:setup`):
+
+| Command | Description |
+|---------|-------------|
+| `yarn test:token:mode-a` | Token Mode A: private + public cooperative lock-and-claim migration |
+| `yarn test:token:mode-b` | Token Mode B: private balance emergency snapshot migration (includes nullified note rejection) |
+| `yarn test:token:mode-b:public` | Token Mode B: public balance emergency snapshot migration |
+
+### NFT Migration Tests
+
+Run individual NFT migration tests (requires sandboxes to be running via `yarn test:setup`):
+
+| Command | Description |
+|---------|-------------|
+| `yarn test:nft:mode-a` | NFT Mode A: private + public cooperative lock-and-claim migration |
+| `yarn test:nft:mode-b` | NFT Mode B: private NFT emergency snapshot migration (includes nullified note rejection) |
+| `yarn test:nft:mode-b:public` | NFT Mode B: public ownership emergency snapshot migration |
+
+### Other Tests
+
+| Command | Description |
+|---------|-------------|
 | `yarn test:registry` | MigrationKeyRegistry tests |
 | `yarn test:hash` | Poseidon2 hash compatibility between Noir and Solidity |
-| `yarn check:full` | Run setup, then mode-a + mode-b + mode-b:public, then stop |
+
+### Full Test Suite
+
+| Command | Description |
+|---------|-------------|
+| `yarn check:full` | Run setup, then all 9 E2E tests, then stop |
 | `yarn test:stop` | Stop node processes and clean up |
 
-`check:full` (`e2e-tests/check-full.sh`) runs `test:setup`, then executes `test:mode-a`, `test:mode-b`, and `test:mode-b:public` sequentially, and stops the environment on exit via a trap. It does **not** include `test:registry` or `test:hash`.
+`check:full` (`e2e-tests/check-full.sh`) runs `test:setup`, then executes all 9 E2E tests (3 ExampleApp + 3 Token + 3 NFT) in sequence, and stops the environment on exit via a trap. The order is: ExampleApp (smoke test), Token, NFT. Each category runs Mode A first, then Mode B private, then Mode B public. It does **not** include `test:registry` or `test:hash`.
 
 ## E2E Test Architecture
 

@@ -28,3 +28,16 @@ export const FieldNote = {
   /** Decode a raw {@link Note} into a {@link FieldNote} by reading `items[0]`. */
   fromNote: (note: Note): FieldNote => ({ value: note.items[0] }),
 };
+
+/** A note containing a single token ID field (e.g., an NFT ownership note). */
+export interface NFTNote {
+  token_id: Fr;
+}
+
+/** Helpers for {@link NFTNote}. */
+export const NFTNote = {
+  /** Decode a raw {@link Note} into an {@link NFTNote} by reading `items[0]` as a Field. */
+  fromNote(note: Note): NFTNote {
+    return { token_id: note.items[0] };
+  },
+};

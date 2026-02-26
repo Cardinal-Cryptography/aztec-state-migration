@@ -1,10 +1,10 @@
-import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
-import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
+import { TokenMigrationAppV1Contract } from "./artifacts/TokenMigrationAppV1.js";
+import { TokenMigrationAppV2Contract } from "./artifacts/TokenMigrationAppV2.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { signMigrationModeA } from "../ts/aztec-state-migration/index.js";
 import { deploy } from "./deploy.js";
 import {
-  deployAppPair,
+  deployTokenAppPair,
   deployArchiveRegistry,
   bridgeBlock,
   deployAndFundAccount,
@@ -13,27 +13,29 @@ import {
 } from "./test-utils.js";
 import { AbiType } from "@aztec/stdlib/abi";
 
-/** ABI type for decoding the MigrationDataEvent payload.
- *  The ExampleApp passes raw `amount` (u128) as migration_data.
- *  #[derive(Serialize)] flattens MigrationDataEvent<u128> to a single Field,
- *  so { kind: "field" } decodes it as a bigint. */
 const MIGRATION_DATA_TYPE: AbiType = { kind: "field" };
 
 async function main() {
-  console.log("=== Cross-Rollup Migration E2E Test (Mode A) ===\n");
+  console.log("=== Token Migration E2E Test (Mode A) ===\n");
 
   // ============================================================
   // Step 0: Deploy shared infrastructure
   // ============================================================
   const env = await deploy();
 
-  const { aztecNode: oldAztecNode, migrationWallet: oldUserWallet } =
-    env[env.oldRollupVersion];
-  const { aztecNode: newAztecNode, migrationWallet: newUserWallet } =
-    env[env.newRollupVersion];
+  const {
+    aztecNode: oldAztecNode,
+    deployerManager: oldDeployerManager,
+    migrationWallet: oldUserWallet,
+  } = env[env.oldRollupVersion];
+  const {
+    aztecNode: newAztecNode,
+    deployerManager: newDeployerManager,
+    migrationWallet: newUserWallet,
+  } = env[env.newRollupVersion];
 
   // ============================================================
-  // Step 1: Create user wallets (MigrationTestWallet)
+  // Step 1: Create user wallets
   // ============================================================
   console.log("Step 1. Creating user wallets...");
 
@@ -49,44 +51,50 @@ async function main() {
   console.log("Step 2. Deploying L2 contracts...");
 
   const newArchiveRegistry = await deployArchiveRegistry(env);
-  console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
+  console.log(`   new_archive_registry: ${newArchiveRegistry.address}`);
 
-  const { oldApp, newApp } = await deployAppPair(
+  const { oldApp, newApp } = await deployTokenAppPair(
     env,
     newArchiveRegistry.address,
   );
-  const oldAppUser = ExampleMigrationAppV1Contract.at(
+  const oldAppUser = TokenMigrationAppV1Contract.at(
     oldApp.address,
     oldUserWallet,
   );
-  const newAppUser = ExampleMigrationAppV2Contract.at(
+  const newAppUser = TokenMigrationAppV2Contract.at(
     newApp.address,
     newUserWallet,
   );
-  console.log(`   old_example_app: ${oldApp.address}`);
-  console.log(`   new_example_app: ${newApp.address}`);
+  console.log(`   old_token_app: ${oldApp.address}`);
+  console.log(`   new_token_app: ${newApp.address}\n`);
 
   // ============================================================
-  // Step 3: Mint tokens on OLD rollup
+  // Step 3: Mint private tokens on OLD rollup
   // ============================================================
-  console.log("Step 3. Minting tokens on OLD rollup...");
+  console.log("Step 3. Minting private tokens on OLD rollup...");
   const MINT_AMOUNT = 1000n;
-  await oldAppUser.methods
-    .mint(oldUserManager.address, MINT_AMOUNT)
-    .send({ from: oldUserManager.address });
+  await oldApp.methods
+    .mint_to_private(oldUserManager.address, MINT_AMOUNT)
+    .send({ from: oldDeployerManager.address });
+
   const oldBalanceAfterMint = await oldAppUser.methods
-    .get_balance(oldUserManager.address)
+    .balance_of_private(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
-  console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}\n`);
+  assertEq(oldBalanceAfterMint, MINT_AMOUNT, "Old private balance after mint");
+
+  const oldTotalSupplyAfterMint = await oldApp.methods
+    .total_supply()
+    .simulate({ from: oldDeployerManager.address });
+  assertEq(oldTotalSupplyAfterMint, MINT_AMOUNT, "Old total supply after mint");
+  console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}, total_supply: ${oldTotalSupplyAfterMint}\n`);
 
   // ============================================================
-  // Step 4: Lock tokens for migration on OLD rollup
+  // Step 4: Lock private tokens for migration
   // ============================================================
-  console.log("Step 4. Locking tokens for migration...");
+  console.log("Step 4. Locking private tokens for migration...");
   const mpk = await oldUserWallet.getMigrationPublicKey(
     oldUserManager.address,
   )!;
-  console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
   const LOCK_AMOUNT = 300n;
   await oldAppUser.methods
@@ -98,9 +106,23 @@ async function main() {
     .send({ from: oldUserManager.address });
 
   const oldBalanceAfterLock = await oldAppUser.methods
-    .get_balance(oldUserManager.address)
+    .balance_of_private(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
-  console.log(`   Balance after lock: ${oldBalanceAfterLock}\n`);
+  assertEq(
+    oldBalanceAfterLock,
+    MINT_AMOUNT - LOCK_AMOUNT,
+    "Old private balance after lock",
+  );
+
+  const oldTotalSupplyAfterLock = await oldApp.methods
+    .total_supply()
+    .simulate({ from: oldDeployerManager.address });
+  assertEq(
+    oldTotalSupplyAfterLock,
+    MINT_AMOUNT,
+    "Old total supply after lock (should NOT change)",
+  );
+  console.log(`   Balance after lock: ${oldBalanceAfterLock}, total_supply: ${oldTotalSupplyAfterLock}\n`);
 
   // ============================================================
   // Step 5: Bridge archive root
@@ -114,11 +136,10 @@ async function main() {
   console.log(`   Archive root: ${l1Result.provenArchiveRoot}\n`);
 
   // ============================================================
-  // Steps 6-7: Prepare migration args and call migrate on NEW rollup
+  // Step 6: Prepare migration args
   // ============================================================
   console.log("Step 6. Preparing migration args...");
 
-  // Get lock notes via wallet
   const lockNotesAndData = await oldUserWallet.getMigrationNotesAndData<bigint>(
     oldApp.address,
     oldUserManager.address,
@@ -130,13 +151,11 @@ async function main() {
     );
   }
 
-  // Build proofs via wallet, combining note proofs with event data
   const [migrationNoteProof] = await oldUserWallet.buildMigrationNoteProofs(
     provenBlockNumber,
     lockNotesAndData,
   );
 
-  // Sign via standalone function
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
@@ -150,15 +169,19 @@ async function main() {
     newApp.address,
   );
 
-  console.log("Step 7. Calling migrate on NEW rollup...");
+  // ============================================================
+  // Step 7: Call migrate_mode_a on NEW rollup
+  // ============================================================
+  console.log("Step 7. Calling migrate_mode_a on NEW rollup...");
 
   const newBalanceBefore = await newAppUser.methods
-    .get_balance(newUserManager.address)
+    .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup before migrate: ${newBalanceBefore}`);
+  assertEq(newBalanceBefore, 0n, "New private balance before migrate");
 
   await newAppUser.methods
     .migrate_mode_a(
+      LOCK_AMOUNT,
       mpk.toNoirStruct(),
       signature,
       migrationNoteProof,
@@ -167,24 +190,33 @@ async function main() {
     .send({ from: newUserManager.address });
 
   const newBalanceAfter = await newAppUser.methods
-    .get_balance(newUserManager.address)
+    .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
   assertEq(
     newBalanceAfter,
     LOCK_AMOUNT,
-    "Migrated balance on NEW rollup does not match locked amount",
+    "New private balance after migrate",
   );
 
-  console.log("\n   Cross-rollup migration fully successful!");
+  const newTotalSupplyAfterPrivate = await newApp.methods
+    .total_supply()
+    .simulate({ from: newDeployerManager.address });
+  assertEq(
+    newTotalSupplyAfterPrivate,
+    LOCK_AMOUNT,
+    "New total supply after private migrate",
+  );
+  console.log(`   Balance on NEW rollup: ${newBalanceAfter}, total_supply: ${newTotalSupplyAfterPrivate}`);
+  console.log("   Private migration successful!\n");
 
   // ============================================================
-  // Step 7b: Double migration negative test (should fail)
+  // Step 8: Double migration negative test (should fail)
   // ============================================================
-  console.log("\nStep 7b. Testing double private migration (should fail)...");
+  console.log("Step 8. Testing double migration (should fail)...");
   await expectRevert(
     newAppUser.methods
       .migrate_mode_a(
+        LOCK_AMOUNT,
         mpk.toNoirStruct(),
         signature,
         migrationNoteProof,
@@ -192,39 +224,45 @@ async function main() {
       )
       .simulate({ from: newUserManager.address }),
   );
-  console.log("   Double private migration correctly rejected!\n");
+  console.log("   Double migration correctly rejected!\n");
 
   // ============================================================
-  // Step 8: Mint PUBLIC tokens on OLD rollup
+  // Step 9: Mint PUBLIC tokens on OLD rollup
   // ============================================================
-  console.log("\n=== Test Scenario 2: Public Balance Migration ===\n");
-  console.log("Step 8. Minting PUBLIC tokens on OLD rollup...");
+  console.log("=== Test Scenario 2: Public Balance Migration ===\n");
+  console.log("Step 9. Minting PUBLIC tokens on OLD rollup...");
 
   const PUBLIC_MINT_AMOUNT = 1000n;
-  await oldAppUser.methods
-    .mint_public(oldUserManager.address, PUBLIC_MINT_AMOUNT)
-    .send({ from: oldUserManager.address });
+  await oldApp.methods
+    .mint_to_public(oldUserManager.address, PUBLIC_MINT_AMOUNT)
+    .send({ from: oldDeployerManager.address });
 
-  const oldPublicBalanceAfterMint = await oldAppUser.methods
-    .get_public_balance(oldUserManager.address)
-    .simulate({ from: oldUserManager.address });
-  console.log(
-    `   Minted ${PUBLIC_MINT_AMOUNT} public tokens to old rollup user`,
+  const oldPublicBalanceAfterMint = await oldApp.methods
+    .balance_of_public(oldUserManager.address)
+    .simulate({ from: oldDeployerManager.address });
+  assertEq(
+    oldPublicBalanceAfterMint,
+    PUBLIC_MINT_AMOUNT,
+    "Old public balance after mint",
   );
-  console.log(
-    `   Public balance on OLD rollup: ${oldPublicBalanceAfterMint}\n`,
+
+  const oldTotalSupplyAfterBothMints = await oldApp.methods
+    .total_supply()
+    .simulate({ from: oldDeployerManager.address });
+  assertEq(
+    oldTotalSupplyAfterBothMints,
+    MINT_AMOUNT + PUBLIC_MINT_AMOUNT,
+    "Old total supply after both mints",
   );
+  console.log(`   Minted ${PUBLIC_MINT_AMOUNT} public tokens, total_supply: ${oldTotalSupplyAfterBothMints}\n`);
 
   // ============================================================
-  // Step 9: Lock PUBLIC tokens for migration on OLD rollup
+  // Step 10: Lock public tokens for migration
   // ============================================================
-  console.log("Step 9. Locking PUBLIC tokens for migration on OLD rollup...");
+  console.log("Step 10. Locking PUBLIC tokens for migration...");
 
   const PUBLIC_LOCK_AMOUNT = 500n;
-  console.log(`   Locking ${PUBLIC_LOCK_AMOUNT} public tokens...`);
-  console.log(`   Destination rollup: ${env.newRollupVersion}`);
-
-  const lockPublicTx = await oldAppUser.methods
+  await oldAppUser.methods
     .lock_public_for_migration(
       PUBLIC_LOCK_AMOUNT,
       env.newRollupVersion,
@@ -232,37 +270,33 @@ async function main() {
     )
     .send({ from: oldUserManager.address });
 
-  const oldPublicBalanceAfterLock = await oldAppUser.methods
-    .get_public_balance(oldUserManager.address)
-    .simulate({ from: oldUserManager.address });
-  console.log(
-    `   Public balance on OLD rollup after lock: ${oldPublicBalanceAfterLock}`,
+  const oldPublicBalanceAfterLock = await oldApp.methods
+    .balance_of_public(oldUserManager.address)
+    .simulate({ from: oldDeployerManager.address });
+  assertEq(
+    oldPublicBalanceAfterLock,
+    PUBLIC_MINT_AMOUNT - PUBLIC_LOCK_AMOUNT,
+    "Old public balance after lock",
   );
-  console.log(
-    `   ✅ ${PUBLIC_MINT_AMOUNT - BigInt(oldPublicBalanceAfterLock)} public tokens locked for migration\n`,
-  );
+  console.log(`   Public balance after lock: ${oldPublicBalanceAfterLock}\n`);
 
   // ============================================================
-  // Step 10: Bridge new archive root if needed
+  // Step 11: Bridge archive root again
   // ============================================================
-  console.log("Step 10. Bridging archive root for public lock note...");
+  console.log("Step 11. Bridging archive root for public lock note...");
 
   const {
     l1Result: l1ResultPublic,
     provenBlockNumber: publicProvenBlockNumber,
     blockHeader: publicBlockHeader,
   } = await bridgeBlock(env, newArchiveRegistry);
-  console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}`);
-  console.log(`   Archive root: ${l1ResultPublic.provenArchiveRoot}\n`);
+  console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}\n`);
 
   // ============================================================
-  // Step 11: Get public lock note and merkle proofs
+  // Step 12: Get public lock note, filter, build proof
   // ============================================================
-  console.log(
-    "Step 11. Computing public lock note hash and getting merkle proofs...",
-  );
+  console.log("Step 12. Getting public lock notes and building proofs...");
 
-  // Get the actual lock note from PXE
   const allLockNotesAndData =
     await oldUserWallet.getMigrationNotesAndData<bigint>(
       oldApp.address,
@@ -276,7 +310,6 @@ async function main() {
     );
   }
 
-  // const alreadyMigratedNoteHashes = lockNotes.map((note) => note.noteHash);
   const filteredNotes = await newUserWallet.filterOutMigratedNotes(
     newApp.address,
     allLockNotesAndData,
@@ -284,7 +317,7 @@ async function main() {
 
   if (filteredNotes.length !== 1) {
     throw new Error(
-      `Expected exactly 1 migration note for the public lock, but found ${filteredNotes.length}`,
+      `Expected exactly 1 remaining note, but found ${filteredNotes.length}`,
     );
   }
 
@@ -294,7 +327,6 @@ async function main() {
       filteredNotes,
     );
 
-  // Sign via standalone function
   const publicSignature = await signMigrationModeA(
     oldMigrationSigner,
     publicBlockHeader.global_variables.version,
@@ -305,19 +337,18 @@ async function main() {
   );
 
   // ============================================================
-  // Step 12: Call migrate_to_public_mode_a on NEW rollup
+  // Step 13: Call migrate_to_public_mode_a on NEW rollup
   // ============================================================
-  console.log("Step 12. Calling migrate_to_public_mode_a on NEW rollup...");
+  console.log("Step 13. Calling migrate_to_public_mode_a on NEW rollup...");
 
-  const newPublicBalanceBefore = await newAppUser.methods
-    .get_public_balance(newUserManager.address)
-    .simulate({ from: newUserManager.address });
-  console.log(
-    `   Public balance on NEW rollup before: ${newPublicBalanceBefore}`,
-  );
+  const newPublicBalanceBefore = await newApp.methods
+    .balance_of_public(newUserManager.address)
+    .simulate({ from: newDeployerManager.address });
+  assertEq(newPublicBalanceBefore, 0n, "New public balance before migrate");
 
   await newAppUser.methods
     .migrate_to_public_mode_a(
+      PUBLIC_LOCK_AMOUNT,
       mpk.toNoirStruct(),
       publicSignature,
       publicMigrationNoteProof,
@@ -325,26 +356,34 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newPublicBalanceAfter = await newAppUser.methods
-    .get_public_balance(newUserManager.address)
-    .simulate({ from: newUserManager.address });
-  console.log(
-    `   Public balance on NEW rollup after: ${newPublicBalanceAfter}`,
-  );
+  const newPublicBalanceAfter = await newApp.methods
+    .balance_of_public(newUserManager.address)
+    .simulate({ from: newDeployerManager.address });
   assertEq(
     newPublicBalanceAfter,
     PUBLIC_LOCK_AMOUNT,
-    "Migrated public balance on NEW rollup does not match locked amount",
+    "New public balance after migrate",
   );
-  console.log("   Public balance migration fully successful!");
+
+  const newTotalSupplyFinal = await newApp.methods
+    .total_supply()
+    .simulate({ from: newDeployerManager.address });
+  assertEq(
+    newTotalSupplyFinal,
+    LOCK_AMOUNT + PUBLIC_LOCK_AMOUNT,
+    "New total supply final",
+  );
+  console.log(`   Public balance on NEW rollup: ${newPublicBalanceAfter}, total_supply: ${newTotalSupplyFinal}`);
+  console.log("   Public balance migration successful!\n");
 
   // ============================================================
-  // Step 12b: Double public migration negative test (should fail)
+  // Step 14: Double public migration negative test
   // ============================================================
-  console.log("\nStep 12b. Testing double public migration (should fail)...");
+  console.log("Step 14. Testing double public migration (should fail)...");
   await expectRevert(
     newAppUser.methods
       .migrate_to_public_mode_a(
+        PUBLIC_LOCK_AMOUNT,
         mpk.toNoirStruct(),
         publicSignature,
         publicMigrationNoteProof,
@@ -357,12 +396,13 @@ async function main() {
   // ============================================================
   // Summary
   // ============================================================
-
+  console.log("=== Token Mode A Migration Test Summary ===\n");
   console.log("Balances:");
   console.log(`  OLD rollup private balance: ${oldBalanceAfterLock}`);
   console.log(`  OLD rollup public balance: ${oldPublicBalanceAfterLock}`);
   console.log(`  NEW rollup private balance: ${newBalanceAfter}`);
   console.log(`  NEW rollup public balance: ${newPublicBalanceAfter}`);
+  console.log(`  NEW rollup total supply: ${newTotalSupplyFinal}`);
 }
 
 main().catch((e) => {
