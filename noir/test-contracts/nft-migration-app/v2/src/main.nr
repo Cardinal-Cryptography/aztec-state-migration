@@ -18,11 +18,8 @@ pub contract NftMigrationAppV2 {
     };
     use aztec_state_migration::{
         MigrationSignature,
-        mode_a::{migrate_notes_mode_a, MigrationNoteProofData},
-        mode_b::{
-            FullNoteProofData, KeyNoteProofData, migrate_notes_mode_b,
-            migrate_public_map_owned_state_mode_b, PublicStateProofData,
-        },
+        mode_a::{MigrationModeA, MigrationNoteProofData},
+        mode_b::{FullNoteProofData, KeyNoteProofData, MigrationModeB, PublicStateProofData},
         Point,
         Scalar,
     };
@@ -114,16 +111,15 @@ pub contract NftMigrationAppV2 {
 
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        migrate_notes_mode_a(
+        MigrationModeA::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            mpk,
-            signature,
-            recipient,
             old_app,
-            [note_proof_data],
+            self.storage.archive_root_address.read(),
             block_header,
-        );
+            mpk,
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
 
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
@@ -147,17 +143,15 @@ pub contract NftMigrationAppV2 {
 
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
-        migrate_notes_mode_a(
+        MigrationModeA::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            mpk,
-            signature,
-            recipient,
             old_app,
-            [note_proof_data],
+            self.storage.archive_root_address.read(),
             block_header,
-        );
-
+            mpk,
+        )
+            .with_note(note_proof_data)
+            .finish(recipient, signature);
         NftMigrationAppV2::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);
@@ -188,21 +182,15 @@ pub contract NftMigrationAppV2 {
         // Use V1's storage layout to get the correct slot on the old rollup
         let expected_storage_slot = STORAGE_LAYOUT_NftMigrationAppV1.fields.private_nfts.slot;
 
-        migrate_notes_mode_b(
+        MigrationModeB::new(
             self.context,
-            self.storage.archive_root_address.read(),
-            signature,
-            recipient,
             old_app,
-            [full_proof_data],
-            expected_storage_slot,
+            self.storage.archive_root_address.read(),
             block_header,
-            notes_owner,
-            public_keys,
-            partial_address,
-            key_note,
-            nhk,
-        );
+        )
+            .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+            .with_note(full_proof_data, expected_storage_slot)
+            .finish(recipient, signature);
 
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
@@ -230,24 +218,16 @@ pub contract NftMigrationAppV2 {
         let archive_registry = self.storage.archive_root_address.read();
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
+        // Use V1's storage layout to get the correct slot on the old rollup
+        let base_storage_slot = STORAGE_LAYOUT_NftMigrationAppV1.fields.public_owners.slot;
 
         // 1. Verify public state existed at snapshot height
-        // Use V1's storage layout to get the correct slot on the old rollup
-        migrate_public_map_owned_state_mode_b(
-            self.context,
-            archive_registry,
-            old_app,
-            proof_data,
-            STORAGE_LAYOUT_NftMigrationAppV1.fields.public_owners.slot,
-            block_header,
-            [token_id],
-            old_owner,
-            signature,
-            recipient,
-            key_note,
-        );
+        MigrationModeB::new(self.context, old_app, archive_registry, block_header)
+            .with_owner(old_owner, key_note)
+            .with_public_map_state(proof_data, base_storage_slot, [token_id])
+            .finish(recipient, signature);
 
-        // 4. Mint to authenticated recipient
+        // 2. Mint to authenticated recipient
         NftMigrationAppV2::at(self.context.this_address())
             ._set_public_owner(token_id, recipient)
             .enqueue(self.context);

@@ -3,7 +3,6 @@ import { sha512ToGrumpkinScalar } from "@aztec/foundation/crypto/sha512";
 import {
   DOM_SEP__CLAIM_A,
   DOM_SEP__CLAIM_B,
-  DOM_SEP__CLAIM_B_PUBLIC,
   DOM_SEP__MSK_M_GEN,
 } from "./constants.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
@@ -99,7 +98,7 @@ export async function signMigrationModeB(
  * The data is packed to `Fr[]` via {@link encodeValue} (matching Noir's `Packable::pack()` field ordering),
  * then hashed with `poseidon2_hash` to produce `dataHash`.
  *
- * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B_PUBLIC, oldVersion, newVersion, dataHash, recipient, newApp])`.
+ * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, dataHash, recipient, newApp])`.
  *
  * @param signer - Signing callback (typically {@link BaseMigrationAccount.migrationKeySigner}).
  * @param oldRollupVersion - Version field from the old rollup's block header.
@@ -122,7 +121,7 @@ export async function signPublicStateMigrationModeB(
   const packedData = encodeValue(data, abiType);
   const dataHash = await poseidon2Hash(packedData);
   const msg = await poseidon2Hash([
-    DOM_SEP__CLAIM_B_PUBLIC,
+    DOM_SEP__CLAIM_B,
     oldRollupVersion,
     newRollupVersion,
     dataHash,

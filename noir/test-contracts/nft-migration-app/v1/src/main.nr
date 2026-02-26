@@ -20,7 +20,7 @@ pub contract NftMigrationAppV1 {
         state_vars::{Map, Owned, PrivateSet, PublicImmutable, PublicMutable},
         utils::comparison::Comparator,
     };
-    use aztec_state_migration::{mode_a::lock_migration_notes, Point};
+    use aztec_state_migration::{mode_a::MigrationLock, Point};
 
     #[storage]
     struct Storage<Context> {
@@ -104,14 +104,9 @@ pub contract NftMigrationAppV1 {
             .select(NFTNote::properties().token_id, Comparator.EQ, token_id)
             .set_limit(1));
         assert(notes.len() == 1, "NFT not found");
-
-        lock_migration_notes(
-            self.context,
-            note_owner,
-            destination_rollup,
-            mpk,
-            [token_id],
-        );
+        MigrationLock::new(self.context, mpk, note_owner, destination_rollup)
+            .lock_state(token_id)
+            .finish();
     }
 
     /// Lock a publicly owned NFT for migration to a new rollup.
@@ -120,13 +115,9 @@ pub contract NftMigrationAppV1 {
     fn lock_public_nft_for_migration(token_id: Field, destination_rollup: Field, mpk: Point) {
         let note_owner = self.msg_sender();
 
-        lock_migration_notes(
-            self.context,
-            note_owner,
-            destination_rollup,
-            mpk,
-            [token_id],
-        );
+        MigrationLock::new(self.context, mpk, note_owner, destination_rollup)
+            .lock_state(token_id)
+            .finish();
 
         NftMigrationAppV1::at(self.context.this_address())
             ._clear_public_owner(note_owner, token_id)

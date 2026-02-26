@@ -41,10 +41,6 @@ fn test_constants() {
         "DOM_SEP__CLAIM_B does not match the expected value",
     );
     assert(
-        DOM_SEP__CLAIM_B_PUBLIC == poseidon2_hash(str_to_fields("claim-b-public")),
-        "DOM_SEP__CLAIM_B_PUBLIC does not match the expected value",
-    );
-    assert(
         DOM_SEP__PUBLIC_MIGRATION_NULLIFIER
             == poseidon2_hash(str_to_fields("public-migration-nullifier")),
         "DOM_SEP__PUBLIC_MIGRATION_NULLIFIER does not match the expected value",

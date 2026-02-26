@@ -1,8 +1,5 @@
-mod ops;
-pub use ops::{
-    migrate_notes_mode_b, migrate_public_map_owned_state_mode_b, migrate_public_map_state_mode_b,
-    migrate_public_state_mode_b,
-};
+mod builder;
+pub use builder::MigrationModeB;
 pub(crate) mod key_note_proof_data;
 pub use key_note_proof_data::KeyNoteProofData;
 pub(crate) mod non_nullification_proof_data;
