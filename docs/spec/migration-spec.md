@@ -20,6 +20,18 @@ The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users
 
 **Out of Scope:** L1-bridged assets require L1 portal contract modifications and are not covered by this specification. See [Non-Native Assets](../non-native-assets.md) for constraints and approaches.
 
+## Glossary
+
+- **Rollup** -- An L2 chain that settles to L1.
+- **Archive root** -- Merkle root of the rollup's block archive tree; the trust anchor bridged to L1.
+- **Note hash tree** -- Merkle tree storing commitments to private notes.
+- **Nullifier tree** -- Merkle tree tracking spent notes (or claimed migrations); prevents double-claims.
+- **Public data tree** -- Merkle tree storing public contract state.
+- **MigrationNote** -- A note created during Mode A lock to commit migration data.
+- **`mpk` / `msk`** -- Migration public key / migration secret key. A dedicated keypair for authorizing claims.
+- **Snapshot height H** -- The block number at which Mode B proofs are anchored.
+- **Siloing** -- Hashing a note hash with its contract address to prevent cross-contract collisions.
+
 ## Goals & Non-Goals
 
 **Goals:** Trustless migration, routine (Mode A) and emergency snapshot (Mode B), privacy preservation (recipient privacy), double-claim prevention, recipient flexibility.

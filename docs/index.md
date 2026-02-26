@@ -9,7 +9,7 @@ title: Aztec State Migration
 
 ## Problem
 
-Aztec Network version upgrades deploy entirely new rollup instances rather than upgrading contracts in place. This means user state -- private balances, public storage, and application data -- is stranded on the old rollup with no built-in path to the new one. Privacy constraints compound the problem: unlike transparent chains, Aztec cannot simply export account balances because note ownership and nullifier secrets are private. A migration mechanism must prove state validity without revealing user secrets.
+In the initial phase of the Aztec Network, version upgrades deploy entirely new rollup instances rather than upgrading contracts in place. This means user state -- private balances, public storage, and application data -- is stranded on the old rollup with no built-in path to the new one. Privacy constraints compound the problem: unlike transparent chains, Aztec cannot simply export account balances because note ownership and nullifier secrets are private. A migration mechanism must prove state validity without revealing user secrets.
 
 This project was developed in response to the Aztec Foundation's [Request for Grant Proposals: Application State Migration](https://forum.aztec.network/t/request-for-grant-proposals-application-state-migration/8298).
 
@@ -23,18 +23,6 @@ This project implements two migration modes, both anchored by L1 archive roots t
 
 This migration covers **native application state only** -- token balances and contract storage that live entirely on the Aztec L2. L1-bridged assets (tokens held in Ethereum bridge contracts) require coordination with the bridge protocol's L1 portal contracts and are not covered by this migration mechanism. See [Non-Native Assets](non-native-assets.md) for an analysis of constraints, approaches, and open design questions.
 
-## Glossary
-
-- **Rollup** -- An L2 chain that settles to L1.
-- **Archive root** -- Merkle root of the rollup's block archive tree; the trust anchor bridged to L1.
-- **Note hash tree** -- Merkle tree storing commitments to private notes.
-- **Nullifier tree** -- Merkle tree tracking spent notes (or claimed migrations); prevents double-claims.
-- **Public data tree** -- Merkle tree storing public contract state.
-- **MigrationNote** -- A note created during Mode A lock to commit migration data.
-- **`mpk` / `msk`** -- Migration public key / migration secret key. A dedicated keypair for authorizing claims.
-- **Snapshot height H** -- The block number at which Mode B proofs are anchored.
-- **Siloing** -- Hashing a note hash with its contract address to prevent cross-contract collisions.
-
 ## Documentation Map
 
 | Document | Description |
@@ -45,7 +33,6 @@ This migration covers **native application state only** -- token balances and co
 | [Mode B](mode-b.md) | Emergency snapshot migration, proof chains, public state migration, and key registry |
 | [Integration Guide](integration-guide.md) | TypeScript SDK, wallet classes, proof data types, and developer workflows |
 | [Non-Native Assets](non-native-assets.md) | Constraints and approaches for migrating L1-bridged tokens (not implemented) |
-| [Constants Reference](constants.md) | Domain separators and security constants |
 | [Security](security.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
 | [Operations](operations.md) | Testing setup, dual-rollup environment, compilation, troubleshooting, and version info |
 
