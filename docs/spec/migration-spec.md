@@ -41,12 +41,12 @@ In this project we designed two general ways to solve the above stated problem. 
 
 **Goals:** Trustless migration, routine (Mode A) and emergency snapshot (Mode B), privacy preservation (recipient privacy), double-claim prevention, recipient flexibility.
 
-**Non-Goals:** Unlocking burns, automatic migration, key recovery.
+**Non-Goals:** automatic migration, key recovery, non-native assets migration.
 
 ## Key Design Decisions
 
 1. **Burns/locks are permanent.** No unlock.
-2. **TokenV2 has deployment-time config:** `old_rollup_app_address`, `archive_registry_address` (both `PublicImmutable` fields on the app contract). `archive_registry_address` stores the address of the `MigrationArchiveRegistry` contract on the new rollup. Rollup version identifiers are read dynamically: `old_rollup` from `block_header.global_variables.version` and `current_rollup` from `context.version()`. The `MigrationArchiveRegistry` (a separate shared contract on the new rollup) stores `old_key_registry` (old rollup key registry address, for Mode B key note siloing) and `old_rollup_version` (for L1 message verification).
+2. **The new-rollup app contract (AppV2) has deployment-time config:** `old_rollup_app_address`, `archive_registry_address` (both `PublicImmutable` fields on the app contract). `archive_registry_address` stores the address of the `MigrationArchiveRegistry` contract on the new rollup. Rollup version identifiers are read dynamically: `old_rollup` from `block_header.global_variables.version` and `current_rollup` from `context.version()`. The `MigrationArchiveRegistry` (a separate shared contract on the new rollup) stores `old_key_registry` (old rollup key registry address, for Mode B key note siloing) and `old_rollup_version` (for L1 message verification).
 3. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
 4. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
 
@@ -55,17 +55,19 @@ In this project we designed two general ways to solve the above stated problem. 
 ```
 Old Rollup L2          L1                     New Rollup L2
 ┌────────────┐      ┌──────────────┐      ┌──────────────────────────┐
-│  TokenV1   │      │ Migrator (L1)│─────▶│ MigrationArchiveRegistry │
+│   AppV1    │      │ Migrator (L1)│─────▶│ MigrationArchiveRegistry │
 │  lock_*()  │      │  relays      │ inbox│                          │
 └────────────┘      │ archive_root │      │   stores block hashes    │
 ┌─────────────┐     └──────────────┘      └──────────┬───────────────┘
 │ MigrationKey│                                       │ reads
 │  Registry   │                              ┌────────▼────────┐
-│  (Mode B)   │                              │    TokenV2      │
+│  (Mode B)   │                              │     AppV2       │
 └─────────────┘                              │  migrate_*()    │
                                              └─────────────────┘
 
 ```
+
+> **Note on generality.** The migration mechanism is fully general and can be adapted to almost any state that is native to the L2 -- token balances, NFT ownership, public storage structs, maps, etc. For concreteness, the spec often uses a token contract as the running example (AppV1/AppV2), but the same flows apply to any migrating application contract.
 
 ## L1 Portal + MigrationArchiveRegistry
 
@@ -279,7 +281,7 @@ unique    = compute_unique_note_hash(nonce, siloed)
 
 **OriginalNote (Mode B):**
 
-Membership proof is over the unique note hash inserted into TokenV1's balance slot. The circuit recomputes the full hash chain from the note preimage.
+Membership proof is over the unique note hash inserted into the old-rollup app contract's (AppV1) storage slot. The circuit recomputes the full hash chain from the note preimage.
 
 ## Proof Data Types
 
@@ -390,9 +392,9 @@ Defined in `signature.nr`. Accepted by all `migrate_*` functions.
 
 ## Supply Control (optional cap)
 
-TokenV2 may enforce a `mintable_supply` cap set at activation (turnstile).
+AppV2 may enforce a `mintable_supply` cap set at activation (turnstile). This is most relevant for token contracts, but the pattern applies to any app that tracks a bounded quantity.
 
-- **Recommended:** enable the cap in both modes, but only if TokenV1 supply is frozen (mint/burn disabled) before activation and `mintable_supply` is set to the known total supply. If supply is not frozen, an incorrect cap can block valid claims, so it is advised to either set the cap with some leeway (depending on whether app developers decide to honor tokens minted after migration has started), or update the cap.
+- **Recommended:** enable the cap in both modes, but only if AppV1 supply is frozen (mint/burn disabled) before activation and `mintable_supply` is set to the known total supply. If supply is not frozen, an incorrect cap can block valid claims, so it is advised to either set the cap with some leeway (depending on whether app developers decide to honor tokens minted after migration has started), or update the cap.
 - Mode B may set `mintable_supply` to a safe cap (for example total supply as of H).
 
 If implemented via a public `_decrement_supply(amount)`, amounts become public.

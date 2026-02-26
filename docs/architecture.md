@@ -14,7 +14,7 @@ The migration framework spans two rollup instances and L1.
 ```
 Old Rollup L2                  L1                         New Rollup L2
 +-----------------------+   +------------------+   +------------------------------+
-| TokenV1               |   | Migrator.sol     |   | MigrationArchiveRegistry     |
+| AppV1 (old rollup)    |   | Migrator.sol     |   | MigrationArchiveRegistry     |
 |   lock_migration_*()  |   |   reads old      |   |   stores block hashes        |
 +-----------------------+   |   archive root,  |   |   verify_migration_mode_a()  |
 | MigrationKeyRegistry  |   |   sends L1->L2   |   |   verify_migration_mode_b()  |
