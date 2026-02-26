@@ -140,4 +140,4 @@ Private migration functions can then access deployment configuration directly, w
 - [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
 - [Mode B](mode-b.md) -- Emergency snapshot migration flow
 - [Integration Guide](integration-guide.md) -- TS SDK, wallet classes, proof data types
-- [Threat Model](threat-model.md) -- Trust assumptions and security considerations
+- [Security](security.md) -- Trust assumptions and security considerations

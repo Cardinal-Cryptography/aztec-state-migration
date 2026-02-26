@@ -182,7 +182,7 @@ The following limitations apply to the current proof-of-concept implementation a
 
 1. **No supply cap enforcement.** The PoC app contract mints freely on each successful migration. A production deployment should enforce a `mintable_supply` cap set at deployment, ideally matching the total locked supply on the old rollup.
 
-2. **`old_rollup_app_address` is a deployment-time configuration.** The address is read from the app contract's immutable public storage (set at deployment). If configured incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [threat model](threat-model.md) for details.
+2. **`old_rollup_app_address` is a deployment-time configuration.** The address is read from the app contract's immutable public storage (set at deployment). If configured incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [security](security.md) for details.
 
 3. **L1 relay is permissionless.** Anyone can call `Migrator.sol`'s `migrateArchiveRoot()` to bridge an archive root snapshot. An attacker could spam calls to fill L1-to-L2 message trees or increase costs. Consider rate limiting or requiring a small bond.
 
@@ -193,4 +193,4 @@ The following limitations apply to the current proof-of-concept implementation a
 - [Migration Specification](spec/migration-spec.md) -- Nullifier formulas, API tables, proof requirements
 - [Mode B](mode-b.md) -- Alternative migration path when old rollup is unavailable
 - [Integration Guide](integration-guide.md) -- TS SDK usage, wallet classes, proof data types
-- [Threat Model](threat-model.md) -- Trust assumptions and PoC limitations
+- [Security](security.md) -- Trust assumptions and PoC limitations

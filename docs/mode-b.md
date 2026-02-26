@@ -303,4 +303,4 @@ The following limitations apply to the current proof-of-concept implementation a
 - [Migration Specification](spec/migration-spec.md) -- Nullifier formulas, API tables, proof requirements
 - [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
 - [Integration Guide](integration-guide.md) -- TS SDK, wallet classes, proof data types
-- [Threat Model](threat-model.md) -- Trust assumptions and PoC limitations
+- [Security](security.md) -- Trust assumptions and PoC limitations

@@ -46,7 +46,7 @@ Migration uses a dedicated keypair (`msk`/`mpk`) rather than the account's exist
 
 1. **Account contract independence.** Migration claims must not depend on the old rollup's account contract executing correctly -- the old rollup may have been upgraded precisely because of bugs in those contracts. A separate keypair avoids this dependency.
 2. **Cross-rollup proof compatibility.** The migration circuit needs to verify a signature against a key that is provably bound to the note owner. Standard Aztec account keys are not committed in a form that is easily provable across rollups.
-3. **Scoped risk.** If the migration key is compromised, only migration claims are at risk -- not the user's general account security. See [threat model](threat-model.md#migration-key-compromise) for the full analysis.
+3. **Scoped risk.** If the migration key is compromised, only migration claims are at risk -- not the user's general account security. See [security](security.md#migration-key-compromise) for the full analysis.
 
 The `msk` is derived deterministically from the account's secret key, so no additional key management is needed. See [Key Derivation](#key-derivation) for details.
 
@@ -270,7 +270,7 @@ The Solidity function `migrateArchiveRootAtBlock(uint256 oldVersion, uint256 blo
 
 Before running a migration, the following deployment steps are required:
 
-1. **Set `old_rollup_app_address`:** Configure the old rollup's app contract address in the new rollup's app contract via the constructor. Incorrect configuration results in silent migration failures (see [threat model](threat-model.md)).
+1. **Set `old_rollup_app_address`:** Configure the old rollup's app contract address in the new rollup's app contract via the constructor. Incorrect configuration results in silent migration failures (see [security](security.md)).
 
 2. **Deploy `MigrationArchiveRegistry`:** The constructor requires:
    - `l1_migrator: EthAddress` -- Address of the `Migrator.sol` contract on L1.

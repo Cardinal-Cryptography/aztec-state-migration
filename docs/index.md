@@ -5,7 +5,7 @@ title: Aztec State Migration
 
 # Aztec State Migration
 
-> **Proof-of-concept.** This implementation demonstrates the migration design but is not production-ready. See the [threat model](threat-model.md#poc-limitations-not-for-production) for placeholder constants, missing access controls, and other limitations that must be addressed before deployment.
+> **Important Note.** This implementation demonstrates the migration design in the form of a Proof of Concept implementation, but is not production-ready. See the [security](security.md#poc-limitations-not-for-production) for a discussion of trust assumptions, audit recommendations and other matters to keep in mind before deploying apps to production based on this PoC.
 
 ## Problem
 
@@ -46,11 +46,11 @@ This migration covers **native application state only** -- token balances and co
 | [Integration Guide](integration-guide.md) | TypeScript SDK, wallet classes, proof data types, and developer workflows |
 | [Non-Native Assets](non-native-assets.md) | Constraints and approaches for migrating L1-bridged tokens (not implemented) |
 | [Constants Reference](constants.md) | Domain separators and security constants |
-| [Threat Model](threat-model.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
+| [Security](security.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
 | [Operations](operations.md) | Testing setup, dual-rollup environment, compilation, troubleshooting, and version info |
 
 ## Where to Start
 
 - **App developer integrating the TS library?** Start with the [Integration Guide](integration-guide.md), then [Operations](operations.md) for local setup.
-- **Protocol reviewer or auditor?** Start with the [Migration Specification](spec/migration-spec.md) and the [Threat Model](threat-model.md).
+- **Protocol reviewer or auditor?** Start with the [Migration Specification](spec/migration-spec.md) and the [Security](security.md).
 - **Understanding the system?** See the [Architecture](architecture.md) for the deployment topology and component catalog.

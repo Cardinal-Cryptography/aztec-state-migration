@@ -113,4 +113,4 @@ The portal freeze and liquidity reassignment are high-stakes governance actions 
 - [Migration Specification](spec/migration-spec.md) -- Core protocol design (native assets)
 - [Mode A](mode-a.md) -- Cooperative lock-and-claim flow
 - [Mode B](mode-b.md) -- Emergency snapshot migration flow
-- [Threat Model](threat-model.md) -- Trust assumptions and PoC limitations
+- [Security](security.md) -- Trust assumptions and PoC limitations

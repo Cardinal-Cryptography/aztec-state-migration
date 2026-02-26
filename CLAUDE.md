@@ -38,7 +38,7 @@ All docs live in `docs/` and are served via GitHub Pages (Jekyll + Cayman theme)
 - `docs/mode-a.md`                ← cooperative lock-and-claim flow
 - `docs/mode-b.md`                ← emergency snapshot migration flow
 - `docs/integration-guide.md`     ← TS SDK, wallet classes, proof data types
-- `docs/threat-model.md`          ← trust assumptions + threat model
+- `docs/security.md`              ← trust assumptions + security
 - `docs/operations.md`            ← testing, setup, troubleshooting
 
 **Rules**
@@ -146,7 +146,7 @@ These skills are read-only by design and should not run long tests automatically
 - Setup/start changed → update `README.md` and `docs/operations.md`
 - Contract interface changed (public functions, events, externally visible behavior) → update `docs/mode-a.md`, `docs/mode-b.md`, and/or `docs/architecture.md`
 - Test approach changed → update `docs/operations.md`
-- Security/trust assumptions changed → update `docs/threat-model.md`
+- Security/trust assumptions changed → update `docs/security.md`
 
 ### Doc style rules
 - Prefer short sections, lists, and exact commands.

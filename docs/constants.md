@@ -34,5 +34,5 @@ All domain separators and security-sensitive constants used in the migration sys
 ## See Also
 
 - [Migration Specification](spec/migration-spec.md) -- Nullifier formulas and domain separation
-- [Threat Model](threat-model.md) -- Trust assumptions and PoC limitations
+- [Security](security.md) -- Trust assumptions and PoC limitations
 - [Architecture](architecture.md) -- Component catalog including the constants module
