@@ -13,7 +13,7 @@ Mode A is the standard migration path when the old rollup is still live and prod
 
 The flow has two phases:
 
-1. **Lock (old rollup):** The app contract calls `lock_migration_notes` to burn or lock user state and create a `MigrationNote` committed to the old rollup's note hash tree.
+1. **Lock (old rollup):** The app contract uses the `MigrationLock` builder to burn or lock user state and create `MigrationNote`s committed to the old rollup's note hash tree.
 2. **Claim (new rollup):** The user proves the `MigrationNote` exists in the old rollup's state (via an L1-bridged archive root) and the new rollup's app contract mints equivalent state.
 
 Double spending is prevented in the following way: the lock notes on old rollup are not spendable (locking is one-directional) and upon claiming on the new rollup an appropriate nullifier is emitted.
@@ -95,8 +95,8 @@ MigrationModeA::new(context, old_app, archive_registry, block_header, mpk)
 
 Public state migration reuses the same `MigrationNote` and claim circuit as private migration. The difference is in the app-level wrappers:
 
-- **Lock (old rollup):** The app contract calls `lock_migration_notes` to create a `MigrationNote`, then applies its own app-specific state transition. If the state transition fails, the entire transaction reverts.
-- **Claim (new rollup):** The app contract calls `migrate_notes_mode_a` (same library function as private claim), then applies its own app-specific state transition.
+- **Lock (old rollup):** The app contract uses the `MigrationLock` builder to create `MigrationNote`s, then applies its own app-specific state transition. If the state transition fails, the entire transaction reverts.
+- **Claim (new rollup):** The app contract uses the `MigrationModeA` builder to verify locked notes, then applies its own app-specific state transition.
 
 ## Authentication
 
@@ -133,9 +133,9 @@ For all nullifier formulas, see [General Specification -- Migration Nullifiers](
 
 ## Batching
 
-The library function `migrate_notes_mode_a` accepts `[MigrationNoteProofData<T>; N]` and loops over all N notes. The signature covers the hash of all N note hashes, so the entire batch is authenticated atomically.
+The `MigrationModeA` builder chains `.with_note()` calls, each verifying one `MigrationNoteProofData` and feeding its hash into a running accumulator. The signature in `finish()` covers the hash of all accumulated note hashes, so the entire batch is authenticated atomically.
 
-Apps choose N based on their consolidation strategy. A common pattern is N = 1, where the app consolidates multiple balance notes into a single `migration_data_hash` before calling `lock_migration_notes`. Apps that create multiple `MigrationNote` instances per lock (e.g., locking distinct asset types) would set a larger N.
+Apps choose the number of `.with_note()` calls based on their consolidation strategy. A common pattern is a single note, where the app consolidates multiple balance notes into one `migration_data_hash` before locking. Apps that create multiple `MigrationNote` instances per lock (e.g., locking distinct asset types) would chain additional calls.
 
 ## Wallet Integration
 
