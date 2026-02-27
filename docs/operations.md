@@ -126,49 +126,21 @@ The test scripts read connection URLs from environment variables with defaults:
 
 | Command | Description |
 |---------|-------------|
-### ExampleApp Tests
-
-| Command | Description |
-|---------|-------------|
-| `yarn test:mode-a` | Mode A (cooperative) migration test |
-| `yarn test:mode-b` | Mode B (emergency) private note migration test |
-| `yarn test:mode-b:public` | Mode B public state migration test |
-
-### Token Migration Tests
-
-Run individual Token migration tests (requires sandboxes to be running via `yarn test:setup`):
-
-| Command | Description |
-|---------|-------------|
-| `yarn test:token:mode-a` | Token Mode A: private + public cooperative lock-and-claim migration |
-| `yarn test:token:mode-b` | Token Mode B: private balance emergency snapshot migration (includes nullified note rejection) |
-| `yarn test:token:mode-b:public` | Token Mode B: public balance emergency snapshot migration |
-
-### NFT Migration Tests
-
-Run individual NFT migration tests (requires sandboxes to be running via `yarn test:setup`):
-
-| Command | Description |
-|---------|-------------|
-| `yarn test:nft:mode-a` | NFT Mode A: private + public cooperative lock-and-claim migration |
-| `yarn test:nft:mode-b` | NFT Mode B: private NFT emergency snapshot migration (includes nullified note rejection) |
-| `yarn test:nft:mode-b:public` | NFT Mode B: public ownership emergency snapshot migration |
-
-### Other Tests
-
-| Command | Description |
-|---------|-------------|
+| `yarn test:mode-a` | ExampleApp Mode A migration |
+| `yarn test:mode-b` | ExampleApp Mode B private note migration |
+| `yarn test:mode-b:public` | ExampleApp Mode B public state migration |
+| `yarn test:token:mode-a` | Token Mode A migration |
+| `yarn test:token:mode-b` | Token Mode B private balance migration |
+| `yarn test:token:mode-b:public` | Token Mode B public balance migration |
+| `yarn test:nft:mode-a` | NFT Mode A migration |
+| `yarn test:nft:mode-b` | NFT Mode B private NFT migration |
+| `yarn test:nft:mode-b:public` | NFT Mode B public ownership migration |
 | `yarn test:registry` | MigrationKeyRegistry tests |
 | `yarn test:hash` | Poseidon2 hash compatibility between Noir and Solidity |
-
-### Full Test Suite
-
-| Command | Description |
-|---------|-------------|
-| `yarn check:full` | Run setup, then all 9 E2E tests, then stop |
+| `yarn check:full` | Run setup, all 9 E2E tests, then stop |
 | `yarn test:stop` | Stop node processes and clean up |
 
-`check:full` (`e2e-tests/check-full.sh`) runs `test:setup`, then executes all 9 E2E tests (3 ExampleApp + 3 Token + 3 NFT) in sequence, and stops the environment on exit via a trap. The order is: ExampleApp (smoke test), Token, NFT. Each category runs Mode A first, then Mode B private, then Mode B public. It does **not** include `test:registry` or `test:hash`.
+`check:full` runs all 9 E2E tests (3 ExampleApp + 3 Token + 3 NFT) in sequence. It does **not** include `test:registry` or `test:hash`.
 
 ## E2E Test Architecture
 

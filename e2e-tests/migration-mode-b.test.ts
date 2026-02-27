@@ -317,7 +317,7 @@ async function main() {
         keyNoteProof,
         { hi: nhk.hi, lo: nhk.lo },
       )
-      .simulate({ from: newUserManager.address }),
+      .send({ from: newUserManager.address }),
     "Note nullifier non-inclusion",
   );
   console.log("   Expected failure: Note is not active");
