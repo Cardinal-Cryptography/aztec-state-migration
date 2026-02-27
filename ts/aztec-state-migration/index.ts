@@ -13,23 +13,8 @@ export {
   buildBlockHeader,
 } from "./proofs.js";
 
-// Bridge
-export {
-  waitForBlockProof,
-  migrateArchiveRootOnL1,
-  waitForL1ToL2Message,
-} from "./bridge.js";
-
 // Noir helpers
 export * from "./noir-helpers/index.js";
 
-// Polling
-export { poll } from "./polling.js";
-export type { PollOptions } from "./polling.js";
-
 // Types
-export type {
-  NoteProofData,
-  ArchiveProofData,
-  L1MigrationResult,
-} from "./types.js";
+export type { NoteProofData, ArchiveProofData } from "./types.js";

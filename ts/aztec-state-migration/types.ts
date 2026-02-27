@@ -39,19 +39,3 @@ export const MigrationSignature = {
     bytes: [...sig.toBuffer()],
   }),
 };
-
-// ============================================================
-// L1 bridge result
-// ============================================================
-
-/** Result of calling migrateArchiveRoot on L1. */
-export interface L1MigrationResult {
-  /** The proven block number from the old rollup. */
-  provenBlockNumber: BlockNumber;
-  /** The archive root that was migrated. */
-  provenArchiveRoot: Fr;
-  /** Leaf index of the L1→L2 message in the Inbox tree. */
-  l1ToL2LeafIndex: bigint;
-  /** Hash of the L1→L2 message (for polling sync status). */
-  l1ToL2MessageHash: Fr;
-}

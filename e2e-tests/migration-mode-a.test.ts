@@ -105,12 +105,11 @@ async function main() {
   // Step 5: Bridge archive root
   // ============================================================
   console.log("Step 5. Bridging archive root...");
-  const { l1Result, provenBlockNumber, blockHeader } = await bridgeBlock(
+  const { provenBlockNumber, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
   );
-  console.log(`   Proven block: ${l1Result.provenBlockNumber}`);
-  console.log(`   Archive root: ${l1Result.provenArchiveRoot}\n`);
+  console.log(`   Proven block: ${provenBlockNumber}`);
 
   // ============================================================
   // Steps 6-7: Prepare migration args and call migrate on NEW rollup
@@ -232,12 +231,10 @@ async function main() {
   console.log("Step 10. Bridging archive root for public lock note...");
 
   const {
-    l1Result: l1ResultPublic,
     provenBlockNumber: publicProvenBlockNumber,
     blockHeader: publicBlockHeader,
   } = await bridgeBlock(env, newArchiveRegistry);
-  console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}`);
-  console.log(`   Archive root: ${l1ResultPublic.provenArchiveRoot}\n`);
+  console.log(`   Proven block: ${publicProvenBlockNumber}`);
 
   // ============================================================
   // Step 11: Get public lock note and merkle proofs

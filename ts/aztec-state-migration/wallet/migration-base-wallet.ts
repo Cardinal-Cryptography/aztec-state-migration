@@ -3,11 +3,7 @@ import { Note, NoteDao } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
 import { MIGRATION_NOTE_STORAGE_SLOT } from "../constants.js";
 import type { AztecNode } from "@aztec/stdlib/interfaces/client";
-import {
-  ArchiveProofData,
-  MigrationSignature,
-  NoteProofData,
-} from "../types.js";
+import { MigrationSignature, NoteProofData } from "../types.js";
 import {
   FullProofData,
   NonNullificationProofData,
@@ -19,7 +15,7 @@ import {
 } from "../mode-a/types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import type { NotesFilter, PXE } from "@aztec/pxe/server";
-import { buildArchiveProof, buildNoteProof } from "../proofs.js";
+import { buildNoteProof } from "../proofs.js";
 import { buildNullifierProof } from "../mode-b/proofs.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
@@ -173,16 +169,6 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     // const mask = await newAccount.getNhkApp(newAppAddress);
     const mask = Fq.ZERO; // for now just 0
     return oldAccount.getMaskedNhk(mask);
-  }
-
-  /**
-   * Build an archive membership proof for the given block.
-   *
-   * @param blockHash - The proven block hash to build the proof for.
-   * @returns An {@link ArchiveProofData} containing the block header and Merkle path.
-   */
-  async buildArchiveProof(blockHash: BlockHash): Promise<ArchiveProofData> {
-    return buildArchiveProof(this.aztecNode, blockHash);
   }
 
   /**
