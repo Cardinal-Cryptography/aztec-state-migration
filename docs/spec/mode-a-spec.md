@@ -62,7 +62,7 @@ note_hash = poseidon2_hash_with_separator(
 
 The `#[event]` macro does not support generic structs, so `MigrationDataEvent` implements `EventInterface` manually with `#[derive(Serialize)]`.
 
-> **Known limitation:** Events do not include a note-identifying hash (e.g., `migration_note_hash`), so wallet clients match events to notes via `txHash` filtering. The full note hash requires randomness from `create_note`, which is not available at event emission time. *(Source: `migration_data_event.nr:13`)*
+Events do not include a note-identifying hash. Instead, wallet clients match events to notes by **emission order**: each `lock_state` call emits a `create_note` followed immediately by the corresponding `MigrationDataEvent`, so the i-th note and i-th event always correspond. *(Source: `migration_lock.nr:46–68`)*
 
 ## Claim Flow (Library Level)
 
