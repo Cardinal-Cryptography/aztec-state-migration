@@ -33,3 +33,7 @@ wallet_data_*
 
 # temp workspace
 .tmp/
+
+# review artifacts
+pr_context*
+review
