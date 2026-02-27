@@ -192,7 +192,7 @@ sig = schnorr_sign(msk, msg)
 ```
 
 - `data_hash` is the Poseidon2 hash of all note hashes (or public state fields) being claimed in the batch.
-- `CLAIM_DOMAIN` provides **domain separation** -- each mode uses a distinct domain tag (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`, `DOM_SEP__CLAIM_B_PUBLIC`) to prevent signatures from being reused across modes.
+- `CLAIM_DOMAIN` provides **domain separation** -- each mode uses a distinct domain tag (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`) to prevent signatures from being reused across modes.
 - `recipient` is the new-rollup address that will receive the migrated tokens.
 
 On claim, the migration circuit:
