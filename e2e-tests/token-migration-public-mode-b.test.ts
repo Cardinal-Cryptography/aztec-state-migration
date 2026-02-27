@@ -233,7 +233,7 @@ async function main() {
         signature,
         keyNoteProof,
       )
-      .simulate({ from: newUserManager.address }),
+      .send({ from: newUserManager.address }),
   );
   console.log("   Double migration correctly rejected!\n");
 

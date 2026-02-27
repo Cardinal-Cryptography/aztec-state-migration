@@ -222,7 +222,7 @@ async function main() {
         migrationNoteProof,
         blockHeader,
       )
-      .simulate({ from: newUserManager.address }),
+      .send({ from: newUserManager.address }),
   );
   console.log("   Double migration correctly rejected!\n");
 
@@ -389,7 +389,7 @@ async function main() {
         publicMigrationNoteProof,
         publicBlockHeader,
       )
-      .simulate({ from: newUserManager.address }),
+      .send({ from: newUserManager.address }),
   );
   console.log("   Double public migration correctly rejected!\n");
 

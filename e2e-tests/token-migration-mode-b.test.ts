@@ -311,7 +311,7 @@ async function main() {
         keyNoteProof,
         { hi: nhk.hi, lo: nhk.lo },
       )
-      .simulate({ from: newUserManager.address }),
+      .send({ from: newUserManager.address }),
   );
   console.log("   Double migration correctly rejected!\n");
 
