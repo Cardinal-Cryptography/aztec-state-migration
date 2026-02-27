@@ -21,10 +21,6 @@ dependencies
 target
 codegenCache.json
 cache
-ts/aztec-state-migration/noir-contracts/*
-!ts/aztec-state-migration/noir-contracts/*.lazy.ts
-!ts/aztec-state-migration/noir-contracts/index.ts
-!ts/aztec-state-migration/noir-contracts/lazy.ts
 ts/aztec-state-migration/artifacts
 e2e-tests/artifacts
 
