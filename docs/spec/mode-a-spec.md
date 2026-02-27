@@ -24,15 +24,23 @@ Both private notes and public state use the same lock-and-claim mechanism. The `
 
 ## Lock Flow (Library Level)
 
-The library function `lock_migration_notes` (`noir/aztec-state-migration/src/mode_a/ops.nr`, function `lock_migration_notes`) creates one `MigrationNote` per element in the `migration_data` array and emits a corresponding encrypted event for each.
+The `MigrationLock` builder (`noir/aztec-state-migration/src/mode_a/migration_lock.nr`) lets app developers chain multiple lock operations in a single call:
+
+```
+MigrationLock::new(context, mpk, owner, destination_rollup)
+    .lock_state(migration_data_1)
+    .lock_state(migration_data_2)
+    .finish();
+```
 
 **Steps:**
 
-1. Assert that `mpk` (migration public key) is on the Grumpkin curve.
-2. For each element in `migration_data`:
-   - Construct a `MigrationNote` via `MigrationNote::new(note_creator, mpk, destination_rollup, migration_data[i])`. The constructor hashes the packed data: `migration_data_hash = poseidon2_hash(migration_data.pack())`.
-   - Commit the note to the note hash tree under `MIGRATION_NOTE_STORAGE_SLOT` via `create_note`.
-   - Emit a `MigrationDataEvent { migration_data: migration_data[i] }` encrypted to the `notes_owner` via `emit_event_in_private` + `deliver_to` (AES128 ECDH encryption).
+1. `new(...)`: Assert that `mpk` (migration public key) is on the Grumpkin curve.
+2. Each `.lock_state(migration_data)` call:
+   - Constructs a `MigrationNote` via `MigrationNote::new(note_creator, mpk, destination_rollup, migration_data)`. The constructor hashes the packed data: `migration_data_hash = poseidon2_hash(migration_data.pack())`.
+   - Commits the note to the note hash tree under `MIGRATION_NOTE_STORAGE_SLOT` via `create_note`.
+   - Emits a `MigrationDataEvent { migration_data }` encrypted to `owner` via `emit_event_in_private` + `deliver_to` (AES128 ECDH encryption).
+3. `finish()`: Consumes the builder. No on-chain action is needed from the source rollup's perspective; the method exists so that omitting it triggers compiler warnings about unused values, catching incomplete builder chains at compile time.
 
 ### MigrationNote
 
