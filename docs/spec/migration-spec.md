@@ -233,9 +233,7 @@ This separation allows block registration to happen once per block, with multipl
 
 ### Block Header Binding
 
-The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a public function that checks it against the stored block hash.
-
-This private->public split is necessary because the block hashes are stored in public state. The private function computes the block hash and the public function checks it, connected via the enqueue mechanism.
+The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a private function that checks it against the stored block hash.
 
 The L1 Migrator contract reads the old rollup's `provenCheckpointNumber` and sends it to the new rollup via the inbox.
 
