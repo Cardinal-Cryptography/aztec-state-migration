@@ -1,3 +1,4 @@
+mod non_canonical_note;
 use aztec::macros::aztec;
 
 /// V1 of the example migration-aware token contract.
