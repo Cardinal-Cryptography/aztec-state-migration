@@ -41,7 +41,7 @@ The app developers can choose whether they implement just mode A, or just mode B
 ## Key Design Decisions
 
 
-1. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
+1. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract on new (target) Aztec rollup, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
 2. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
 
 ## Architecture
