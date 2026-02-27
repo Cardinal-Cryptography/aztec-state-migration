@@ -9,7 +9,7 @@ title: Aztec State Migration
 
 ## Problem
 
-In the initial phase of the Aztec Network, version upgrades deploy entirely new rollup instances rather than upgrading contracts in place. This means user state -- private balances, public storage, and application data -- is stranded on the old rollup with no built-in path to the new one. Privacy constraints compound the problem: unlike transparent chains, Aztec cannot simply export account balances because note ownership and nullifier secrets are private. A migration mechanism must prove state validity without revealing user secrets.
+Aztec Network version upgrades may deploy entirely new rollup instances, stranding user state on the old rollup with no built-in migration path. Privacy constraints mean state cannot simply be exported — a migration mechanism must prove state validity without revealing user secrets. See the [General Specification](spec/migration-spec.md#problem-statement) for a full problem statement.
 
 This project was developed in response to the Aztec Foundation's [Request for Grant Proposals: Application State Migration](https://forum.aztec.network/t/request-for-grant-proposals-application-state-migration/8298).
 
