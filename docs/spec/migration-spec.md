@@ -22,7 +22,7 @@ In this project we designed two general ways to solve the above stated problem. 
 
 The app developers can choose whether they implement just mode A, or just mode B, or both. Also:
 - For mode B the app developers don't really need to prepare for the possibility of a migration. Only when the rollup upgrade happens, they need to deploy an appropriately prepared version of their contract on the new rollup.
-- For mode A, as long as the contract is upgradeable, the app developers also don't need to prepare. Only is the app contract is immutable, then the developer has to deploy the contract with mode A migration in mind.
+- For mode A, as long as the contract is upgradeable, the app developers also don't need to prepare. Only if the app contract is immutable, then the developer has to deploy the contract with mode A migration in mind.
 
 ## Scope
 
