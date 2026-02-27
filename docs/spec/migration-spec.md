@@ -253,11 +253,30 @@ Mode B private notes use the unique note hash and randomness for the same reason
 
 Mode B public state uses a deterministic nullifier derived from the old app contract address and the base storage slot. One nullifier is emitted per `PublicStateProofData` (per storage struct), covering all consecutive field slots.
 
-## Batching Multiple Notes
+## Batching Multiple Notes and State
 
-Both Mode A and Mode B circuits accept arrays of note proof data (`[MigrationNoteProofData; N]` and `[FullNoteProofData; N]` respectively) and loop over all N notes in a single proof. Apps choose N based on their needs; the library circuits support arbitrary batch sizes.
+Both modes expose a **migration builder** that lets app developers chain (bundle) different types of notes and data in a single migration proof.
 
-For Mode A, `lock_migration_notes` already creates one `MigrationNote` per element in the input array, and emits a `MigrationDataEvent` for each.
+**Mode A** — `MigrationModeA` builder:
+```
+MigrationModeA::new(context, old_app, archive_registry, block_header, mpk)
+    .with_note(note_proof_data_1)
+    .with_note(note_proof_data_2)
+    .finish(recipient, signature);
+```
+
+**Mode B** — `MigrationModeB` builder, which additionally supports public state and map state:
+```
+MigrationModeB::new(context, old_app, archive_registry, block_header)
+    .with_owner(owner, key_note)
+    .with_public_state(public_state_proof, slot)
+    .with_public_map_state(map_proof, map_slot, [key])
+    .with_notes_owner(public_keys, partial_address, nhk)
+    .with_note(note_proof, note_slot)
+    .finish(recipient, signature);
+```
+
+Each `.with_note(...)` or `.with_public_state(...)` call verifies one inclusion proof and emits a nullifier. The builder accumulates a running hash of all migrated data, which is checked against the migration signature in `finish()`.
 
 ## Data Structures & Hashing
 
