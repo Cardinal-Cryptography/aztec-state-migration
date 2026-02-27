@@ -36,7 +36,7 @@ The app developers can choose whether they implement just mode A, or just mode B
 
 **Goals:** Trustless migration, routine (Mode A) and emergency snapshot (Mode B), privacy preservation (recipient privacy), double-claim prevention, recipient flexibility.
 
-**Non-Goals:** automatic migration, key recovery, non-native assets migration.
+**Non-Goals:** automatic migration, key recovery, out-of-the-box non-native assets migration.
 
 ## Key Design Decisions
 
