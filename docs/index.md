@@ -34,10 +34,9 @@ This migration covers **native application state only** -- token balances and co
 | [Integration Guide](integration-guide.md) | TypeScript SDK, wallet classes, proof data types, and developer workflows |
 | [Non-Native Assets](non-native-assets.md) | Constraints and approaches for migrating L1-bridged tokens (not implemented) |
 | [Security](security.md) | Trust assumptions, threat scenarios, mitigations, and PoC limitations |
-| [Operations](operations.md) | Testing setup, dual-rollup environment, compilation, troubleshooting, and version info |
 
 ## Where to Start
 
-- **App developer integrating the TS library?** Start with the [Integration Guide](integration-guide.md), then [Operations](operations.md) for local setup.
+- **App developer integrating the TS library?** Start with the [Integration Guide](integration-guide.md), then the [README](../README.md) for local setup.
 - **Protocol reviewer or auditor?** Start with the [General Specification](spec/migration-spec.md) and the [Security](security.md).
 - **Understanding the system?** See the [Architecture](architecture.md) for the deployment topology and component catalog.
