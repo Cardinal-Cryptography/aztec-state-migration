@@ -113,7 +113,7 @@ The migration keypair is used **only** to authorize migration claims. It is not 
 - **Signing key leak:** attacker can spend your funds on the current rollup (assuming they also have the nullifier key),
 - **Nullifier key leak:** attacker can link your transactions (privacy loss), but cannot spend (unless they also have the signing key),
 - **Viewing key leak:** attacker can see your balances (privacy loss), but cannot spend (unless they also have the signing key)
-- **Migration key leak:** attacker can claim your tokens on the new rollup during migration (fund loss, scoped to migration)
+- **Migration key leak:** An attacker can claim your tokens on the new rollup during migration, resulting in fund loss scoped to the migration window. In Mode A, this is exploitable unconditionally. In Mode B, it is only exploitable if the attacker also knows the `nhk`.
 
 ### Where `mpk` comes from
 
