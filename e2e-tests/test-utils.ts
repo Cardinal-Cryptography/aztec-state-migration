@@ -58,22 +58,45 @@ export async function expectRevert(
   promise: Promise<any>,
   expectedErrorStr?: string,
 ) {
-  let succeeded = false;
+  let resolvedValue: any;
+
   try {
-    await promise;
-    succeeded = true;
+    resolvedValue = await promise;
   } catch (e) {
+    // Case 1: Promise rejected (e.g. .simulate(), or .send() that throws)
     const err = e as Error;
     if (expectedErrorStr && !err.message.includes(expectedErrorStr)) {
       throw new Error(
         `Expected error to include "${expectedErrorStr}", but got: ${err.message}`,
       );
     }
-    console.log(`   Expected failure: ${err.message.slice(0, 100)}`);
+    console.log(`   Expected failure (thrown): ${err.message.slice(0, 100)}`);
+    return;
   }
-  if (succeeded) {
-    throw new Error("Expected transaction to fail, but it succeeded");
+
+  // Case 2: .send() returned a TxReceipt with revert status
+  if (
+    resolvedValue &&
+    typeof resolvedValue.hasExecutionReverted === "function" &&
+    resolvedValue.hasExecutionReverted()
+  ) {
+    if (
+      expectedErrorStr &&
+      resolvedValue.error &&
+      !resolvedValue.error.includes(expectedErrorStr)
+    ) {
+      throw new Error(
+        `Expected error to include "${expectedErrorStr}", but got: ${resolvedValue.error}`,
+      );
+    }
+    console.log(
+      `   Expected failure (receipt): ${resolvedValue.error?.slice(0, 100) || "reverted"}`,
+    );
+    return;
   }
+
+  // Case 3: No error at all — test should fail
+  throw new Error("Expected transaction to fail, but it succeeded");
 }
 
 export function assertEq(actual: any, expected: any, msg: string) {
