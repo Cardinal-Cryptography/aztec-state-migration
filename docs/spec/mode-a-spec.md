@@ -74,14 +74,22 @@ Events do not include a note-identifying hash. Instead, wallet clients match eve
 
 ## Claim Flow (Library Level)
 
-The library function `migrate_notes_mode_a` (`noir/aztec-state-migration/src/mode_a/ops.nr`, function `migrate_notes_mode_a`) verifies locked notes and authorizes the claim on the new rollup.
+The `MigrationModeA` builder (`noir/aztec-state-migration/src/mode_a/builder.nr`) verifies locked notes and authorizes the claim on the new rollup:
+
+```
+MigrationModeA::new(context, old_app, archive_registry, block_header, mpk)
+    .with_note(note_proof_data_1)
+    .with_note(note_proof_data_2)
+    .finish(recipient, signature);
+```
 
 **Verification chain:**
 
-1. **Note inclusion (per note):** For each `MigrationNoteProofData` element, reconstruct the `MigrationNote` and compute its hash via `MigrationNote::compute_note_hash`. Then call `note_proof_data.verify_note_inclusion(old_app, note_hash, note_hash_tree_root)`, which silos with the old app address (`compute_siloed_note_hash`), applies uniqueness (`compute_unique_note_hash` with nonce), and verifies the Merkle proof against the note hash tree root. Returns the unique note hash.
-2. **Nullifier emission (per note):** Emit a nullifier via `MigrationNote::compute_nullifier` keyed to the note's randomness (see [Nullifier Derivation](#nullifier-derivation)).
-3. **Signature verification:** Compute `notes_hash = poseidon2_hash(note_hashes)` over all verified note hashes, then call `signature.verify_migration_signature::<DOM_SEP__CLAIM_A>(...)`.
-4. **Block hash verification (private cross-contract call):** Compute `block_hash = block_header.hash()`, then call `MigrationArchiveRegistry.verify_migration_mode_a(block_number, block_hash)` via a private cross-contract call. See [General Specification -- Block Hash Verification](migration-spec.md#block-hash-verification) for the two-step registration process.
+1. **Note inclusion (per `.with_note()`):** Reconstruct the `MigrationNote` and compute its hash via `MigrationNote::compute_note_hash`. Then call `note_proof_data.verify_note_inclusion(old_app, note_hash, note_hash_tree_root)`, which silos with the old app address (`compute_siloed_note_hash`), applies uniqueness (`compute_unique_note_hash` with nonce), and verifies the Merkle proof against the note hash tree root. Returns the unique note hash.
+2. **Nullifier emission (per `.with_note()`):** Emit a nullifier via `MigrationNote::compute_nullifier` keyed to the note's randomness (see [Nullifier Derivation](#nullifier-derivation)).
+3. **Hash accumulation (per `.with_note()`):** Each verified note hash is fed into a running `Poseidon2Hasher`.
+4. **Signature verification (`finish`):** Finalize the accumulated `notes_hash`, then call `signature.verify_migration_signature::<DOM_SEP__CLAIM_A>(...)`.
+5. **Block hash verification (`finish`):** Compute `block_hash = block_header.hash()`, then call `MigrationArchiveRegistry.verify_migration_mode_a(block_number, block_hash)` via a private cross-contract call. See [General Specification -- Block Hash Verification](migration-spec.md#block-hash-verification) for the two-step registration process.
 
 ## Public State Migration (App-Level)
 
