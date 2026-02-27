@@ -13,6 +13,7 @@ import {
 } from "./types.js";
 import type { NoteDao } from "@aztec/stdlib/note";
 import type { AbiType } from "@aztec/stdlib/abi";
+import { BlockHash } from "@aztec/stdlib/block";
 
 /**
  * Build a {@link NonNullificationProofData} proving that a note has **not** been nullified.
@@ -25,11 +26,11 @@ import type { AbiType } from "@aztec/stdlib/abi";
  */
 export async function buildNullifierProof(
   node: AztecNode,
-  blockNumber: BlockNumber,
+  blockReference: BlockNumber | BlockHash,
   noteDao: NoteDao,
 ): Promise<NonNullificationProofData> {
   const lowNullifierWitness = await node.getLowNullifierMembershipWitness(
-    blockNumber,
+    blockReference,
     noteDao.siloedNullifier,
   );
   if (!lowNullifierWitness) {
@@ -59,13 +60,13 @@ export async function buildNullifierProof(
  * then queries the public data tree witness from the Aztec node.
  *
  * @param aztecNode - Aztec node client to query the public data tree.
- * @param blockNumber - Block number at which to prove inclusion.
+ * @param blockReference - Block number or hash at which to prove inclusion.
  * @param contractAddress - Address of the contract whose storage is being proven.
  * @param storageSlot - The un-siloed storage slot to prove.
  */
 export async function buildPublicDataSlotProof(
   aztecNode: AztecNode,
-  blockNumber: BlockNumber,
+  blockReference: BlockNumber | BlockHash,
   contractAddress: AztecAddress,
   storageSlot: Fr,
 ): Promise<PublicDataSlotProof> {
@@ -74,7 +75,10 @@ export async function buildPublicDataSlotProof(
     contractAddress,
     storageSlot,
   );
-  const witness = await aztecNode.getPublicDataWitness(blockNumber, siloedSlot);
+  const witness = await aztecNode.getPublicDataWitness(
+    blockReference,
+    siloedSlot,
+  );
   if (!witness) {
     throw new Error(
       `No public data witness for slot ${storageSlot} (siloed: ${siloedSlot})`,
@@ -99,7 +103,7 @@ export async function buildPublicDataSlotProof(
  * then builds a slot proof for each.
  *
  * @param aztecNode - Aztec node client to query the public data tree.
- * @param blockNumber - Block number at which to prove inclusion.
+ * @param blockReference - Block number or hash at which to prove inclusion.
  * @param data - The data value (passed through to the returned proof, not encoded here).
  * @param contractAddress - Address of the contract whose storage is being proven.
  * @param baseSlot - The storage slot of the variable (from the contract's `storageLayout`).
@@ -107,7 +111,7 @@ export async function buildPublicDataSlotProof(
  */
 export async function buildPublicDataProof<T>(
   aztecNode: AztecNode,
-  blockNumber: BlockNumber,
+  blockReference: BlockNumber | BlockHash,
   data: T,
   contractAddress: AztecAddress,
   baseSlot: Fr,
@@ -119,7 +123,7 @@ export async function buildPublicDataProof<T>(
     const slot = baseSlot.add(new Fr(i));
     const proof = await buildPublicDataSlotProof(
       aztecNode,
-      blockNumber,
+      blockReference,
       contractAddress,
       slot,
     );
@@ -139,7 +143,7 @@ export async function buildPublicDataProof<T>(
  * a slot proof for each of the data's packed fields.
  *
  * @param aztecNode - Aztec node client to query the public data tree.
- * @param blockNumber - Block number at which to prove inclusion.
+ * @param blockReference - Block number or hash at which to prove inclusion.
  * @param data - The data value (passed through to the returned proof, not encoded here).
  * @param contractAddress - Address of the contract whose storage is being proven.
  * @param baseSlot - The base storage slot of the map (from the contract's `storageLayout`).
@@ -148,7 +152,7 @@ export async function buildPublicDataProof<T>(
  */
 export async function buildPublicMapDataProof<T>(
   aztecNode: AztecNode,
-  blockNumber: BlockNumber,
+  blockReference: BlockNumber | BlockHash,
   data: T,
   contractAddress: AztecAddress,
   baseSlot: Fr,
@@ -164,7 +168,7 @@ export async function buildPublicMapDataProof<T>(
     const slot = slot_in_map.add(new Fr(i));
     const proof = await buildPublicDataSlotProof(
       aztecNode,
-      blockNumber,
+      blockReference,
       contractAddress,
       slot,
     );

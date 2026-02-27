@@ -128,11 +128,12 @@ async function main() {
       `Expected exactly 1 migration note, but found ${lockNotesAndData.length}`,
     );
   }
+  const lockNoteAndData = lockNotesAndData[0];
 
   // Build proofs via wallet, combining note proofs with event data
-  const [migrationNoteProof] = await oldUserWallet.buildMigrationNoteProofs(
+  const migrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
     provenBlockNumber,
-    lockNotesAndData,
+    lockNoteAndData,
   );
 
   // Sign via standalone function
@@ -270,12 +271,12 @@ async function main() {
       `Expected exactly 1 migration note for the public lock, but found ${filteredNotes.length}`,
     );
   }
+  const migrationNote = filteredNotes[0];
 
-  const [publicMigrationNoteProof] =
-    await oldUserWallet.buildMigrationNoteProofs(
-      publicProvenBlockNumber,
-      filteredNotes,
-    );
+  const publicMigrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
+    publicProvenBlockNumber,
+    migrationNote,
+  );
 
   // Sign via standalone function
   const publicSignature = await signMigrationModeA(

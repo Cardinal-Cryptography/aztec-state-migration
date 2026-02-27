@@ -100,7 +100,7 @@ export async function signMigrationModeB(
  *
  * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, dataHash, recipient, newApp])`.
  *
- * @param signer - Signing callback (typically {@link BaseMigrationAccount.migrationKeySigner}).
+ * @param signer - Signing callback (typically {@link MigrationAccount.migrationKeySigner}).
  * @param oldRollupVersion - Version field from the old rollup's block header.
  * @param newRollupVersion - Target rollup version the tokens are migrating to.
  * @param data - The public state data to sign. Must match the struct shape defined by `abiType`.

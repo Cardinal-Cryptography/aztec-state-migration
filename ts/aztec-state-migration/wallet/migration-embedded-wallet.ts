@@ -18,12 +18,9 @@ import {
   mergeExecutionPayloads,
   TxSimulationResult,
 } from "@aztec/stdlib/tx";
-import {
-  getContractInstanceFromInstantiationParams,
-  InteractionFeeOptions,
-} from "@aztec/aztec.js/contracts";
+import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
 import { DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
-import { BaseWallet, type FeeOptions } from "@aztec/wallet-sdk/base-wallet";
+import { type FeeOptions } from "@aztec/wallet-sdk/base-wallet";
 import {
   deriveKeys,
   derivePublicKeyFromSecretKey,

@@ -19,7 +19,6 @@ import type {
 import type { blockHeaderToNoir } from "../ts/aztec-state-migration/noir-helpers/block-header.js";
 import type { DeploymentResult } from "./deploy-types.js";
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
-import { WaitOpts } from "@aztec/aztec.js/contracts";
 import { AccountManager } from "@aztec/aztec.js/wallet";
 import { AztecNode } from "@aztec/aztec.js/node";
 import { FeeJuicePaymentMethodWithClaim } from "@aztec/aztec.js/fee";
