@@ -17,8 +17,7 @@ All domain separators and security-sensitive constants used in the migration sys
 |---|---|---|---|
 | `MIGRATION_NOTE_STORAGE_SLOT` | `MIGRATION_NOTE_STORAGE_SLOT` | `0x0294c1...23d0a0` | Storage slot for Mode A migration notes. Poseidon2 hash of `"migration-note-storage-slot"`. |
 | `DOM_SEP__CLAIM_A` | `DOM_SEP__CLAIM_A` | `0x1c1a03...bbcc97` | Mode A claim signature domain separator. Poseidon2 hash of `"claim-a"`. |
-| `DOM_SEP__CLAIM_B` | `DOM_SEP__CLAIM_B` | `0x03f16d...6ef1b9` | Mode B private note claim signature domain separator. Poseidon2 hash of `"claim-b"`. |
-| `DOM_SEP__CLAIM_B_PUBLIC` | `DOM_SEP__CLAIM_B_PUBLIC` | `0x0ebf03...673e8f` | Mode B public state claim signature domain separator. Poseidon2 hash of `"claim-b-public"`. |
+| `DOM_SEP__CLAIM_B` | `DOM_SEP__CLAIM_B` | `0x03f16d...6ef1b9` | Mode B claim signature domain separator (private notes and owned public state). Poseidon2 hash of `"claim-b"`. |
 | `DOM_SEP__PUBLIC_MIGRATION_NULLIFIER` | `DOM_SEP__PUBLIC_MIGRATION_NULLIFIER` | `0x2c8f77...fdfb40` | Nullifier domain separator for public state migration. Poseidon2 hash of `"public-migration-nullifier"`. |
 
 ## TS-Only Constants

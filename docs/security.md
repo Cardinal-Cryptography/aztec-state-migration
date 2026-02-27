@@ -50,8 +50,7 @@ A front-runner cannot change the recipient without invalidating the signature. S
 Note also that that each migration mode uses unique domain separators for signed messages, hence message replay cross modes is not possible anyway:
 
 - `DOM_SEP__CLAIM_A` -- Mode A claims (private and public balance)
-- `DOM_SEP__CLAIM_B` -- Mode B private note claims
-- `DOM_SEP__CLAIM_B_PUBLIC` -- Mode B public state owned-entry claims
+- `DOM_SEP__CLAIM_B` -- Mode B claims (private notes and owned public state)
 
 Each domain produces a different message hash, so a signature valid under one domain is invalid under another.
 
@@ -117,7 +116,7 @@ The second priority is **inclusion proof correctness** -- confirming that proofs
 
 The third priority is **signature and authentication**:
 
-- `verify_migration_signature` (`signature.nr`) -- domain separator binding, message construction, and Schnorr verification. Confirm that domain separators (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`, `DOM_SEP__CLAIM_B_PUBLIC`) produce non-overlapping message spaces.
+- `verify_migration_signature` (`signature.nr`) -- domain separator binding, message construction, and Schnorr verification. Confirm that domain separators (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`) produce non-overlapping message spaces.
 - Mode B address verification (`mode_b/builder.nr`) -- the `nhk` to `npk_m` derivation and `AztecAddress::compute` check that links note ownership to key ownership.
 
 Finally, **block hash verification** on the registry:

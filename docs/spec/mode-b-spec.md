@@ -142,18 +142,11 @@ Only the true owner of the nullifier hiding key can migrate their notes.
 
 Mode B uses two domain separators depending on what is being migrated:
 
-**Private note migration** (`DOM_SEP__CLAIM_B`):
+Both private notes and owned public state use `DOM_SEP__CLAIM_B`. The builder accumulates all data into a single running hash (note hashes and packed public state fields), then signs once:
 
 ```
-notes_hash = poseidon2_hash([note_hash_1, ..., note_hash_N])
-msg = poseidon2_hash([DOM_SEP__CLAIM_B, old_rollup, current_rollup, notes_hash, recipient, new_app])
-```
-
-**Owned public state migration** (`DOM_SEP__CLAIM_B_PUBLIC`):
-
-```
-public_state_hash = poseidon2_hash(pack(data))
-msg = poseidon2_hash([DOM_SEP__CLAIM_B_PUBLIC, old_rollup, current_rollup, public_state_hash, recipient, new_app])
+final_hash = poseidon2_hash([...note_hashes, ...packed_public_state_fields])
+msg = poseidon2_hash([DOM_SEP__CLAIM_B, old_rollup, current_rollup, final_hash, recipient, new_app])
 ```
 
 The `mpk` is obtained from the `MigrationKeyNote` proven in the same circuit. `msk` stays entirely off-chain -- only used for signing.
@@ -207,7 +200,7 @@ Mode B supports migrating public storage values via Merkle proofs against the pu
 
 2. **`migrate_public_map_state_mode_b`** -- For map-based public storage. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, then delegates to `migrate_public_state_mode_b`.
 
-3. **`migrate_public_map_owned_state_mode_b`** -- For owned map entries. Adds Schnorr signature verification (domain `DOM_SEP__CLAIM_B_PUBLIC`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
+3. **`migrate_public_map_owned_state_mode_b`** -- For owned map entries. Adds Schnorr signature verification (domain `DOM_SEP__CLAIM_B`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
 
 A shared helper `derive_map_storage_slot` derives nested map slots by iterating `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each key.
 

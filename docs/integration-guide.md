@@ -142,7 +142,7 @@ Public state migration uses a separate set of proof builders:
    - `buildPublicMapDataProof(node, blockNumber, data, contractAddress, baseSlot, mapKeys, dataAbiType)` -- For values inside `Map` storage. Derives the storage slot from `baseSlot` and `mapKeys` via `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each nesting level.
    - `buildPublicDataSlotProof(node, blockNumber, contractAddress, storageSlot)` -- Low-level single-slot proof builder.
 
-2. **Sign for owned entries:** `signPublicStateMigrationModeB(signer, oldRollupVersion, newRollupVersion, data, abiType, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([DOM_SEP__CLAIM_B_PUBLIC, oldVersion, newVersion, dataHash, recipient, newApp])` where `dataHash = poseidon2_hash(pack(data))`.
+2. **Sign for owned entries:** `signPublicStateMigrationModeB(signer, oldRollupVersion, newRollupVersion, data, abiType, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, dataHash, recipient, newApp])` where `dataHash = poseidon2_hash(pack(data))`.
 
 3. **Submit transaction** to the new rollup's app contract.
 

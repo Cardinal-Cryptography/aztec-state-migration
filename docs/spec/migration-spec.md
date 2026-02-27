@@ -162,7 +162,7 @@ This makes "knowledge of the migration secret key + nullifier hiding key" the au
 
 For public state (non-owned), no signature or key note proof is needed -- the data is publicly visible and anyone can trigger the migration. The circuit only verifies the data existed in the public data tree at snapshot height H.
 
-For **owned** public state, the same Schnorr signature and key note proof are required, using a separate domain tag (`DOM_SEP__CLAIM_B_PUBLIC`). The signature binds the data hash (instead of note hashes) to the migration context.
+For **owned** public state, the same Schnorr signature and key note proof are required, using the same domain tag (`DOM_SEP__CLAIM_B`). The builder accumulates both note hashes and public state data into a single hash, so one signature covers the entire migration.
 
 
 ### Future work: protocol-level identity commitments
