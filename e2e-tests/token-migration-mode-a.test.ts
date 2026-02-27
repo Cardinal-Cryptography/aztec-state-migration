@@ -86,7 +86,9 @@ async function main() {
     .total_supply()
     .simulate({ from: oldDeployerManager.address });
   assertEq(oldTotalSupplyAfterMint, MINT_AMOUNT, "Old total supply after mint");
-  console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}, total_supply: ${oldTotalSupplyAfterMint}\n`);
+  console.log(
+    `   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}, total_supply: ${oldTotalSupplyAfterMint}\n`,
+  );
 
   // ============================================================
   // Step 4: Lock private tokens for migration
@@ -122,7 +124,9 @@ async function main() {
     MINT_AMOUNT,
     "Old total supply after lock (should NOT change)",
   );
-  console.log(`   Balance after lock: ${oldBalanceAfterLock}, total_supply: ${oldTotalSupplyAfterLock}\n`);
+  console.log(
+    `   Balance after lock: ${oldBalanceAfterLock}, total_supply: ${oldTotalSupplyAfterLock}\n`,
+  );
 
   // ============================================================
   // Step 5: Bridge archive root
@@ -192,11 +196,7 @@ async function main() {
   const newBalanceAfter = await newAppUser.methods
     .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
-  assertEq(
-    newBalanceAfter,
-    LOCK_AMOUNT,
-    "New private balance after migrate",
-  );
+  assertEq(newBalanceAfter, LOCK_AMOUNT, "New private balance after migrate");
 
   const newTotalSupplyAfterPrivate = await newApp.methods
     .total_supply()
@@ -206,7 +206,9 @@ async function main() {
     LOCK_AMOUNT,
     "New total supply after private migrate",
   );
-  console.log(`   Balance on NEW rollup: ${newBalanceAfter}, total_supply: ${newTotalSupplyAfterPrivate}`);
+  console.log(
+    `   Balance on NEW rollup: ${newBalanceAfter}, total_supply: ${newTotalSupplyAfterPrivate}`,
+  );
   console.log("   Private migration successful!\n");
 
   // ============================================================
@@ -254,7 +256,9 @@ async function main() {
     MINT_AMOUNT + PUBLIC_MINT_AMOUNT,
     "Old total supply after both mints",
   );
-  console.log(`   Minted ${PUBLIC_MINT_AMOUNT} public tokens, total_supply: ${oldTotalSupplyAfterBothMints}\n`);
+  console.log(
+    `   Minted ${PUBLIC_MINT_AMOUNT} public tokens, total_supply: ${oldTotalSupplyAfterBothMints}\n`,
+  );
 
   // ============================================================
   // Step 10: Lock public tokens for migration
@@ -373,7 +377,9 @@ async function main() {
     LOCK_AMOUNT + PUBLIC_LOCK_AMOUNT,
     "New total supply final",
   );
-  console.log(`   Public balance on NEW rollup: ${newPublicBalanceAfter}, total_supply: ${newTotalSupplyFinal}`);
+  console.log(
+    `   Public balance on NEW rollup: ${newPublicBalanceAfter}, total_supply: ${newTotalSupplyFinal}`,
+  );
   console.log("   Public balance migration successful!\n");
 
   // ============================================================

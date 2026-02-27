@@ -98,7 +98,9 @@ async function main() {
     .total_supply()
     .simulate({ from: oldDeployerManager.address });
   assertEq(oldTotalSupply, MINT_AMOUNT, "Old total supply after mint");
-  console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldPublicBalance}, total_supply: ${oldTotalSupply}\n`);
+  console.log(
+    `   Minted ${MINT_AMOUNT}, balance: ${oldPublicBalance}, total_supply: ${oldTotalSupply}\n`,
+  );
 
   // ============================================================
   // Step 4: Register migration key
@@ -217,7 +219,9 @@ async function main() {
     .simulate({ from: newDeployerManager.address });
   assertEq(newTotalSupply, MINT_AMOUNT, "New total supply after migrate");
 
-  console.log(`   Public balance on NEW rollup: ${newPublicBalance}, total_supply: ${newTotalSupply}`);
+  console.log(
+    `   Public balance on NEW rollup: ${newPublicBalance}, total_supply: ${newTotalSupply}`,
+  );
   console.log("   Public balance Mode B migration successful!\n");
 
   // ============================================================

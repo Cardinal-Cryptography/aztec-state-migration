@@ -176,9 +176,7 @@ async function main() {
   // ============================================================
   console.log("Step 7. Deriving account keys...");
 
-  const publicKeys = await oldUserWallet.getPublicKeys(
-    oldUserManager.address,
-  )!;
+  const publicKeys = await oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
   const partialAddress = completeAddress.partialAddress;
   const nhk = await oldUserWallet.getMaskedNhk(
@@ -219,7 +217,9 @@ async function main() {
     throw new Error("No active balance notes found");
   }
 
-  console.log(`   Active notes: ${balanceNotesActive.length}, Nullified notes: ${balanceNotesNullified.length}`);
+  console.log(
+    `   Active notes: ${balanceNotesActive.length}, Nullified notes: ${balanceNotesNullified.length}`,
+  );
 
   const balanceNotes = balanceNotesActive.slice(0, 1);
 
@@ -280,18 +280,16 @@ async function main() {
   const newBalanceAfter = await newAppUser.methods
     .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
-  assertEq(
-    newBalanceAfter,
-    migrateAmount,
-    "New balance after migrate",
-  );
+  assertEq(newBalanceAfter, migrateAmount, "New balance after migrate");
 
   const newTotalSupply = await newApp.methods
     .total_supply()
     .simulate({ from: newDeployerManager.address });
   assertEq(newTotalSupply, migrateAmount, "New total supply after migrate");
 
-  console.log(`   Balance on NEW rollup: ${newBalanceAfter}, total_supply: ${newTotalSupply}`);
+  console.log(
+    `   Balance on NEW rollup: ${newBalanceAfter}, total_supply: ${newTotalSupply}`,
+  );
   console.log("   Mode B migration successful!\n");
 
   // ============================================================

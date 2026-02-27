@@ -176,9 +176,7 @@ async function main() {
   // ============================================================
   console.log("Step 7. Deriving account keys...");
 
-  const publicKeys = await oldUserWallet.getPublicKeys(
-    oldUserManager.address,
-  )!;
+  const publicKeys = await oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
   const partialAddress = completeAddress.partialAddress;
   const nhk = await oldUserWallet.getMaskedNhk(
@@ -215,7 +213,9 @@ async function main() {
     (n) => !nftNotesActive.some((a) => a.equals(n)),
   );
 
-  console.log(`   Active notes: ${nftNotesActive.length}, Nullified notes: ${nftNotesNullified.length}`);
+  console.log(
+    `   Active notes: ${nftNotesActive.length}, Nullified notes: ${nftNotesNullified.length}`,
+  );
 
   if (nftNotesActive.length === 0) {
     throw new Error("No active NFT notes found");

@@ -30,10 +30,8 @@ async function main() {
     deployerManager: oldDeployerManager,
     migrationWallet: oldUserWallet,
   } = env[env.oldRollupVersion];
-  const {
-    aztecNode: newAztecNode,
-    migrationWallet: newUserWallet,
-  } = env[env.newRollupVersion];
+  const { aztecNode: newAztecNode, migrationWallet: newUserWallet } =
+    env[env.newRollupVersion];
 
   // ============================================================
   // Step 1: Create user wallets
@@ -98,11 +96,7 @@ async function main() {
   )!;
 
   await oldAppUser.methods
-    .lock_nft_mode_a(
-      PRIVATE_TOKEN_ID,
-      env.newRollupVersion,
-      mpk.toNoirStruct(),
-    )
+    .lock_nft_mode_a(PRIVATE_TOKEN_ID, env.newRollupVersion, mpk.toNoirStruct())
     .send({ from: oldUserManager.address });
 
   await assertPrivateNftOwnership(
@@ -112,7 +106,9 @@ async function main() {
     false,
     oldUserManager.address,
   );
-  console.log(`   NFT #${PRIVATE_TOKEN_ID} locked (no longer in private set)\n`);
+  console.log(
+    `   NFT #${PRIVATE_TOKEN_ID} locked (no longer in private set)\n`,
+  );
 
   // ============================================================
   // Step 5: Bridge archive root
@@ -228,7 +224,9 @@ async function main() {
     oldUserManager.address.toString(),
     "Old public owner after mint",
   );
-  console.log(`   Minted public NFT #${PUBLIC_TOKEN_ID}, owner: ${oldPublicOwner}\n`);
+  console.log(
+    `   Minted public NFT #${PUBLIC_TOKEN_ID}, owner: ${oldPublicOwner}\n`,
+  );
 
   // ============================================================
   // Step 10: Lock public NFT for migration
@@ -251,7 +249,9 @@ async function main() {
     AztecAddress.ZERO.toString(),
     "Old public owner after lock (should be zero)",
   );
-  console.log(`   Public owner after lock: ${oldPublicOwnerAfterLock} (cleared)\n`);
+  console.log(
+    `   Public owner after lock: ${oldPublicOwnerAfterLock} (cleared)\n`,
+  );
 
   // ============================================================
   // Step 11: Bridge archive root again
