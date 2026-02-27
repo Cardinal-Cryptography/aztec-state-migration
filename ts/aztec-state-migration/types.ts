@@ -1,7 +1,6 @@
 import type { Fr } from "@aztec/foundation/curves/bn254";
 import type { blockHeaderToNoir } from "./noir-helpers/block-header.js";
 import { SchnorrSignature } from "@aztec/foundation/crypto/schnorr";
-import { BlockNumber } from "@aztec/foundation/branded-types";
 
 /** Generic note inclusion proof data. */
 export interface NoteProofData<Note> {

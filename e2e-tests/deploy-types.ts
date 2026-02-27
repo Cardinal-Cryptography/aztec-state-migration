@@ -9,7 +9,7 @@ import type {
 import type { AztecNode } from "@aztec/aztec.js/node";
 import type { EmbeddedWallet } from "@aztec/wallets/embedded";
 import type { AccountManager } from "@aztec/aztec.js/wallet";
-import { MigrationEmbeddedWallet } from "../ts/aztec-state-migration/wallet/migration-embedded-wallet.js";
+import { MigrationEmbeddedWallet } from "aztec-state-migration/wallet/base";
 
 export interface DeploymentResult {
   [rollupVersion: number]: {

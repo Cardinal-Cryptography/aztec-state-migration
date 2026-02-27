@@ -1,10 +1,5 @@
 // Keys
-export {
-  deriveMasterMigrationSecretKey,
-  signMigrationModeA,
-  signMigrationModeB,
-  signPublicStateMigrationModeB,
-} from "./keys.js";
+export { deriveMasterMigrationSecretKey } from "./key.js";
 
 // Proofs
 export {

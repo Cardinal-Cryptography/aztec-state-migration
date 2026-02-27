@@ -10,3 +10,8 @@ export {
   buildPublicDataProof,
   buildPublicMapDataProof,
 } from "./proofs.js";
+
+export {
+  signMigrationModeB,
+  signPublicStateMigrationModeB,
+} from "./signature.js";

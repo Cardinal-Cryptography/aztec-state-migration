@@ -13,12 +13,12 @@ import {
   ExampleMigrationAppV2Contract,
   ExampleMigrationAppV2ContractArtifact,
 } from "./artifacts/ExampleMigrationAppV2.js";
-import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
+import { MigrationKeyRegistryContract } from "aztec-state-migration/noir-contracts";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import {
   buildPublicDataProof,
   buildPublicMapDataProof,
-} from "../ts/aztec-state-migration/mode-b/proofs.js";
+} from "aztec-state-migration/mode-b";
 import { randomBigInt } from "@aztec/foundation/crypto/random";
 
 // Define a struct that matches the one used in the example app contract,

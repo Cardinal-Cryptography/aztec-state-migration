@@ -1,0 +1,45 @@
+{
+  "name": "aztec-state-migration",
+  "author": "Cardinal Cryptography",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.12.0"
+  },
+  "packageManager": "yarn@1.22.22",
+  "exports": {
+    ".": "./index.js",
+    "./wallet": {
+      "browser": {
+        "types": "./wallet/entrypoints/browser.d.ts",
+        "default": "./wallet/entrypoints/browser.js"
+      },
+      "default": {
+        "types": "./wallet/entrypoints/node.d.ts",
+        "default": "./wallet/entrypoints/node.js"
+      }
+    },
+    "./noir-contracts": {
+      "browser": "./noir-contracts/lazy.js",
+      "default": "./noir-contracts/index.js"
+    },
+    "./noir-contracts/lazy": "./noir-contracts/lazy.js",
+    "./wallet/base": "./wallet/migration-embedded-wallet.js",
+    "./constants": "./constants.js",
+    "./common-notes": "./common-notes.js",
+    "./mode-a": "./mode-a/index.js",
+    "./mode-b": "./mode-b/index.js"
+  },
+  "dependencies": {
+    "@aztec/accounts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/wallets": "v4.0.0-devnet.2-patch.0",
+    "@aztec/aztec.js": "v4.0.0-devnet.2-patch.0",
+    "@aztec/constants": "v4.0.0-devnet.2-patch.0",
+    "@aztec/entrypoints": "v4.0.0-devnet.2-patch.0",
+    "@aztec/foundation": "v4.0.0-devnet.2-patch.0",
+    "@aztec/noir-contracts.js": "v4.0.0-devnet.2-patch.0",
+    "@aztec/pxe": "v4.0.0-devnet.2-patch.0",
+    "@aztec/stdlib": "v4.0.0-devnet.2-patch.0"
+  }
+}

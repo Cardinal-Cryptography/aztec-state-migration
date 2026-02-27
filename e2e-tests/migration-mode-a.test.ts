@@ -1,7 +1,7 @@
 import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
 import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeA } from "../ts/aztec-state-migration/index.js";
+import { signMigrationModeA } from "aztec-state-migration/mode-a";
 import { deploy } from "./deploy.js";
 import {
   deployAppPair,
