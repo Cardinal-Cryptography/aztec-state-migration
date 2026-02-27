@@ -1,0 +1,148 @@
+---
+layout: default
+title: Mode A Specification -- Cooperative Migration
+---
+
+[← Home](../index.md)
+
+# Mode A Specification -- Cooperative Migration
+
+## Overview
+
+Mode A is the standard migration path when the old rollup is still live and producing blocks. Users cooperatively lock their state on the old rollup, then claim equivalent state on the new rollup by proving the locked note's inclusion in the old rollup's note hash tree.
+
+The flow has two phases:
+
+1. **Lock (old rollup):** The app contract calls `lock_migration_notes` to burn or lock user state and create a `MigrationNote` committed to the old rollup's note hash tree.
+2. **Claim (new rollup):** The user proves the `MigrationNote` exists in the old rollup's state (via an L1-bridged archive root) and the new rollup's app contract mints equivalent state.
+
+Double spending is prevented in the following way: the lock notes on old rollup are not spendable (locking is one-directional) and upon claiming on the new rollup an appropriate nullifier is emitted.
+
+Both private notes and public state use the same lock-and-claim mechanism. The `MigrationNote` is identical in both cases; only the app-level operations that precede the lock and follow the claim differ.
+
+**Prerequisite:** The old and new app contracts must agree on the `MigrationNote` format and the migration storage slot constant (`MIGRATION_NOTE_STORAGE_SLOT`). Mode A migration notes are committed under a fixed migration slot and do not depend on the app's general public storage layout. (Identical storage layouts are required for Mode B public state migration, not Mode A.)
+
+## Lock Flow (Library Level)
+
+The library function `lock_migration_notes` (`noir/aztec-state-migration/src/mode_a/ops.nr`, function `lock_migration_notes`) creates one `MigrationNote` per element in the `migration_data` array and emits a corresponding encrypted event for each.
+
+**Steps:**
+
+1. Assert that `mpk` (migration public key) is on the Grumpkin curve.
+2. For each element in `migration_data`:
+   - Construct a `MigrationNote` via `MigrationNote::new(note_creator, mpk, destination_rollup, migration_data[i])`. The constructor hashes the packed data: `migration_data_hash = poseidon2_hash(migration_data.pack())`.
+   - Commit the note to the note hash tree under `MIGRATION_NOTE_STORAGE_SLOT` via `create_note`.
+   - Emit a `MigrationDataEvent { migration_data: migration_data[i] }` encrypted to the `notes_owner` via `emit_event_in_private` + `deliver_to` (AES128 ECDH encryption).
+
+### MigrationNote
+
+`MigrationNote` (`noir/aztec-state-migration/src/mode_a/migration_note.nr`) uses `#[custom_note]` because ownership is determined by `mpk`, not by a standard Aztec owner address. The note hash intentionally excludes the standard `owner` parameter.
+
+**Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `note_creator` | `AztecAddress` | Address of the creating app contract |
+| `mpk` | `Point` | Migration public key (Grumpkin curve point) |
+| `destination_rollup` | `Field` | Target rollup version identifier (prevents cross-rollup replay) |
+| `migration_data_hash` | `Field` | `poseidon2_hash` of the original data's packed representation |
+
+**Note hash computation** (`MigrationNote::compute_note_hash`):
+
+```
+note_hash = poseidon2_hash_with_separator(
+    [note_creator, mpk.x, mpk.y, destination_rollup, migration_data_hash, storage_slot, randomness],
+    DOM_SEP__NOTE_HASH
+)
+```
+
+### MigrationDataEvent
+
+`MigrationDataEvent<T>` (`noir/aztec-state-migration/src/mode_a/migration_data_event.nr`) delivers the original migration data (before hashing) to the recipient. Only the hash is stored in the note; the full data travels via this event so the claimer can reconstruct it on the new rollup.
+
+The `#[event]` macro does not support generic structs, so `MigrationDataEvent` implements `EventInterface` manually with `#[derive(Serialize)]`.
+
+> **Known limitation:** Events do not include a note-identifying hash (e.g., `migration_note_hash`), so wallet clients match events to notes via `txHash` filtering. The full note hash requires randomness from `create_note`, which is not available at event emission time. *(Source: `migration_data_event.nr:13`)*
+
+## Claim Flow (Library Level)
+
+The library function `migrate_notes_mode_a` (`noir/aztec-state-migration/src/mode_a/ops.nr`, function `migrate_notes_mode_a`) verifies locked notes and authorizes the claim on the new rollup.
+
+**Verification chain:**
+
+1. **Note inclusion (per note):** For each `MigrationNoteProofData` element, reconstruct the `MigrationNote` and compute its hash via `MigrationNote::compute_note_hash`. Then call `note_proof_data.verify_note_inclusion(old_app, note_hash, note_hash_tree_root)`, which silos with the old app address (`compute_siloed_note_hash`), applies uniqueness (`compute_unique_note_hash` with nonce), and verifies the Merkle proof against the note hash tree root. Returns the unique note hash.
+2. **Nullifier emission (per note):** Emit a nullifier via `MigrationNote::compute_nullifier` keyed to the note's randomness (see [Nullifier Derivation](#nullifier-derivation)).
+3. **Signature verification:** Compute `notes_hash = poseidon2_hash(note_hashes)` over all verified note hashes, then call `signature.verify_migration_signature::<DOM_SEP__CLAIM_A>(...)`.
+4. **Block hash verification (private cross-contract call):** Compute `block_hash = block_header.hash()`, then call `MigrationArchiveRegistry.verify_migration_mode_a(block_number, block_hash)` via a private cross-contract call. See [General Specification -- Block Hash Verification](migration-spec.md#block-hash-verification) for the two-step registration process.
+
+## Public State Migration (App-Level)
+
+Public state migration reuses the same `MigrationNote` and claim circuit as private migration. The difference is in the app-level wrappers:
+
+- **Lock (old rollup):** The app contract calls `lock_migration_notes` to create a `MigrationNote`, then applies its own app-specific state transition. If the state transition fails, the entire transaction reverts.
+- **Claim (new rollup):** The app contract calls `migrate_notes_mode_a` (same library function as private claim), then applies its own app-specific state transition.
+
+## Authentication
+
+Mode A claims use `DOM_SEP__CLAIM_A` as the domain separator. The signed message is:
+
+```
+msg = poseidon2_hash([DOM_SEP__CLAIM_A, old_rollup, current_rollup, notes_hash, recipient, new_app_address])
+```
+
+| Field | Purpose |
+|-------|---------|
+| `DOM_SEP__CLAIM_A` | Domain separator (prevents replay across migration modes) |
+| `old_rollup` | Old rollup version from `block_header.global_variables.version` |
+| `current_rollup` | New rollup version from `context.version()` |
+| `notes_hash` | `poseidon2_hash(note_hashes)` over all note hashes being claimed |
+| `recipient` | Recipient address on new rollup |
+| `new_app_address` | New app contract address (`context.this_address()`) |
+
+For shared Schnorr signature mechanics and key derivation, see [General Specification -- Authentication](migration-spec.md#authentication).
+
+## Nullifier Derivation
+
+Mode A uses the `MigrationNote`'s randomness (not the user's secret key) to derive the nullifier. This prevents observers from linking old and new rollup identities by predicting the nullifier from public note fields.
+
+**Formula** (`MigrationNote::compute_nullifier` in `migration_note.nr`):
+
+```
+nullifier = poseidon2_hash_with_separator([note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
+```
+
+Where `note_hash` is the note hash of the `MigrationNote` being claimed, and `randomness` is the `MigrationNote`'s randomness (passed as `wrapped_randomness.inner`). The kernel subsequently silos the nullifier by contract address before committing it to the nullifier tree.
+
+For all nullifier formulas, see [General Specification -- Migration Nullifiers](migration-spec.md#migration-nullifiers).
+
+## Batching
+
+The library function `migrate_notes_mode_a` accepts `[MigrationNoteProofData<T>; N]` and loops over all N notes. The signature covers the hash of all N note hashes, so the entire batch is authenticated atomically.
+
+Apps choose N based on their consolidation strategy. A common pattern is N = 1, where the app consolidates multiple balance notes into a single `migration_data_hash` before calling `lock_migration_notes`. Apps that create multiple `MigrationNote` instances per lock (e.g., locking distinct asset types) would set a larger N.
+
+## Wallet Integration
+
+A migration webapp will orchestrate the end-to-end flow. The wallet's role is to expose the key management and signing primitives that the webapp needs. The TS library (`ts/aztec-state-migration/`) provides `MigrationBaseWallet`, an abstract class that already implements proof building, event retrieval, and archive bridging. Wallet developers must subclass it and implement:
+
+- `getMigrationPublicKey(account)` -- return the Grumpkin migration public key for the account
+- `getPublicKeys(account)` -- return the full set of public keys for the account
+- `getMigrationSignerFromAddress(account)` -- return a signing function that produces Schnorr signatures over migration claim messages
+
+See `wallet/entrypoints/node.ts` and `wallet/entrypoints/browser.ts` for reference implementations.
+
+For key derivation, Browser vs Node environments, and key persistence, see [General Specification -- Wallet Integration](migration-spec.md#wallet-integration-shared).
+
+## PoC Limitations
+
+The following limitations are specific to Mode A in the current proof-of-concept. For shared limitations (no supply cap, no access control on `mint()`/`burn()`), see [General Specification -- PoC Limitations](migration-spec.md#poc-limitations).
+
+1. **`old_rollup_app_address` is a deployment-time configuration.** The address is read from the app contract's immutable public storage (set at deployment). If configured incorrectly, migrations silently fail due to archive root mismatch. There is no on-chain verification that this address corresponds to a legitimate app on the old rollup. See [security](../security.md) for details.
+
+
+## See Also
+
+- [General Specification](migration-spec.md) -- Shared protocol design, authentication, nullifiers, proof data types, API
+- [Mode B Specification](mode-b-spec.md) -- Emergency snapshot migration
+- [Integration Guide](../integration-guide.md) -- TS SDK usage, wallet classes, proof data types
+- [Security](../security.md) -- Trust assumptions and PoC limitations
