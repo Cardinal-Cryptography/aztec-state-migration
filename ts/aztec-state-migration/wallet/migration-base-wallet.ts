@@ -176,7 +176,10 @@ export abstract class MigrationBaseWallet extends BaseWallet {
    * filtering on the well-known {@link MIGRATION_NOTE_STORAGE_SLOT} storage slot.
    *
    * @typeParam T - The shape of the migration data (e.g. `bigint` for token amounts).
-   * @param abiType - A single ABI type applied to all events.
+   * @param contractAddress - The contract address to fetch migration notes from.
+   * @param owner - The owner address to filter migration notes.
+   * @param abiType - The ABI type to decode migration data.
+   * @param scopes - Optional scopes to filter migration notes (default: [owner]).
    */
   async getMigrationNotesAndData<T>(
     contractAddress: AztecAddress,
@@ -188,51 +191,6 @@ export abstract class MigrationBaseWallet extends BaseWallet {
       await this.getMigrationNotesEventSelector(contractAddress, owner, scopes);
     let notesAndData: MigrationNoteAndData<T>[] = [];
     for (const [txHash, notes] of noteByTxHash) {
-      const events = await this.getPrivateEvents<T>(
-        {
-          eventSelector,
-          abiType: abiType,
-          fieldNames: ["migration_data"],
-        },
-        eventFilter(txHash),
-      );
-      if (events.length !== notes.length) {
-        throw new Error(
-          `Mismatched number of events (${events.length}) and notes (${notes.length}) for tx ${txHash}.`,
-        );
-      }
-      for (let i = 0; i < notes.length; i++) {
-        notesAndData.push({ note: notes[i], data: events[i].event });
-      }
-    }
-    return notesAndData;
-  }
-  /**
-   * Like {@link getMigrationNotesAndData}, but for mixed-type data structures.
-   *
-   * When a single `lock_state` chain emits events with different data structures,
-   * pass an ordered `AbiType[]` where `abiTypes[i]` decodes the i-th event
-   * within each tx (matching `lock_state` call order).
-   *
-   * @param abiTypes - Ordered array of ABI types, one per `lock_state` call.
-   */
-  async getMixedMigrationNotesAndData(
-    contractAddress: AztecAddress,
-    owner: AztecAddress,
-    abiTypes: AbiType[],
-    scopes?: AztecAddress[],
-  ): Promise<MigrationNoteAndData<unknown>[]> {
-    const { noteByTxHash, eventSelector, eventFilter } =
-      await this.getMigrationNotesEventSelector(contractAddress, owner, scopes);
-
-    let notesAndData: MigrationNoteAndData<unknown>[] = [];
-
-    for (const [txHash, notes] of noteByTxHash) {
-      if (abiTypes.length !== notes.length) {
-        throw new Error(
-          `abiTypes array length (${abiTypes.length}) does not match number of notes (${notes.length}) for tx ${txHash}.`,
-        );
-      }
       const pxeEvents = await this.pxe.getPrivateEvents(
         eventSelector,
         eventFilter(txHash),
@@ -243,11 +201,54 @@ export abstract class MigrationBaseWallet extends BaseWallet {
         );
       }
       for (let i = 0; i < notes.length; i++) {
-        const decodedEvent = decodeFromAbi(
-          [abiTypes[i]],
-          pxeEvents[i].packedEvent,
-        ) as unknown;
-        notesAndData.push({ note: notes[i], data: decodedEvent });
+        const dataId = pxeEvents[i].packedEvent[0].toNumber();
+        const rest = pxeEvents[i].packedEvent.slice(1);
+        const data = decodeFromAbi([abiType], rest) as T;
+        notesAndData.push({ note: notes[i], dataId, data });
+      }
+    }
+    return notesAndData;
+  }
+
+  /**
+   * Like {@link getMigrationNotesAndData}, but for mixed-type data structures.
+   *
+   * When a single `lock_state` chain emits events with different data structures,
+   * pass a `Record<number, AbiType>` mapping each `dataId` to its decoder.
+   *
+   * @param abiTypes - Map from dataId to ABI type for decoding each event kind.
+   */
+  async getMixedMigrationNotesAndData(
+    contractAddress: AztecAddress,
+    owner: AztecAddress,
+    abiTypes: Record<number, AbiType>,
+    scopes?: AztecAddress[],
+  ): Promise<MigrationNoteAndData<unknown>[]> {
+    const { noteByTxHash, eventSelector, eventFilter } =
+      await this.getMigrationNotesEventSelector(contractAddress, owner, scopes);
+    let notesAndData: MigrationNoteAndData<unknown>[] = [];
+    for (const [txHash, notes] of noteByTxHash) {
+      const pxeEvents = await this.pxe.getPrivateEvents(
+        eventSelector,
+        eventFilter(txHash),
+      );
+      if (pxeEvents.length !== notes.length) {
+        throw new Error(
+          `Mismatched number of events (${pxeEvents.length}) and notes (${notes.length}) for tx ${txHash}.`,
+        );
+      }
+      for (let i = 0; i < notes.length; i++) {
+        const dataId = pxeEvents[i].packedEvent[0].toNumber();
+        const rest = pxeEvents[i].packedEvent.slice(1);
+        const abiType = abiTypes[dataId];
+        if (!abiType) {
+          this.log.warn(
+            `Unknown migration dataId ${dataId} in tx ${txHash}, skipping note ${notes[i].noteHash}.`,
+          );
+          continue;
+        }
+        const data = decodeFromAbi([abiType], rest) as unknown;
+        notesAndData.push({ note: notes[i], dataId, data });
       }
     }
     return notesAndData;

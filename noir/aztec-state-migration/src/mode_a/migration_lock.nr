@@ -27,6 +27,7 @@ pub struct MigrationLock {
     owner: AztecAddress,
     destination_rollup: Field,
     notes_creator: AztecAddress,
+    next_data_id: Field,
 }
 
 impl MigrationLock {
@@ -40,10 +41,17 @@ impl MigrationLock {
             (mpk.y * mpk.y == mpk.x * mpk.x * mpk.x - 17) & (!mpk.is_infinite),
             "mpk not on Grumpkin curve",
         );
-        Self { context, mpk, owner, destination_rollup, notes_creator: context.this_address() }
+        Self {
+            context,
+            mpk,
+            owner,
+            destination_rollup,
+            notes_creator: context.this_address(),
+            next_data_id: 0,
+        }
     }
 
-    pub fn lock_state<T: Packable + Serialize>(self, migration_data: T) -> Self {
+    pub fn lock_state<T: Packable + Serialize>(mut self, migration_data: T) -> Self {
         let migration_note = MigrationNote::new(
             self.notes_creator,
             self.mpk,
@@ -60,10 +68,12 @@ impl MigrationLock {
 
         // Emit migration data as an encrypted private event so the recipient can
         // reconstruct the original data when claiming on the new rollup.
-        emit_event_in_private(self.context, MigrationDataEvent { migration_data }).deliver_to(
-            self.owner,
-            MessageDelivery.ONCHAIN_CONSTRAINED,
-        );
+        emit_event_in_private(
+            self.context,
+            MigrationDataEvent { data_id: self.next_data_id, migration_data },
+        )
+            .deliver_to(self.owner, MessageDelivery.ONCHAIN_CONSTRAINED);
+        self.next_data_id += 1;
         self
     }
 

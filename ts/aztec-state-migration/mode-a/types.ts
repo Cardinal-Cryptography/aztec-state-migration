@@ -46,5 +46,6 @@ export const MigrationNote = {
 /** A Mode A migration note paired with its decoded migration data. */
 export interface MigrationNoteAndData<T> {
   note: NoteDao;
+  dataId: number;
   data: T;
 }
