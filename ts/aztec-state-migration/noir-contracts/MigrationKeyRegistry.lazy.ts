@@ -27,7 +27,9 @@ let cachedArtifact: ContractArtifact | undefined;
 export async function getMigrationKeyRegistryContractArtifact(): Promise<ContractArtifact> {
   if (!cachedArtifact) {
     const { default: json } =
-      await import("../artifacts/migration_key_registry-MigrationKeyRegistry.json");
+      await import("../artifacts/migration_key_registry-MigrationKeyRegistry.json", {
+        with: { type: "json" },
+      });
     cachedArtifact = loadContractArtifact(json as NoirCompiledContract);
   }
   return cachedArtifact;
