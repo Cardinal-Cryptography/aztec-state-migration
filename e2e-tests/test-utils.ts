@@ -4,26 +4,19 @@ import { TokenMigrationAppV1Contract } from "./artifacts/TokenMigrationAppV1.js"
 import { TokenMigrationAppV2Contract } from "./artifacts/TokenMigrationAppV2.js";
 import { NftMigrationAppV1Contract } from "./artifacts/NftMigrationAppV1.js";
 import { NftMigrationAppV2Contract } from "./artifacts/NftMigrationAppV2.js";
-import { MigrationArchiveRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationArchiveRegistry.js";
-import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
+import {
+  MigrationArchiveRegistryContract,
+  MigrationKeyRegistryContract,
+} from "aztec-state-migration/noir-contracts";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { EthAddress } from "@aztec/foundation/eth-address";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import {
-  waitForBlockProof,
-  migrateArchiveRootOnL1,
-  waitForL1ToL2Message,
-  buildArchiveProof,
-} from "../ts/aztec-state-migration/index.js";
-import type {
-  ArchiveProofData,
-  L1MigrationResult,
-} from "../ts/aztec-state-migration/index.js";
-import type { blockHeaderToNoir } from "../ts/aztec-state-migration/noir-helpers/block-header.js";
+import { buildArchiveProof } from "aztec-state-migration";
+import type { ArchiveProofData } from "aztec-state-migration";
+import { blockHeaderToNoir } from "aztec-state-migration";
 import type { DeploymentResult } from "./deploy-types.js";
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
-import { WaitOpts } from "@aztec/aztec.js/contracts";
 import { AccountManager } from "@aztec/aztec.js/wallet";
 import { AztecNode } from "@aztec/aztec.js/node";
 import { FeeJuicePaymentMethodWithClaim } from "@aztec/aztec.js/fee";
@@ -34,6 +27,17 @@ import {
 } from "@aztec/aztec.js/ethereum";
 import { GrumpkinScalar } from "@aztec/aztec.js/fields";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
+import {
+  Account,
+  Chain,
+  Hex,
+  parseAbi,
+  PublicClient,
+  Transport,
+  WalletClient,
+  toHex,
+  decodeEventLog,
+} from "viem";
 
 export async function assertPrivateNftOwnership(
   contract: { methods: { get_private_nfts: (...args: any[]) => any } },
@@ -98,41 +102,6 @@ export async function expectRevert(
   // Case 3: No error at all — test should fail
   throw new Error("Expected transaction to fail, but it succeeded");
 }
-
-export function assertEq(actual: any, expected: any, msg: string) {
-  const fmt = (v: any) =>
-    typeof v === "object"
-      ? JSON.stringify(
-          v,
-          (_k, val) => (typeof val === "bigint" ? val.toString() : val),
-          2,
-        )
-      : String(v);
-  if (actual !== expected && fmt(actual) !== fmt(expected)) {
-    throw new Error(
-      `Mismatch: ${msg}\n  Expected: ${fmt(expected)}\n  Actual:   ${fmt(actual)}`,
-    );
-  }
-}
-
-// ============================================================
-// Types and interfaces
-// ============================================================
-
-export const NoirOption = {
-  Some: <T>(value: T) => ({
-    _is_some: true,
-    _value: value,
-  }),
-  None: <T>(zeroedValue: T) => ({
-    _is_some: false,
-    _value: zeroedValue,
-  }),
-  NoneAddress: {
-    _is_some: false,
-    _value: AztecAddress.ZERO,
-  },
-};
 
 // ============================================================
 // Contract deployment helpers
@@ -334,103 +303,6 @@ export async function deployKeyRegistry(env: DeploymentResult) {
   return registry;
 }
 
-// ============================================================
-// Bridge helper
-// ============================================================
-
-export interface BridgeResult {
-  l1Result: L1MigrationResult;
-  provenBlockNumber: BlockNumber;
-  archiveProof: ArchiveProofData;
-  /** Noir-encoded block header for migration calls (no sibling path). */
-  blockHeader: ReturnType<typeof blockHeaderToNoir>;
-}
-
-/**
- * Full bridge sequence: wait for proof → L1 migrate → wait for L1→L2 message → register block on new rollup.
- * Returns the L1 result, proven block number, archive proof (for registration), and block header (for migration).
- */
-export async function bridgeBlock(
-  env: DeploymentResult,
-  archiveRegistry: MigrationArchiveRegistryContract,
-): Promise<BridgeResult> {
-  const old_r = env[env.oldRollupVersion];
-  const new_r = env[env.newRollupVersion];
-  const blockNumber = await old_r.aztecNode.getBlockNumber();
-
-  // Step 1: Wait for block proof
-  await waitForBlockProof(old_r.aztecNode, blockNumber, {
-    onPoll: async () => {
-      await produceBlock(env, new_r.aztecNode);
-    },
-    intervalMs: 100,
-  });
-
-  // Step 2: L1 migrateArchiveRoot
-  const l1Result = await migrateArchiveRootOnL1(
-    env.l1WalletClient,
-    env.publicClient,
-    {
-      l1MigratorAddress: env.l1MigratorAddress,
-      oldRollupVersion: env.oldRollupVersion,
-      newArchiveRegistryAddress: archiveRegistry.address,
-      newRollupVersion: env.newRollupVersion,
-      newInboxAddress: new_r.inboxAddress,
-    },
-  );
-
-  // Step 3: Wait for L1→L2 message
-  await waitForL1ToL2Message(new_r.aztecNode, l1Result.l1ToL2MessageHash, {
-    onPoll: async () => {
-      await produceBlock(env, new_r.aztecNode);
-    },
-    intervalMs: 10,
-  });
-
-  const provenBlockNumber = BlockNumber(l1Result.provenBlockNumber);
-
-  const blockHeader = await old_r.aztecNode.getBlockHeader(provenBlockNumber);
-  if (!blockHeader) {
-    throw new Error(
-      `Could not fetch block header for block ${provenBlockNumber}`,
-    );
-  }
-  const blockHash = await blockHeader.hash();
-
-  // Build archive proof (block header + sibling path, needed for register_block)
-  const archiveProof = await buildArchiveProof(old_r.aztecNode, blockHash);
-
-  // Step 4a: Consume L1-to-L2 message (stores trusted archive root)
-  await archiveRegistry.methods
-    .consume_l1_to_l2_message(
-      l1Result.provenArchiveRoot,
-      l1Result.provenBlockNumber,
-      Fr.ZERO,
-      new Fr(l1Result.l1ToL2LeafIndex),
-    )
-    .send({ from: new_r.deployerManager.address });
-
-  // Step 4b: Register block (verifies block header against stored archive root)
-  await archiveRegistry.methods
-    .register_block(
-      l1Result.provenBlockNumber,
-      archiveProof.archive_block_header,
-      archiveProof.archive_sibling_path,
-    )
-    .send({ from: new_r.deployerManager.address });
-
-  return {
-    l1Result,
-    provenBlockNumber,
-    archiveProof,
-    blockHeader: archiveProof.archive_block_header,
-  };
-}
-
-// ============================================================
-// Other helpers
-// ============================================================
-
 /**
  * Deploy account with fee juice claim. The L1→L2 message may not be available
  * immediately — the sandbox only includes L1→L2 messages when L2 blocks are
@@ -475,6 +347,186 @@ export async function deployAndFundAccount(
   return accountManager;
 }
 
+// ============================================================
+// Bridge helpers
+// ============================================================
+
+export interface BridgeResult {
+  provenBlockNumber: BlockNumber;
+  provenArchiveRoot: Fr;
+  archiveProof: ArchiveProofData;
+  /** Noir-encoded block header for migration calls (no sibling path). */
+  blockHeader: ReturnType<typeof blockHeaderToNoir>;
+}
+
+// ============================================================
+// L1 ABIs (exported for event parsing in tests)
+// ============================================================
+export const L1MigratorAbi = parseAbi([
+  "constructor(address _registry, address _poseidon2)",
+  "function migrateArchiveRoot(uint256 oldVersion, (bytes32 actor, uint256 version) l2Migrator) external returns (bytes32 leaf, uint256 leafIndex)",
+  "function getArchiveInfo(uint256 version) external view returns (bytes32 archiveRoot, uint256 provenBlockNumber)",
+  "function REGISTRY() external view returns (address)",
+  "function POSEIDON2() external view returns (address)",
+  "function SECRET_HASH_FOR_ZERO() external view returns (bytes32)",
+  "event ArchiveRootMigrated(uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenBlockNumber, bytes32 messageLeaf, uint256 messageLeafIndex)",
+]);
+
+export const InboxAbi = parseAbi([
+  "event MessageSent(uint256 indexed checkpointNumber, uint256 index, bytes32 indexed hash, bytes16 rollingHash)",
+]);
+
+/**
+ * Full bridge sequence: wait for proof → L1 migrate → wait for L1→L2 message → register block on new rollup.
+ */
+export async function bridgeBlock(
+  env: DeploymentResult,
+  archiveRegistry: MigrationArchiveRegistryContract,
+): Promise<BridgeResult> {
+  const old_r = env[env.oldRollupVersion];
+  const new_r = env[env.newRollupVersion];
+  const blockNumber = await old_r.aztecNode.getBlockNumber();
+  const onPoll = () => produceBlock(env, new_r.aztecNode);
+
+  // Step 1: Wait for block proof
+  await waitUntil(
+    async () => {
+      const proven = await old_r.aztecNode.getProvenBlockNumber();
+      return proven >= blockNumber ? proven : undefined;
+    },
+    { intervalMs: 100, onPoll },
+  );
+
+  // Step 2: L1 migrateArchiveRoot
+  const l1 = await migrateArchiveRootOnL1(
+    env.l1WalletClient,
+    env.publicClient,
+    {
+      l1MigratorAddress: env.l1MigratorAddress,
+      oldRollupVersion: env.oldRollupVersion,
+      newArchiveRegistryAddress: archiveRegistry.address,
+      newRollupVersion: env.newRollupVersion,
+      newInboxAddress: new_r.inboxAddress,
+    },
+  );
+
+  // Step 3: Wait for L1→L2 message
+  await waitForL1ToL2Message(new_r.aztecNode, l1.l1ToL2MessageHash, {
+    intervalMs: 10,
+    onPoll,
+  });
+
+  const provenBlockNumber = BlockNumber(l1.provenBlockNumber);
+
+  const blockHeader = await old_r.aztecNode.getBlockHeader(provenBlockNumber);
+  if (!blockHeader) {
+    throw new Error(
+      `Could not fetch block header for block ${provenBlockNumber}`,
+    );
+  }
+  const blockHash = await blockHeader.hash();
+  const archiveProof = await buildArchiveProof(old_r.aztecNode, blockHash);
+
+  // Step 4a: Consume L1-to-L2 message (stores trusted archive root)
+  await archiveRegistry.methods
+    .consume_l1_to_l2_message(
+      l1.provenArchiveRoot,
+      l1.provenBlockNumber,
+      Fr.ZERO,
+      new Fr(l1.l1ToL2LeafIndex),
+    )
+    .send({ from: new_r.deployerManager.address });
+
+  // Step 4b: Register block (verifies block header against stored archive root)
+  await archiveRegistry.methods
+    .register_block(
+      l1.provenBlockNumber,
+      archiveProof.archive_block_header,
+      archiveProof.archive_sibling_path,
+    )
+    .send({ from: new_r.deployerManager.address });
+
+  return {
+    provenBlockNumber,
+    provenArchiveRoot: l1.provenArchiveRoot,
+    archiveProof,
+    blockHeader: archiveProof.archive_block_header,
+  };
+}
+
+async function migrateArchiveRootOnL1(
+  l1WalletClient: WalletClient<Transport, Chain, Account>,
+  l1PublicClient: PublicClient,
+  params: {
+    l1MigratorAddress: Hex;
+    oldRollupVersion: number;
+    newArchiveRegistryAddress: AztecAddress;
+    newRollupVersion: number;
+    newInboxAddress: string;
+  },
+) {
+  const txHash = await l1WalletClient.writeContract({
+    address: params.l1MigratorAddress,
+    abi: L1MigratorAbi,
+    functionName: "migrateArchiveRoot",
+    args: [
+      BigInt(params.oldRollupVersion),
+      {
+        actor: toHex(params.newArchiveRegistryAddress.toBigInt(), { size: 32 }),
+        version: BigInt(params.newRollupVersion),
+      },
+    ],
+  });
+  const receipt = await l1PublicClient.waitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  const archiveArgs = findEvent(
+    receipt.logs,
+    L1MigratorAbi,
+    "ArchiveRootMigrated",
+  ) as {
+    archiveRoot: `0x${string}`;
+    provenBlockNumber: bigint;
+  };
+  const msgArgs = findEvent(
+    receipt.logs,
+    InboxAbi,
+    "MessageSent",
+    params.newInboxAddress,
+  ) as {
+    index: bigint;
+    hash: `0x${string}`;
+  };
+
+  return {
+    provenBlockNumber: BlockNumber.fromBigInt(archiveArgs.provenBlockNumber),
+    provenArchiveRoot: Fr.fromHexString(archiveArgs.archiveRoot),
+    l1ToL2LeafIndex: msgArgs.index,
+    l1ToL2MessageHash: new Fr(BigInt(msgArgs.hash)),
+  };
+}
+
+// ============================================================
+// Other helpers
+// ============================================================
+
+export function assertEq(actual: any, expected: any, msg: string) {
+  const fmt = (v: any) =>
+    typeof v === "object"
+      ? JSON.stringify(
+          v,
+          (_k, val) => (typeof val === "bigint" ? val.toString() : val),
+          2,
+        )
+      : String(v);
+  if (actual !== expected && fmt(actual) !== fmt(expected)) {
+    throw new Error(
+      `Mismatch: ${msg}\n  Expected: ${fmt(expected)}\n  Actual:   ${fmt(actual)}`,
+    );
+  }
+}
+
 async function fundAccount(
   env: DeploymentResult,
   node: AztecNode,
@@ -514,4 +566,81 @@ async function produceBlock(env: DeploymentResult, aztecNode: AztecNode) {
   );
   const deployMethod = await accountManager.getDeployMethod();
   await deployMethod.send({ from: rollup.deployerManager.address });
+}
+
+async function waitForL1ToL2Message(
+  aztecNode: AztecNode,
+  messageHash: Fr,
+  opts?: {
+    maxAttempts?: number;
+    intervalMs?: number;
+    onPoll?: () => Promise<void>;
+  },
+): Promise<void> {
+  await waitUntil(
+    async () => {
+      const messageBlock = await aztecNode.getL1ToL2MessageBlock(messageHash);
+      if (!messageBlock) return undefined;
+      const proven = await aztecNode.getProvenBlockNumber();
+      return proven >= messageBlock ? messageBlock : undefined;
+    },
+    {
+      maxAttempts: opts?.maxAttempts ?? 30,
+      intervalMs: opts?.intervalMs ?? 2000,
+      onPoll: opts?.onPoll,
+    },
+  );
+}
+
+async function waitUntil<T>(
+  check: () => Promise<T | undefined>,
+  {
+    maxAttempts = 60,
+    intervalMs = 2000,
+    onPoll,
+  }: {
+    maxAttempts?: number;
+    intervalMs?: number;
+    onPoll?: () => Promise<void>;
+  } = {},
+): Promise<T> {
+  for (let i = 1; i <= maxAttempts; i++) {
+    const result = await check();
+    if (result !== undefined) return result;
+    if (onPoll) await onPoll();
+    if (i < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+  }
+  throw new Error(`waitUntil timed out after ${maxAttempts} attempts`);
+}
+
+function findEvent<TAbi extends readonly unknown[]>(
+  logs: {
+    data: `0x${string}`;
+    topics: [`0x${string}`, ...`0x${string}`[]] | [];
+    address: string;
+  }[],
+  abi: TAbi,
+  eventName: string,
+  filterAddress?: string,
+) {
+  const filtered = filterAddress
+    ? logs.filter(
+        (l) => l.address.toLowerCase() === filterAddress.toLowerCase(),
+      )
+    : logs;
+  for (const log of filtered) {
+    try {
+      const decoded = decodeEventLog({
+        abi,
+        data: log.data,
+        topics: log.topics,
+      });
+      if (decoded.eventName === eventName) return decoded.args;
+    } catch {
+      /* not this event */
+    }
+  }
+  throw new Error(`Event "${eventName}" not found in logs`);
 }

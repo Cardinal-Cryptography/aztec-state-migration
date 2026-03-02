@@ -57,7 +57,8 @@ yarn sol:deps
 yarn noir:compile     # Compile Noir contracts
 yarn noir:codegen     # Generate TypeScript bindings
 yarn sol:compile      # Compile Solidity contracts
-yarn clean            # Remove all compiled artifacts
+yarn ts:build         # Build typescript SDK
+yarn clean            # Remove all compiled and built artifacts
 ```
 
 ## Formatting

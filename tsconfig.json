@@ -8,10 +8,8 @@
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "outDir": "./dist",
-    "rootDir": ".",
-    "declaration": true
+    "noEmit": true
   },
-  "include": ["e2e-tests/**/*.ts", "ts/**/*.ts"],
+  "include": ["e2e-tests/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

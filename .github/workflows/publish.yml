@@ -1,0 +1,73 @@
+name: Publish SDK to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (e.g., 0.2.0). Leave empty to use package.json version.'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run (no actual publish)'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24.12.0'
+  AZTEC_VERSION: 4.0.0-devnet.2-patch.0
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: publish-sdk-npm
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: ./.github/actions/setup-aztec
+        with:
+          version: ${{ env.AZTEC_VERSION }}
+
+      - name: Install dependencies
+        run: corepack enable && yarn install --frozen-lockfile
+
+      - name: Compile Noir contracts & generate bindings
+        run: yarn noir
+
+      - name: Build SDK
+        run: yarn ts:build
+
+      - name: Set version
+        if: inputs.version != ''
+        working-directory: ts/aztec-state-migration
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]] || { echo "Invalid semver: $VERSION"; exit 1; }
+          npm version "$VERSION" --no-git-tag-version
+
+      - name: Publish (dry run)
+        if: inputs.dry_run
+        working-directory: ts/aztec-state-migration
+        run: npm publish --access public --dry-run
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        working-directory: ts/aztec-state-migration
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

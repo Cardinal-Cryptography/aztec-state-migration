@@ -1,7 +1,7 @@
 import { NftMigrationAppV1Contract } from "./artifacts/NftMigrationAppV1.js";
 import { NftMigrationAppV2Contract } from "./artifacts/NftMigrationAppV2.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeA } from "../ts/aztec-state-migration/index.js";
+import { signMigrationModeA } from "aztec-state-migration/mode-a";
 import { deploy } from "./deploy.js";
 import {
   deployNftAppPair,
@@ -115,11 +115,11 @@ async function main() {
   // ============================================================
   console.log("Step 5. Bridging archive root...");
 
-  const { l1Result, provenBlockNumber, blockHeader } = await bridgeBlock(
+  const { provenBlockNumber, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
   );
-  console.log(`   Proven block: ${l1Result.provenBlockNumber}\n`);
+  console.log(`   Proven block: ${provenBlockNumber}\n`);
 
   // ============================================================
   // Step 6: Get migration notes and build proofs
@@ -136,10 +136,11 @@ async function main() {
       `Expected exactly 1 migration note, but found ${lockNotesAndData.length}`,
     );
   }
+  const lockNoteAndData = lockNotesAndData[0];
 
-  const [migrationNoteProof] = await oldUserWallet.buildMigrationNoteProofs(
+  const migrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
     provenBlockNumber,
-    lockNotesAndData,
+    lockNoteAndData,
   );
 
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
@@ -259,11 +260,10 @@ async function main() {
   console.log("Step 11. Bridging archive root for public lock...");
 
   const {
-    l1Result: l1ResultPublic,
     provenBlockNumber: publicProvenBlockNumber,
     blockHeader: publicBlockHeader,
   } = await bridgeBlock(env, newArchiveRegistry);
-  console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}\n`);
+  console.log(`   Proven block: ${publicProvenBlockNumber}\n`);
 
   // ============================================================
   // Step 12: Get notes, filter, build proof
@@ -293,12 +293,12 @@ async function main() {
       `Expected exactly 1 remaining note, but found ${filteredNotes.length}`,
     );
   }
+  const filteredNote = filteredNotes[0];
 
-  const [publicMigrationNoteProof] =
-    await oldUserWallet.buildMigrationNoteProofs(
-      publicProvenBlockNumber,
-      filteredNotes,
-    );
+  const publicMigrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
+    publicProvenBlockNumber,
+    filteredNote,
+  );
 
   const publicSignature = await signMigrationModeA(
     oldMigrationSigner,

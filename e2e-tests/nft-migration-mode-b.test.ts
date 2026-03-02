@@ -1,5 +1,5 @@
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeB } from "../ts/aztec-state-migration/index.js";
+import { signMigrationModeB } from "aztec-state-migration/mode-b";
 import { deploy } from "./deploy.js";
 import {
   deployNftAppPair,
@@ -228,9 +228,9 @@ async function main() {
 
   const activeNote = nftNotesActive[0];
 
-  const fullProofs = await oldUserWallet.buildFullNoteProofs(
+  const fullProof = await oldUserWallet.buildFullNoteProof(
     provenBlockNumber,
-    [activeNote],
+    activeNote,
     (note) => NFTNote.fromNote(note),
   );
 
@@ -259,15 +259,14 @@ async function main() {
   // ============================================================
   console.log("Step 10. Calling migrate_nft_mode_b on NEW rollup...");
 
-  const noteProof = fullProofs[0];
-  const migratedTokenId = noteProof.note_proof_data.data.token_id;
+  const migratedTokenId = fullProof.note_proof_data.data.token_id;
   console.log(`   Migrating token_id: ${migratedTokenId}`);
 
   await newAppUser.methods
     .migrate_nft_mode_b(
       migratedTokenId,
       signature,
-      noteProof,
+      fullProof,
       blockHeader,
       oldUserManager.address,
       publicKeys,
@@ -295,7 +294,7 @@ async function main() {
       .migrate_nft_mode_b(
         migratedTokenId,
         signature,
-        noteProof,
+        fullProof,
         blockHeader,
         oldUserManager.address,
         publicKeys,
@@ -318,9 +317,9 @@ async function main() {
 
   const nullifiedNote = nftNotesNullified[0];
 
-  const [nullifiedNoteProof] = await oldUserWallet.buildFullNoteProofs(
+  const nullifiedNoteProof = await oldUserWallet.buildFullNoteProof(
     provenBlockNumber,
-    [nullifiedNote],
+    nullifiedNote,
     (note) => NFTNote.fromNote(note),
   );
 

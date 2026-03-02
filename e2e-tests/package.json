@@ -1,0 +1,25 @@
+{
+  "name": "@aztec-state-migration/e2e-tests",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "devDependencies": {
+    "aztec-state-migration": "*",
+    "@aztec/accounts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/wallets": "v4.0.0-devnet.2-patch.0",
+    "@aztec/aztec.js": "v4.0.0-devnet.2-patch.0",
+    "@aztec/constants": "v4.0.0-devnet.2-patch.0",
+    "@aztec/foundation": "v4.0.0-devnet.2-patch.0",
+    "@aztec/pxe": "v4.0.0-devnet.2-patch.0",
+    "@aztec/stdlib": "v4.0.0-devnet.2-patch.0",
+    "@aztec/world-state": "v4.0.0-devnet.2-patch.0",
+    "@aztec/aztec-node": "v4.0.0-devnet.2-patch.0",
+    "@aztec/cli": "v4.0.0-devnet.2-patch.0",
+    "@aztec/ethereum": "v4.0.0-devnet.2-patch.0",
+    "@aztec/l1-artifacts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/noir-protocol-circuits-types": "v4.0.0-devnet.2-patch.0",
+    "@aztec/protocol-contracts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/telemetry-client": "v4.0.0-devnet.2-patch.0",
+    "viem": "^2.21.0"
+  }
+}

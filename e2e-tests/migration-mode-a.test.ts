@@ -1,7 +1,7 @@
 import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
 import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeA } from "../ts/aztec-state-migration/index.js";
+import { signMigrationModeA } from "aztec-state-migration/mode-a";
 import { deploy } from "./deploy.js";
 import {
   deployAppPair,
@@ -106,12 +106,11 @@ async function main() {
   // Step 5: Bridge archive root
   // ============================================================
   console.log("Step 5. Bridging archive root...");
-  const { l1Result, provenBlockNumber, blockHeader } = await bridgeBlock(
+  const { provenBlockNumber, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
   );
-  console.log(`   Proven block: ${l1Result.provenBlockNumber}`);
-  console.log(`   Archive root: ${l1Result.provenArchiveRoot}\n`);
+  console.log(`   Proven block: ${provenBlockNumber}`);
 
   // ============================================================
   // Steps 6-7: Prepare migration args and call migrate on NEW rollup
@@ -129,11 +128,12 @@ async function main() {
       `Expected exactly 1 migration note, but found ${lockNotesAndData.length}`,
     );
   }
+  const lockNoteAndData = lockNotesAndData[0];
 
   // Build proofs via wallet, combining note proofs with event data
-  const [migrationNoteProof] = await oldUserWallet.buildMigrationNoteProofs(
+  const migrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
     provenBlockNumber,
-    lockNotesAndData,
+    lockNoteAndData,
   );
 
   // Sign via standalone function
@@ -248,12 +248,10 @@ async function main() {
   console.log("Step 10. Bridging archive root for public lock note...");
 
   const {
-    l1Result: l1ResultPublic,
     provenBlockNumber: publicProvenBlockNumber,
     blockHeader: publicBlockHeader,
   } = await bridgeBlock(env, newArchiveRegistry);
-  console.log(`   Proven block: ${l1ResultPublic.provenBlockNumber}`);
-  console.log(`   Archive root: ${l1ResultPublic.provenArchiveRoot}\n`);
+  console.log(`   Proven block: ${publicProvenBlockNumber}`);
 
   // ============================================================
   // Step 11: Get public lock note and merkle proofs
@@ -287,12 +285,12 @@ async function main() {
       `Expected exactly 1 migration note for the public lock, but found ${filteredNotes.length}`,
     );
   }
+  const migrationNote = filteredNotes[0];
 
-  const [publicMigrationNoteProof] =
-    await oldUserWallet.buildMigrationNoteProofs(
-      publicProvenBlockNumber,
-      filteredNotes,
-    );
+  const publicMigrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
+    publicProvenBlockNumber,
+    migrationNote,
+  );
 
   // Sign via standalone function
   const publicSignature = await signMigrationModeA(

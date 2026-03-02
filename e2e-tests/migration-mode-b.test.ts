@@ -1,5 +1,5 @@
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeB } from "../ts/aztec-state-migration/index.js";
+import { signMigrationModeB } from "aztec-state-migration/mode-b";
 import { deploy } from "./deploy.js";
 import {
   deployAppPair,
@@ -12,8 +12,8 @@ import {
 } from "./test-utils.js";
 import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
 import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
-import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
-import { UintNote } from "../ts/aztec-state-migration/common-notes.js";
+import { MigrationKeyRegistryContract } from "aztec-state-migration/noir-contracts";
+import { UintNote } from "aztec-state-migration/common-notes";
 import { NoteStatus } from "@aztec/stdlib/note";
 
 async function main() {
@@ -204,12 +204,12 @@ async function main() {
   }
 
   // The ExampleMigrationApp currently only creates one note per call.
-  const balanceNotes = balanceNotesActive.slice(0, 1);
+  const balanceNote = balanceNotesActive[0];
 
   // Build proofs via wallet
-  const fullProofs = await oldUserWallet.buildFullNoteProofs(
+  const fullProof = await oldUserWallet.buildFullNoteProof(
     provenBlockNumber,
-    balanceNotes,
+    balanceNote,
     (note) => UintNote.fromNote(note),
   );
 
@@ -227,7 +227,7 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    balanceNotes,
+    [balanceNote],
     newUserManager.address,
     newApp.address,
   );
@@ -240,8 +240,7 @@ async function main() {
   console.log("Step 10. Calling migrate_mode_b on NEW rollup...");
 
   // The ExampleMigrationApp currently only supports migrating one note at a time.
-  const noteProof = fullProofs[0];
-  const migrateAmount = noteProof.note_proof_data.data.value;
+  const migrateAmount = fullProof.note_proof_data.data.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
   const newBalanceBefore = await newAppUser.methods
@@ -252,7 +251,7 @@ async function main() {
   await newAppUser.methods
     .migrate_mode_b(
       signature,
-      noteProof,
+      fullProof,
       blockHeader,
       oldUserManager.address,
       publicKeys,
@@ -290,9 +289,9 @@ async function main() {
   // Take one nullified note
   const nullifiedNote = balanceNotesNullified[0];
 
-  const [nullifiedNoteProof] = await oldUserWallet.buildFullNoteProofs(
+  const nullifiedNoteProof = await oldUserWallet.buildFullNoteProof(
     provenBlockNumber,
-    [nullifiedNote],
+    nullifiedNote,
     (note) => UintNote.fromNote(note),
   );
 

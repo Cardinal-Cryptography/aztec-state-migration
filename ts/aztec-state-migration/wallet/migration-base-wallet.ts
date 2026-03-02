@@ -3,11 +3,7 @@ import { Note, NoteDao } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
 import { MIGRATION_NOTE_STORAGE_SLOT } from "../constants.js";
 import type { AztecNode } from "@aztec/stdlib/interfaces/client";
-import {
-  ArchiveProofData,
-  MigrationSignature,
-  NoteProofData,
-} from "../types.js";
+import { MigrationSignature, NoteProofData } from "../types.js";
 import {
   FullProofData,
   NonNullificationProofData,
@@ -19,19 +15,19 @@ import {
 } from "../mode-a/types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import type { NotesFilter, PXE } from "@aztec/pxe/server";
-import { buildArchiveProof, buildNoteProof } from "../proofs.js";
+import { buildNoteProof } from "../proofs.js";
 import { buildNullifierProof } from "../mode-b/proofs.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationAccount } from "./migration-account.js";
 import {
-  signMigrationModeA as signModeA,
   signMigrationModeB as signModeB,
   signPublicStateMigrationModeB as signPubStateModeB,
-} from "../keys.js";
+} from "../mode-b/signature.js";
+import { signMigrationModeA as signModeA } from "../mode-a/signature.js";
 import { PublicKeys } from "@aztec/stdlib/keys";
-import { AbiType, EventSelector } from "@aztec/stdlib/abi";
-import { MigrationKeyRegistryContractArtifact } from "../noir-contracts/MigrationKeyRegistry.js";
+import { AbiType, decodeFromAbi, EventSelector } from "@aztec/stdlib/abi";
+import { MigrationKeyRegistryContract } from "../noir-contracts/MigrationKeyRegistry.js";
 import { buildMigrationNoteProof } from "../mode-a/proofs.js";
 import { Logger } from "@aztec/foundation/log";
 import { BlockHash } from "@aztec/stdlib/block";
@@ -176,25 +172,11 @@ export abstract class MigrationBaseWallet extends BaseWallet {
   }
 
   /**
-   * Build an archive membership proof for the given block.
-   *
-   * @param blockHash - The proven block hash to build the proof for.
-   * @returns An {@link ArchiveProofData} containing the block header and Merkle path.
-   */
-  async buildArchiveProof(blockHash: BlockHash): Promise<ArchiveProofData> {
-    return buildArchiveProof(this.aztecNode, blockHash);
-  }
-
-  /**
    * Fetch Mode A migration notes and migration data from the PXE,
    * filtering on the well-known {@link MIGRATION_NOTE_STORAGE_SLOT} storage slot.
    *
    * @typeParam T - The shape of the migration data (e.g. `bigint` for token amounts).
-   * @param contractAddress - The old rollup contract address (used for filtering and event decoding).
-   * @param owner - The note owner to filter by.
-   * @param abiType - The ABI type of the migration data (used for event decoding).
-   * @param scopes - Optional additional scope addresses to filter by (in addition to the owner).
-   * @returns An array of note+data pairs, where each note is a migration note and each data is the decoded migration data from the corresponding event.
+   * @param abiType - A single ABI type applied to all events.
    */
   async getMigrationNotesAndData<T>(
     contractAddress: AztecAddress,
@@ -202,6 +184,88 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     abiType: AbiType,
     scopes?: AztecAddress[],
   ): Promise<MigrationNoteAndData<T>[]> {
+    const { noteByTxHash, eventSelector, eventFilter } =
+      await this.getMigrationNotesEventSelector(contractAddress, owner, scopes);
+    let notesAndData: MigrationNoteAndData<T>[] = [];
+    for (const [txHash, notes] of noteByTxHash) {
+      const events = await this.getPrivateEvents<T>(
+        {
+          eventSelector,
+          abiType: abiType,
+          fieldNames: ["migration_data"],
+        },
+        eventFilter(txHash),
+      );
+      if (events.length !== notes.length) {
+        throw new Error(
+          `Mismatched number of events (${events.length}) and notes (${notes.length}) for tx ${txHash}.`,
+        );
+      }
+      for (let i = 0; i < notes.length; i++) {
+        notesAndData.push({ note: notes[i], data: events[i].event });
+      }
+    }
+    return notesAndData;
+  }
+  /**
+   * Like {@link getMigrationNotesAndData}, but for mixed-type data structures.
+   *
+   * When a single `lock_state` chain emits events with different data structures,
+   * pass an ordered `AbiType[]` where `abiTypes[i]` decodes the i-th event
+   * within each tx (matching `lock_state` call order).
+   *
+   * @param abiTypes - Ordered array of ABI types, one per `lock_state` call.
+   */
+  async getMixedMigrationNotesAndData(
+    contractAddress: AztecAddress,
+    owner: AztecAddress,
+    abiTypes: AbiType[],
+    scopes?: AztecAddress[],
+  ): Promise<MigrationNoteAndData<unknown>[]> {
+    const { noteByTxHash, eventSelector, eventFilter } =
+      await this.getMigrationNotesEventSelector(contractAddress, owner, scopes);
+
+    let notesAndData: MigrationNoteAndData<unknown>[] = [];
+
+    for (const [txHash, notes] of noteByTxHash) {
+      if (abiTypes.length !== notes.length) {
+        throw new Error(
+          `abiTypes array length (${abiTypes.length}) does not match number of notes (${notes.length}) for tx ${txHash}.`,
+        );
+      }
+      const pxeEvents = await this.pxe.getPrivateEvents(
+        eventSelector,
+        eventFilter(txHash),
+      );
+      if (pxeEvents.length !== notes.length) {
+        throw new Error(
+          `Mismatched number of events (${pxeEvents.length}) and notes (${notes.length}) for tx ${txHash}.`,
+        );
+      }
+      for (let i = 0; i < notes.length; i++) {
+        const decodedEvent = decodeFromAbi(
+          [abiTypes[i]],
+          pxeEvents[i].packedEvent,
+        ) as unknown;
+        notesAndData.push({ note: notes[i], data: decodedEvent });
+      }
+    }
+    return notesAndData;
+  }
+
+  private async getMigrationNotesEventSelector(
+    contractAddress: AztecAddress,
+    owner: AztecAddress,
+    scopes?: AztecAddress[],
+  ): Promise<{
+    noteByTxHash: Map<string, NoteDao[]>;
+    eventSelector: EventSelector;
+    eventFilter: (txHash: string) => {
+      contractAddress: AztecAddress;
+      scopes: AztecAddress[];
+      txHash: TxHash;
+    };
+  }> {
     // get all migration notes for the user
     const allNotes = await this.getNotes({
       contractAddress,
@@ -209,41 +273,22 @@ export abstract class MigrationBaseWallet extends BaseWallet {
       scopes: scopes ?? [owner],
       storageSlot: MIGRATION_NOTE_STORAGE_SLOT,
     });
-    // group events by txHash
+    // group notes by txHash
     const noteByTxHash: Map<string, NoteDao[]> = new Map();
-    allNotes.map((n) => {
+    for (const n of allNotes) {
       const currentNotes = noteByTxHash.get(n.txHash.toString()) ?? [];
-      noteByTxHash.set(n.txHash.toString(), [...currentNotes, n]);
-    });
-    // prepare event definition for MigrationDataEvent
+      currentNotes.push(n);
+      noteByTxHash.set(n.txHash.toString(), currentNotes);
+    }
+
     const eventSelector =
       await EventSelector.fromSignature("MigrationDataEvent");
-    const eventDefWithSelector = {
-      eventSelector,
-      abiType,
-      fieldNames: ["migration_data"],
-    };
-    let notesAndData: MigrationNoteAndData<T>[] = [];
-    // for each txHash, get the corresponding MigrationDataEvent and pair it with the notes
-    for (const [txHash, notes] of noteByTxHash) {
-      const events = await this.getPrivateEvents<T>(eventDefWithSelector, {
-        contractAddress,
-        scopes: scopes ?? [owner],
-        txHash: TxHash.fromString(txHash),
-      });
-      if (events.length != notes.length) {
-        throw new Error(
-          `Mismatched number of events (${events.length}) and notes (${notes.length}) for tx ${txHash}.`,
-        );
-      }
-      for (let i = 0; i < notes.length; i++) {
-        notesAndData.push({
-          note: notes[i],
-          data: events[i].event,
-        });
-      }
-    }
-    return notesAndData;
+    const eventFilter = (txHash: string) => ({
+      contractAddress,
+      scopes: scopes ?? [owner],
+      txHash: TxHash.fromString(txHash),
+    });
+    return { noteByTxHash, eventSelector, eventFilter };
   }
 
   /**
@@ -280,84 +325,78 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     return results.filter(({ migrated }) => !migrated).map(({ note }) => note);
   }
   /**
-   * Build note-hash inclusion proofs for a batch of notes.
+   * Build a note-hash inclusion proof for a single note.
    *
-   * @param blockNumber - Block number at which to prove inclusion.
-   * @param notes - The notes to prove.
-   * @param noteMapper - Callback that decodes each raw {@link Note} into the desired shape.
-   * @returns An array of {@link NoteProofData}, one per input note.
+   * @param blockReference - Block number or hash at which to prove inclusion.
+   * @param note - The note to prove.
+   * @param noteMapper - Callback that decodes the raw {@link Note} into the desired shape.
+   * @returns Proof data containing the decoded note, storage slot, randomness, nonce, and sibling path.
    */
-  async buildNoteProofs<NoteLike>(
-    blockNumber: BlockNumber,
-    notes: NoteDao[],
+  async buildNoteProof<NoteLike>(
+    blockReference: BlockNumber | BlockHash,
+    note: NoteDao,
     noteMapper: (note: Note) => NoteLike,
-  ): Promise<NoteProofData<NoteLike>[]> {
-    return Promise.all(
-      notes.map((n) =>
-        buildNoteProof(this.aztecNode, blockNumber, n, noteMapper),
-      ),
+  ): Promise<NoteProofData<NoteLike>> {
+    return buildNoteProof(this.aztecNode, blockReference, note, noteMapper);
+  }
+
+  /**
+   * Build a migration note-hash inclusion proof for a single note+data pair.
+   *
+   * @param blockReference - Block number or hash at which to prove inclusion.
+   * @param migrationNotesAndData - The note and its associated migration data.
+   * @returns Proof data containing the migration data, storage slot, randomness, nonce, and sibling path.
+   */
+  async buildMigrationNoteProof<T>(
+    blockReference: BlockNumber | BlockHash,
+    migrationNotesAndData: MigrationNoteAndData<T>,
+  ): Promise<MigrationNoteProofData<T>> {
+    return buildMigrationNoteProof(
+      this.aztecNode,
+      blockReference,
+      migrationNotesAndData.note,
+      migrationNotesAndData.data,
     );
   }
 
   /**
-   * Build note-hash inclusion proofs for a batch of notes.
+   * Build a nullifier non-inclusion proof for a single note.
    *
-   * @param blockNumber - Block number at which to prove inclusion.
-   * @param notes - The notes to prove.
-   * @param noteMapper - Callback that decodes each raw {@link Note} into the desired shape.
-   * @returns An array of {@link NoteProofData}, one per input note.
+   * @param blockReference - Block number or hash at which to prove non-inclusion.
+   * @param note - The note whose siloed nullifier is checked.
+   * @returns Proof data containing the nullifier, low-leaf preimage, and sibling path.
    */
-  async buildMigrationNoteProofs<T>(
-    blockNumber: BlockNumber,
-    migrationNotesAndData: MigrationNoteAndData<T>[],
-  ): Promise<MigrationNoteProofData<T>[]> {
-    return Promise.all(
-      migrationNotesAndData.map(({ note, data }) =>
-        buildMigrationNoteProof(this.aztecNode, blockNumber, note, data),
-      ),
-    );
-  }
-
-  /**
-   * Build nullifier non-inclusion proofs for a batch of notes.
-   *
-   * @param blockNumber - Block number at which to prove non-inclusion.
-   * @param notes - The notes whose siloed nullifiers are checked.
-   * @returns An array of {@link NullifierProofData}, one per input note.
-   */
-  async buildNullifierProofs(
-    blockNumber: BlockNumber,
-    notes: NoteDao[],
-  ): Promise<NonNullificationProofData[]> {
-    return Promise.all(
-      notes.map((n) => buildNullifierProof(this.aztecNode, blockNumber, n)),
-    );
+  async buildNullifierProof(
+    blockReference: BlockNumber | BlockHash,
+    note: NoteDao,
+  ): Promise<NonNullificationProofData> {
+    return buildNullifierProof(this.aztecNode, blockReference, note);
   }
 
   /**
    * Build combined note-hash inclusion **and** nullifier non-inclusion proofs.
-   * Merges the results of {@link buildNoteProofs} and {@link buildNullifierProofs}.
+   * Merges the results of {@link buildNoteProof} and {@link buildNullifierProof}.
    *
-   * @param blockNumber - Block number at which to prove.
-   * @param notes - The notes to prove.
-   * @param noteMapper - Callback that decodes each raw {@link Note}.
-   * @returns An array of {@link FullProofData}, one per input note.
+   * @param blockReference - Block number or hash at which to prove.
+   * @param note - The note to prove.
+   * @param noteMapper - Callback that decodes the raw {@link Note}.
+   * @returns Proof data containing the decoded note, storage slot, randomness, nonce, and sibling path.
    */
-  async buildFullNoteProofs<NoteLike>(
-    blockNumber: BlockNumber,
-    notes: NoteDao[],
+  async buildFullNoteProof<NoteLike>(
+    blockReference: BlockNumber | BlockHash,
+    note: NoteDao,
     noteMapper: (note: Note) => NoteLike,
-  ): Promise<FullProofData<NoteLike>[]> {
-    const noteProofs = await this.buildNoteProofs(
-      blockNumber,
-      notes,
+  ): Promise<FullProofData<NoteLike>> {
+    const noteProof = await this.buildNoteProof(
+      blockReference,
+      note,
       noteMapper,
     );
-    const nullifierProofs = await this.buildNullifierProofs(blockNumber, notes);
-    return noteProofs.map((noteProof, i) => ({
+    const nullifierProof = await this.buildNullifierProof(blockReference, note);
+    return {
       note_proof_data: noteProof,
-      non_nullification_proof_data: nullifierProofs[i],
-    }));
+      non_nullification_proof_data: nullifierProof,
+    };
   }
 
   /**
@@ -365,20 +404,19 @@ export abstract class MigrationBaseWallet extends BaseWallet {
    *
    * @param keyRegistry - Address of the key registry contract.
    * @param owner - Owner of the key note.
-   * @param blockNumber - Block number at which to prove inclusion.
+   * @param blockReference - Block number or hash at which to prove inclusion.
    * @returns Proof data containing the decoded key note, storage slot, randomness, nonce, and sibling path.
    */
   async buildKeyNoteProofData(
     keyRegistry: AztecAddress,
     owner: AztecAddress,
-    blockNumber: BlockNumber,
+    blockReference: BlockNumber | BlockHash,
   ): Promise<NoteProofData<KeyNote>> {
     const keyNotes = await this.getNotes({
       owner: owner,
       contractAddress: keyRegistry,
-      storageSlot:
-        MigrationKeyRegistryContractArtifact.storageLayout.registered_keys.slot,
-      scopes: [owner], // Only fetch notes owned by the specified address
+      storageSlot: MigrationKeyRegistryContract.storage.registered_keys.slot,
+      scopes: [owner],
     });
     if (keyNotes.length === 0) {
       throw new Error("No key notes found");
@@ -387,7 +425,7 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     }
     return await buildNoteProof(
       this.aztecNode,
-      blockNumber,
+      blockReference,
       keyNotes[0],
       (note) => KeyNote.fromNote(note),
     );

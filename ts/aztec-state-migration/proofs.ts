@@ -33,7 +33,7 @@ export async function buildNoteProof<NoteLike>(
   );
   if (!witness) {
     throw new Error(
-      `Could not get note hash membership witness for note ${uniqueHash.toString()}`,
+      `Could not get note hash membership witness for note ${noteDao.noteHash.toString()}`,
     );
   }
   return {

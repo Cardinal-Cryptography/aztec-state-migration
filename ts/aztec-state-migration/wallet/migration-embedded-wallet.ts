@@ -18,12 +18,9 @@ import {
   mergeExecutionPayloads,
   TxSimulationResult,
 } from "@aztec/stdlib/tx";
-import {
-  getContractInstanceFromInstantiationParams,
-  InteractionFeeOptions,
-} from "@aztec/aztec.js/contracts";
+import { getContractInstanceFromInstantiationParams } from "@aztec/aztec.js/contracts";
 import { DefaultAccountEntrypointOptions } from "@aztec/entrypoints/account";
-import { BaseWallet, type FeeOptions } from "@aztec/wallet-sdk/base-wallet";
+import { type FeeOptions } from "@aztec/wallet-sdk/base-wallet";
 import {
   deriveKeys,
   derivePublicKeyFromSecretKey,
@@ -34,7 +31,7 @@ import { MigrationAccountWithSecretKey } from "./migration-account.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AccountContractsProvider } from "./account-contract-providers/types.js";
 import { MigrationSignature } from "../types.js";
-import { deriveMasterMigrationSecretKey } from "../keys.js";
+import { deriveMasterMigrationSecretKey } from "../key.js";
 
 /**
  * Concrete migration wallet for testing. Creates its own PXE instance and

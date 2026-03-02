@@ -1,6 +1,6 @@
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import { createAztecNodeClient } from "@aztec/aztec.js/node";
-import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
+import { MigrationKeyRegistryContract } from "aztec-state-migration/noir-contracts";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import { generatePublicKey } from "@aztec/aztec.js/keys";
