@@ -10,7 +10,7 @@ import { EthAddress } from "@aztec/foundation/eth-address";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { buildArchiveProof } from "aztec-state-migration";
 import type { ArchiveProofData } from "aztec-state-migration";
-import type { blockHeaderToNoir } from "aztec-state-migration";
+import { blockHeaderToNoir } from "aztec-state-migration";
 import type { DeploymentResult } from "./deploy-types.js";
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import { AccountManager } from "@aztec/aztec.js/wallet";
