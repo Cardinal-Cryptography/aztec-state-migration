@@ -359,12 +359,20 @@ export interface BridgeResult {
   blockHeader: ReturnType<typeof blockHeaderToNoir>;
 }
 
-const L1MigratorAbi = parseAbi([
+// ============================================================
+// L1 ABIs (exported for event parsing in tests)
+// ============================================================
+export const L1MigratorAbi = parseAbi([
+  "constructor(address _registry, address _poseidon2)",
   "function migrateArchiveRoot(uint256 oldVersion, (bytes32 actor, uint256 version) l2Migrator) external returns (bytes32 leaf, uint256 leafIndex)",
+  "function getArchiveInfo(uint256 version) external view returns (bytes32 archiveRoot, uint256 provenBlockNumber)",
+  "function REGISTRY() external view returns (address)",
+  "function POSEIDON2() external view returns (address)",
+  "function SECRET_HASH_FOR_ZERO() external view returns (bytes32)",
   "event ArchiveRootMigrated(uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenBlockNumber, bytes32 messageLeaf, uint256 messageLeafIndex)",
 ]);
 
-const InboxAbi = parseAbi([
+export const InboxAbi = parseAbi([
   "event MessageSent(uint256 indexed checkpointNumber, uint256 index, bytes32 indexed hash, bytes16 rollingHash)",
 ]);
 

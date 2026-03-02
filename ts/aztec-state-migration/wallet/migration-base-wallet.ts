@@ -275,10 +275,11 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     });
     // group notes by txHash
     const noteByTxHash: Map<string, NoteDao[]> = new Map();
-    allNotes.map((n) => {
+    for (const n of allNotes) {
       const currentNotes = noteByTxHash.get(n.txHash.toString()) ?? [];
-      noteByTxHash.set(n.txHash.toString(), [...currentNotes, n]);
-    });
+      currentNotes.push(n);
+      noteByTxHash.set(n.txHash.toString(), currentNotes);
+    }
 
     const eventSelector =
       await EventSelector.fromSignature("MigrationDataEvent");
@@ -324,7 +325,7 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     return results.filter(({ migrated }) => !migrated).map(({ note }) => note);
   }
   /**
-   * Build note-hash inclusion proofs for a batch of notes.
+   * Build a note-hash inclusion proof for a single note.
    *
    * @param blockReference - Block number or hash at which to prove inclusion.
    * @param note - The note to prove.
@@ -340,12 +341,11 @@ export abstract class MigrationBaseWallet extends BaseWallet {
   }
 
   /**
-   * Build note-hash inclusion proofs for a batch of notes.
+   * Build a migration note-hash inclusion proof for a single note+data pair.
    *
    * @param blockReference - Block number or hash at which to prove inclusion.
-   * @param note - The note to prove.
-   * @param noteMapper - Callback that decodes the raw {@link Note} into the desired shape.
-   * @returns Proof data containing the decoded note, storage slot, randomness, nonce, and sibling path.
+   * @param migrationNotesAndData - The note and its associated migration data.
+   * @returns Proof data containing the migration data, storage slot, randomness, nonce, and sibling path.
    */
   async buildMigrationNoteProof<T>(
     blockReference: BlockNumber | BlockHash,
@@ -360,11 +360,11 @@ export abstract class MigrationBaseWallet extends BaseWallet {
   }
 
   /**
-   * Build nullifier non-inclusion proofs for a batch of notes.
+   * Build a nullifier non-inclusion proof for a single note.
    *
    * @param blockReference - Block number or hash at which to prove non-inclusion.
-   * @param notes - The notes whose siloed nullifiers are checked.
-   * @returns Proof data containing the decoded note, storage slot, randomness, nonce, and sibling path.
+   * @param note - The note whose siloed nullifier is checked.
+   * @returns Proof data containing the nullifier, low-leaf preimage, and sibling path.
    */
   async buildNullifierProof(
     blockReference: BlockNumber | BlockHash,

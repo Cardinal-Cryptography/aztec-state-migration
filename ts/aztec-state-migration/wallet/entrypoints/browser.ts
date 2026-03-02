@@ -7,7 +7,7 @@ import {
   createPXE,
 } from "@aztec/pxe/client/lazy";
 import { type PXEConfig, getPXEConfig } from "@aztec/pxe/config";
-import { EmbeddedWalletOptions, WalletDB } from "@aztec/wallets/embedded";
+import { type EmbeddedWalletOptions, WalletDB } from "@aztec/wallets/embedded";
 import { MigrationEmbeddedWallet } from "../migration-embedded-wallet.js";
 import { LazyAccountContractsProvider } from "../account-contract-providers/lazy.js";
 import { AccountContractsProvider } from "../account-contract-providers/types.js";

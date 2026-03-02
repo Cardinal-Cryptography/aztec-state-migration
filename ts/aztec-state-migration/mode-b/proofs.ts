@@ -20,7 +20,7 @@ import { BlockHash } from "@aztec/stdlib/block";
  * Queries the low-nullifier membership witness from the nullifier tree.
  *
  * @param node - Aztec node client to query the nullifier tree.
- * @param blockNumber - Block number at which to prove non-inclusion.
+ * @param blockReference - Block number or hash at which to prove non-inclusion.
  * @param noteDao - The note DAO whose siloed nullifier is checked.
  * @returns Low-nullifier witness data for the Noir non-inclusion check.
  */
