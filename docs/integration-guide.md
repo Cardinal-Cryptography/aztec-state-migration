@@ -46,7 +46,7 @@ Migration uses a dedicated keypair (`msk`/`mpk`) rather than the account's exist
 
 1. **Account contract independence.** Migration claims must not depend on the old rollup's account contract executing correctly -- the old rollup may have been upgraded precisely because of bugs in those contracts. A separate keypair avoids this dependency.
 2. **Cross-rollup proof compatibility.** The migration circuit needs to verify a signature against a key that is provably bound to the note owner. Standard Aztec account keys are not committed in a form that is easily provable across rollups.
-3. **Scoped risk.** If the migration key is compromised, only migration claims are at risk -- not the user's general account security. See [threat model](threat-model.md#migration-key-compromise) for the full analysis.
+3. **Scoped risk.** If the migration key is compromised, only migration claims are at risk -- not the user's general account security. See [security](security.md#migration-key-compromise) for the full analysis.
 
 The `msk` is derived deterministically from the account's secret key, so no additional key management is needed. See [Key Derivation](#key-derivation) for details.
 
@@ -142,7 +142,7 @@ Public state migration uses a separate set of proof builders:
    - `buildPublicMapDataProof(node, blockNumber, data, contractAddress, baseSlot, mapKeys, dataAbiType)` -- For values inside `Map` storage. Derives the storage slot from `baseSlot` and `mapKeys` via `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each nesting level.
    - `buildPublicDataSlotProof(node, blockNumber, contractAddress, storageSlot)` -- Low-level single-slot proof builder.
 
-2. **Sign for owned entries:** `signPublicStateMigrationModeB(signer, oldRollupVersion, newRollupVersion, data, abiType, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([DOM_SEP__CLAIM_B_PUBLIC, oldVersion, newVersion, dataHash, recipient, newApp])` where `dataHash = poseidon2_hash(pack(data))`.
+2. **Sign for owned entries:** `signPublicStateMigrationModeB(signer, oldRollupVersion, newRollupVersion, data, abiType, recipient, newAppAddress)` produces a `MigrationSignature` over `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, dataHash, recipient, newApp])` where `dataHash = poseidon2_hash(pack(data))`.
 
 3. **Submit transaction** to the new rollup's app contract.
 
@@ -175,7 +175,7 @@ The wallet classes handle proof construction and note management:
 
 These methods combine multiple lower-level proof-building functions into higher-level wrapper methods. Integrators should prefer these over calling `buildNoteProof`, `buildNullifierProof`, etc. directly.
 
-For the end-to-end wallet flow in each migration mode, see the Wallet Integration sections in [Mode A](mode-a.md#wallet-integration) and [Mode B](mode-b.md#wallet-integration).
+For the end-to-end wallet flow in each migration mode, see the Wallet Integration sections in [Mode A Specification](spec/mode-a-spec.md#wallet-integration) and [Mode B Specification](spec/mode-b-spec.md#wallet-integration).
 
 ## Key Derivation
 
@@ -270,7 +270,7 @@ The Solidity function `migrateArchiveRootAtBlock(uint256 oldVersion, uint256 blo
 
 Before running a migration, the following deployment steps are required:
 
-1. **Set `old_rollup_app_address`:** Configure the old rollup's app contract address in the new rollup's app contract via the constructor. Incorrect configuration results in silent migration failures (see [threat model](threat-model.md)).
+1. **Set `old_rollup_app_address`:** Configure the old rollup's app contract address in the new rollup's app contract via the constructor. Incorrect configuration results in silent migration failures (see [security](security.md)).
 
 2. **Deploy `MigrationArchiveRegistry`:** The constructor requires:
    - `l1_migrator: EthAddress` -- Address of the `Migrator.sol` contract on L1.
@@ -281,7 +281,7 @@ Before running a migration, the following deployment steps are required:
 
 ## See Also
 
-- [Migration Specification](spec/migration-spec.md) -- Proof data type field details, API tables
-- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
-- [Mode B](mode-b.md) -- Emergency snapshot migration flow (private and public)
-- [Operations](operations.md) -- Testing, setup, troubleshooting
+- [General Specification](spec/migration-spec.md) -- Proof data type field details, API tables
+- [Mode A Specification](spec/mode-a-spec.md) -- Cooperative lock-and-claim migration flow
+- [Mode B Specification](spec/mode-b-spec.md) -- Emergency snapshot migration flow (private and public)
+- [README](../README.md) -- Setup, testing, troubleshooting
