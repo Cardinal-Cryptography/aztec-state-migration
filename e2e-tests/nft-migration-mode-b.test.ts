@@ -2,22 +2,22 @@ import { Fr } from "@aztec/foundation/curves/bn254";
 import { signMigrationModeB } from "../ts/aztec-state-migration/index.js";
 import { deploy } from "./deploy.js";
 import {
-  deployAppPair,
+  deployNftAppPair,
   deployArchiveRegistry,
   deployKeyRegistry,
   bridgeBlock,
   deployAndFundAccount,
-  assertEq,
+  assertPrivateNftOwnership,
   expectRevert,
 } from "./test-utils.js";
-import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
-import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
+import { NftMigrationAppV1Contract } from "./artifacts/NftMigrationAppV1.js";
+import { NftMigrationAppV2Contract } from "./artifacts/NftMigrationAppV2.js";
 import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
-import { UintNote } from "../ts/aztec-state-migration/common-notes.js";
+import { NFTNote } from "../ts/aztec-state-migration/common-notes.js";
 import { NoteStatus } from "@aztec/stdlib/note";
 
 async function main() {
-  console.log("=== Mode B (Emergency Snapshot) Migration E2E Test ===\n");
+  console.log("=== NFT Mode B (Emergency Snapshot) Migration E2E Test ===\n");
 
   // ============================================================
   // Step 0: Deploy shared infrastructure
@@ -36,7 +36,7 @@ async function main() {
   } = env[env.newRollupVersion];
 
   // ============================================================
-  // Step 1: Create user wallets (MigrationTestWallet)
+  // Step 1: Create user wallets
   // ============================================================
   console.log("Step 1. Creating user wallets...");
 
@@ -44,10 +44,10 @@ async function main() {
   const newUserManager = await deployAndFundAccount(env, newAztecNode);
 
   console.log(`   Old User: ${oldUserManager.address}`);
-  console.log(`   New User: ${newUserManager.address}`);
+  console.log(`   New User: ${newUserManager.address}\n`);
 
   // ============================================================
-  // Step 2: Deploy L2 contracts
+  // Step 2: Deploy L2 contracts (with KeyRegistry)
   // ============================================================
   console.log("Step 2. Deploying L2 contracts...");
 
@@ -59,61 +59,78 @@ async function main() {
     oldKeyRegistry.address,
   );
 
-  const { oldApp, newApp } = await deployAppPair(
+  const { oldApp, newApp } = await deployNftAppPair(
     env,
     newArchiveRegistry.address,
   );
-  const oldAppUser = ExampleMigrationAppV1Contract.at(
+  const oldAppUser = NftMigrationAppV1Contract.at(
     oldApp.address,
     oldUserWallet,
   );
-  const newAppUser = ExampleMigrationAppV2Contract.at(
+  const newAppUser = NftMigrationAppV2Contract.at(
     newApp.address,
     newUserWallet,
   );
-
-  console.log(`   old_example_app: ${oldApp.address}`);
-  console.log(`   new_example_app: ${newApp.address}`);
-
+  console.log(`   old_nft_app: ${oldApp.address}`);
+  console.log(`   new_nft_app: ${newApp.address}`);
   console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
 
   // ============================================================
-  // Step 3: Mint tokens to Alice on OLD rollup
+  // Step 3: Mint 3 NFTs on OLD rollup
   // ============================================================
-  console.log("Step 3. Minting tokens to Alice on OLD rollup...");
+  console.log("Step 3. Minting 3 NFTs on OLD rollup...");
 
-  const MINT_AMOUNT_1 = 500n;
-  const MINT_AMOUNT_2 = 300n;
-  const BURN_AMOUNT_1 = 150n;
-
-  await oldApp.methods
-    .mint(oldUserManager.address, MINT_AMOUNT_1)
-    .send({ from: oldDeployerManager.address });
-  console.log(`   Minted ${MINT_AMOUNT_1} tokens (mint 1)`);
+  const TOKEN_ID_1 = 42n;
+  const TOKEN_ID_2 = 99n;
+  const TOKEN_ID_3 = 123n;
 
   await oldApp.methods
-    .mint(oldUserManager.address, MINT_AMOUNT_2)
+    .mint_to_private(oldUserManager.address, TOKEN_ID_1)
     .send({ from: oldDeployerManager.address });
-  console.log(`   Minted ${MINT_AMOUNT_2} tokens (mint 2)`);
+  console.log(`   Minted NFT #${TOKEN_ID_1}`);
 
-  await oldAppUser.methods
-    .burn(oldUserManager.address, BURN_AMOUNT_1)
-    .send({ from: oldUserManager.address });
-  console.log(`   Burned ${BURN_AMOUNT_1} tokens (burn 1)`);
+  await oldApp.methods
+    .mint_to_private(oldUserManager.address, TOKEN_ID_2)
+    .send({ from: oldDeployerManager.address });
+  console.log(`   Minted NFT #${TOKEN_ID_2}`);
 
-  const oldBalance = await oldAppUser.methods
-    .get_balance(oldUserManager.address)
+  await oldApp.methods
+    .mint_to_private(oldUserManager.address, TOKEN_ID_3)
+    .send({ from: oldDeployerManager.address });
+  console.log(`   Minted NFT #${TOKEN_ID_3}`);
+
+  const [ownedNfts] = await oldAppUser.methods
+    .get_private_nfts(oldUserManager.address, 0)
     .simulate({ from: oldUserManager.address });
-  console.log(`   Total balance on OLD rollup: ${oldBalance}\n`);
+  const activeNfts = (ownedNfts as bigint[]).filter((id) => id !== 0n);
+  console.log(`   Owned NFTs: [${activeNfts.join(", ")}]\n`);
 
   // ============================================================
-  // Step 4: Register migration key for Alice
+  // Step 4: Nullify one NFT via lock_nft_mode_a
   // ============================================================
-  console.log("Step 4. Registering migration key for Alice...");
+  console.log("Step 4. Nullifying NFT via lock_nft_mode_a...");
 
   const mpk = await oldUserWallet.getMigrationPublicKey(
     oldUserManager.address,
   )!;
+
+  await oldAppUser.methods
+    .lock_nft_mode_a(TOKEN_ID_3, env.newRollupVersion, mpk.toNoirStruct())
+    .send({ from: oldUserManager.address });
+  console.log(`   NFT #${TOKEN_ID_3} nullified (locked for migration)`);
+
+  const [ownedNftsAfterLock] = await oldAppUser.methods
+    .get_private_nfts(oldUserManager.address, 0)
+    .simulate({ from: oldUserManager.address });
+  const activeNftsAfterLock = (ownedNftsAfterLock as bigint[]).filter(
+    (id) => id !== 0n,
+  );
+  console.log(`   Remaining NFTs: [${activeNftsAfterLock.join(", ")}]\n`);
+
+  // ============================================================
+  // Step 5: Register migration key
+  // ============================================================
+  console.log("Step 5. Registering migration key...");
 
   const oldUserKeyRegistry = MigrationKeyRegistryContract.at(
     oldKeyRegistry.address,
@@ -130,9 +147,9 @@ async function main() {
   console.log(`   Verified registered mpk: ${registeredKey}\n`);
 
   // ============================================================
-  // Steps 5-7: Bridge + set snapshot height
+  // Step 6: Bridge archive root + set snapshot height
   // ============================================================
-  console.log("Step 5-7. Bridging archive root and setting snapshot height...");
+  console.log("Step 6. Bridging archive root and setting snapshot height...");
 
   const { provenBlockNumber, archiveProof, blockHeader } = await bridgeBlock(
     env,
@@ -140,8 +157,7 @@ async function main() {
   );
   console.log(`   Bridge complete. Proven block: ${provenBlockNumber}`);
 
-  // Set snapshot height for Mode B
-  const setSnapshotTx = await newArchiveRegistry.methods
+  await newArchiveRegistry.methods
     .set_snapshot_height(
       provenBlockNumber,
       blockHeader,
@@ -156,9 +172,9 @@ async function main() {
   console.log(`   Stored snapshot height: ${storedSnapshot}\n`);
 
   // ============================================================
-  // Step 8: Derive account keys for Mode B
+  // Step 7: Derive account keys
   // ============================================================
-  console.log("Step 8. Deriving account keys...");
+  console.log("Step 7. Deriving account keys...");
 
   const publicKeys = await oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
@@ -168,49 +184,54 @@ async function main() {
     newUserManager.address,
     newApp.address,
   );
-
-  console.log(`   nhk derived`);
-  console.log(`   Partial address: ${partialAddress}\n`);
+  console.log(`   nhk derived, partial address: ${partialAddress}\n`);
 
   // ============================================================
-  // Step 9: Build proofs and sign
+  // Step 8: Get notes and separate active vs nullified
   // ============================================================
-  console.log("Step 9. Building proofs and signing...");
+  console.log("Step 8. Getting notes...");
 
-  const balancesSlot = oldApp.artifact.storageLayout["balances"].slot;
+  const nftsSlot = oldApp.artifact.storageLayout["private_nfts"].slot;
 
-  const balanceNotesAll = await oldUserWallet.getNotes({
+  const nftNotesAll = await oldUserWallet.getNotes({
     owner: oldUserManager.address,
     contractAddress: oldApp.address,
-    storageSlot: balancesSlot,
+    storageSlot: nftsSlot,
     status: NoteStatus.ACTIVE_OR_NULLIFIED,
     scopes: [oldUserManager.address],
   });
 
-  const balanceNotesActive = await oldUserWallet.getNotes({
+  const nftNotesActive = await oldUserWallet.getNotes({
     owner: oldUserManager.address,
     contractAddress: oldApp.address,
-    storageSlot: balancesSlot,
+    storageSlot: nftsSlot,
     status: NoteStatus.ACTIVE,
     scopes: [oldUserManager.address],
   });
 
-  const balanceNotesNullified = balanceNotesAll.filter(
-    (n) => !balanceNotesActive.some((a) => a.equals(n)),
+  const nftNotesNullified = nftNotesAll.filter(
+    (n) => !nftNotesActive.some((a) => a.equals(n)),
   );
 
-  if (balanceNotesActive.length === 0) {
-    throw new Error("No active balance notes found");
+  console.log(
+    `   Active notes: ${nftNotesActive.length}, Nullified notes: ${nftNotesNullified.length}`,
+  );
+
+  if (nftNotesActive.length === 0) {
+    throw new Error("No active NFT notes found");
   }
 
-  // The ExampleMigrationApp currently only creates one note per call.
-  const balanceNotes = balanceNotesActive.slice(0, 1);
+  // ============================================================
+  // Step 9: Build proofs for one active note and sign
+  // ============================================================
+  console.log("Step 9. Building proofs and signing...");
 
-  // Build proofs via wallet
+  const activeNote = nftNotesActive[0];
+
   const fullProofs = await oldUserWallet.buildFullNoteProofs(
     provenBlockNumber,
-    balanceNotes,
-    (note) => UintNote.fromNote(note),
+    [activeNote],
+    (note) => NFTNote.fromNote(note),
   );
 
   const keyNoteProof = await oldUserWallet.buildKeyNoteProofData(
@@ -219,7 +240,6 @@ async function main() {
     provenBlockNumber,
   );
 
-  // Sign via standalone function
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
@@ -227,30 +247,25 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    balanceNotes,
+    [activeNote],
     newUserManager.address,
     newApp.address,
   );
 
-  console.log(`   Migration args prepared.\n`);
+  console.log("   Migration args prepared.\n");
 
   // ============================================================
-  // Step 10: Call migrate_mode_b on NEW rollup
+  // Step 10: Call migrate_nft_mode_b on NEW rollup
   // ============================================================
-  console.log("Step 10. Calling migrate_mode_b on NEW rollup...");
+  console.log("Step 10. Calling migrate_nft_mode_b on NEW rollup...");
 
-  // The ExampleMigrationApp currently only supports migrating one note at a time.
   const noteProof = fullProofs[0];
-  const migrateAmount = noteProof.note_proof_data.data.value;
-  console.log(`   Migrating amount: ${migrateAmount}`);
-
-  const newBalanceBefore = await newAppUser.methods
-    .get_balance(newUserManager.address)
-    .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
+  const migratedTokenId = noteProof.note_proof_data.data.token_id;
+  console.log(`   Migrating token_id: ${migratedTokenId}`);
 
   await newAppUser.methods
-    .migrate_mode_b(
+    .migrate_nft_mode_b(
+      migratedTokenId,
       signature,
       noteProof,
       blockHeader,
@@ -262,38 +277,51 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newBalanceAfter = await newAppUser.methods
-    .get_balance(newUserManager.address)
-    .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
-  assertEq(
-    newBalanceAfter,
-    migrateAmount,
-    "Migrated balance on NEW rollup does not match expected amount",
+  await assertPrivateNftOwnership(
+    newAppUser,
+    newUserManager.address,
+    migratedTokenId.toBigInt(),
+    true,
+    newUserManager.address,
   );
-
-  console.log(
-    "\n   Mode B migration successful! Balance matches migrated amount.",
-  );
+  console.log("   Mode B NFT migration successful!\n");
 
   // ============================================================
-  // Step 11: Call migrate_mode_b on NEW rollup with nullified note (should fail)
+  // Step 11: Double migration negative test
   // ============================================================
-  console.log(
-    "Step 11. Calling migrate_mode_b on NEW rollup with nullified note (should fail)...",
+  console.log("Step 11. Testing double migration (should fail)...");
+  await expectRevert(
+    newAppUser.methods
+      .migrate_nft_mode_b(
+        migratedTokenId,
+        signature,
+        noteProof,
+        blockHeader,
+        oldUserManager.address,
+        publicKeys,
+        partialAddress,
+        keyNoteProof,
+        { hi: nhk.hi, lo: nhk.lo },
+      )
+      .send({ from: newUserManager.address }),
   );
+  console.log("   Double migration correctly rejected!\n");
 
-  if (balanceNotesNullified.length === 0) {
-    throw new Error("No nullified balance notes found to test failure case");
+  // ============================================================
+  // Step 12: Nullified note rejection test
+  // ============================================================
+  console.log("Step 12. Testing nullified note migration (should fail)...");
+
+  if (nftNotesNullified.length === 0) {
+    throw new Error("No nullified NFT notes found to test failure case");
   }
 
-  // Take one nullified note
-  const nullifiedNote = balanceNotesNullified[0];
+  const nullifiedNote = nftNotesNullified[0];
 
   const [nullifiedNoteProof] = await oldUserWallet.buildFullNoteProofs(
     provenBlockNumber,
     [nullifiedNote],
-    (note) => UintNote.fromNote(note),
+    (note) => NFTNote.fromNote(note),
   );
 
   const nullifiedNoteSig = await signMigrationModeB(
@@ -305,9 +333,12 @@ async function main() {
     newApp.address,
   );
 
+  const nullifiedTokenId = nullifiedNoteProof.note_proof_data.data.token_id;
+
   await expectRevert(
     newAppUser.methods
-      .migrate_mode_b(
+      .migrate_nft_mode_b(
+        nullifiedTokenId,
         nullifiedNoteSig,
         nullifiedNoteProof,
         blockHeader,
@@ -317,29 +348,24 @@ async function main() {
         keyNoteProof,
         { hi: nhk.hi, lo: nhk.lo },
       )
-      .send({ from: newUserManager.address }),
+      .simulate({ from: newUserManager.address }),
     "Note nullifier non-inclusion",
   );
-  console.log("   Expected failure: Note is not active");
-  // ============================================================
+  console.log("   Nullified note correctly rejected!\n");
 
   // ============================================================
   // Summary
   // ============================================================
-
-  console.log("\n=== Mode B Migration Test Summary ===\n");
+  console.log("=== NFT Mode B Migration Test Summary ===\n");
   console.log("Contracts deployed:");
   console.log("  OLD Rollup (L2):");
-  console.log(`    - ExampleMigrationApp: ${oldApp.address}`);
+  console.log(`    - NftMigrationApp: ${oldApp.address}`);
   console.log(`    - MigrationKeyRegistry: ${oldKeyRegistry.address}`);
   console.log("  NEW Rollup (L2):");
   console.log(`    - MigrationArchiveRegistry: ${newArchiveRegistry.address}`);
-  console.log(`    - ExampleMigrationApp: ${newApp.address}`);
+  console.log(`    - NftMigrationApp: ${newApp.address}`);
   console.log(`\nSnapshot height: ${provenBlockNumber}`);
-  console.log(`Migrated amount: ${migrateAmount}`);
-  console.log("\nBalances:");
-  console.log(`  OLD rollup: ${oldBalance}`);
-  console.log(`  NEW rollup: ${newBalanceAfter}`);
+  console.log(`Migrated token_id: ${migratedTokenId}`);
 }
 
 main().catch((e) => {
