@@ -16,7 +16,51 @@ use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 ///   MigrationLock::new(context, mpk, owner, destination_rollup)
 ///       .lock_state(migration_data)   // repeat for each piece of migration data
 ///       .finish();                    // finalize migration (no-op)
+/// ```
+///
+/// It is recommended to "batch" migrated state into one `.lock_state(...)` call:
+///
 ///```
+///   #[derive(Packable, Serialize)]
+///   struct MigrationData {
+///       state1: ...,
+///       state2: ...,
+///        ...
+///   }
+///
+/// ...
+///
+///   let migration_data = MigrationData { state1, state2, ... };
+///
+///   MigrationLock::new(context, mpk, owner, destination_rollup)
+///       .lock_state(migration_data)
+///       .finish();
+///```
+///
+/// ## Multiple MigrationLock instances:
+/// Each `.lock_state(...)` call creates a new migration note and emits a corresponding event
+/// with the migration data. To avoid data ID collisions in the events, when using multiple `MigrationLock` instances,
+/// you should use `MigrationLock::new_with_offset` to set a unique starting data ID for each instance.
+///
+/// ```
+///   #[external("private")]
+///   fn lock_for_migration_1(destination_rollup: Field, mpk: Point) {
+///       ...
+///
+///       MigrationLock::new(self.context, mpk, note_owner, destination_rollup)
+///           .lock_state(state1)
+///           .finish();
+///   }
+///
+///   #[external("private")]
+///   fn lock_for_migration_2(destination_rollup: Field, mpk: Point) {
+///       ...
+///
+///       MigrationLock::new_with_offset(self.context, mpk, note_owner, destination_rollup, 1)
+///           .lock_state(state2)
+///           .finish();
+///   }
+/// ```
 ///
 /// The `.finish()` method is a no-op.
 /// It's included to surpress warnings about unused variables and
@@ -49,6 +93,18 @@ impl MigrationLock {
             notes_creator: context.this_address(),
             next_data_id: 0,
         }
+    }
+
+    pub fn new_with_offset(
+        context: &mut PrivateContext,
+        mpk: Point,
+        owner: AztecAddress,
+        destination_rollup: Field,
+        data_id_offset: Field,
+    ) -> Self {
+        let mut lock = Self::new(context, mpk, owner, destination_rollup);
+        lock.next_data_id = data_id_offset;
+        lock
     }
 
     pub fn lock_state<T: Packable + Serialize>(mut self, migration_data: T) -> Self {
