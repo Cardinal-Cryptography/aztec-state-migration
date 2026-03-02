@@ -16,7 +16,7 @@ import { BlockNumber } from "@aztec/foundation/branded-types";
 
 const L1MigratorAbi = parseAbi([
   "function migrateArchiveRoot(uint256 oldVersion, (bytes32 actor, uint256 version) l2Migrator) external returns (bytes32 leaf, uint256 leafIndex)",
-  "event ArchiveRootMigrated(uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenCheckpointNumber, bytes32 messageLeaf, uint256 messageLeafIndex)",
+  "event ArchiveRootMigrated(uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenBlockNumber, bytes32 messageLeaf, uint256 messageLeafIndex)",
 ]);
 
 const InboxAbi = parseAbi([
@@ -108,12 +108,12 @@ export async function migrateArchiveRootOnL1(
   });
   const eventArgs = archiveEvent.args as {
     archiveRoot: `0x${string}`;
-    provenCheckpointNumber: bigint;
+    provenBlockNumber: bigint;
   };
 
   const provenArchiveRoot = Fr.fromHexString(eventArgs.archiveRoot);
   const provenBlockNumber = BlockNumber.fromBigInt(
-    eventArgs.provenCheckpointNumber,
+    eventArgs.provenBlockNumber,
   );
 
   // Parse MessageSent event from Inbox

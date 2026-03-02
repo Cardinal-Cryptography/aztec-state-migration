@@ -160,7 +160,7 @@ User accounts are created via `deployAndFundAccount`, which deploys a Schnorr ac
 |----------|--------|---------|
 | `migrateArchiveRoot` | `uint256 oldVersion, DataStructures.L2Actor calldata l2Migrator` | `bytes32 leaf, uint256 leafIndex` |
 | `migrateArchiveRootAtBlock` | `uint256 oldVersion, uint256 blockNumber, DataStructures.L2Actor calldata l2Migrator` | `bytes32 leaf, uint256 leafIndex` |
-| `getArchiveInfo` | `uint256 version` | `bytes32 archiveRoot, uint256 provenCheckpointNumber` |
+| `getArchiveInfo` | `uint256 version` | `bytes32 archiveRoot, uint256 provenBlockNumber` |
 
 Note: The TS library (`bridge.ts`) only wraps `migrateArchiveRoot`. Integrators needing `migrateArchiveRootAtBlock` must call the Solidity contract directly.
 

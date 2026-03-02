@@ -70,9 +70,9 @@ Mode B identity contract. Uses `Owned<PrivateImmutable<MigrationKeyNote>>` for p
 
 Permissionless L1 contract (`solidity/contracts/Migrator.sol`) that bridges old rollup archive roots to the new rollup.
 
-- **`migrateArchiveRoot(oldVersion, l2Migrator)`** -- reads the old rollup's latest `provenCheckpointNumber` and archive root, sends an L1-to-L2 message
+- **`migrateArchiveRoot(oldVersion, l2Migrator)`** -- reads the old rollup's latest `provenBlockNumber` and archive root, sends an L1-to-L2 message
 - **`migrateArchiveRootAtBlock(oldVersion, blockNumber, l2Migrator)`** -- same, but for a specific block height
-- **`getArchiveInfo(version)`** -- view function returning current archive root and proven checkpoint
+- **`getArchiveInfo(version)`** -- view function returning current archive root and proven block number
 
 ## Three-Tier Composition Pattern
 
