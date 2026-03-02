@@ -112,9 +112,7 @@ export async function migrateArchiveRootOnL1(
   };
 
   const provenArchiveRoot = Fr.fromHexString(eventArgs.archiveRoot);
-  const provenBlockNumber = BlockNumber.fromBigInt(
-    eventArgs.provenBlockNumber,
-  );
+  const provenBlockNumber = BlockNumber.fromBigInt(eventArgs.provenBlockNumber);
 
   // Parse MessageSent event from Inbox
   const inboxLogs = receipt.logs.filter(
