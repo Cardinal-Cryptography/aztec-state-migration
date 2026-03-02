@@ -29,7 +29,10 @@ let cachedArtifact: ContractArtifact | undefined;
 export async function getMigrationArchiveRegistryContractArtifact(): Promise<ContractArtifact> {
   if (!cachedArtifact) {
     const { default: json } =
-      await import("../artifacts/migration_archive_registry-MigrationArchiveRegistry.json");
+      await import(
+        "../artifacts/migration_archive_registry-MigrationArchiveRegistry.json",
+        { with: { type: "json" } },
+      );
     cachedArtifact = loadContractArtifact(json as NoirCompiledContract);
   }
   return cachedArtifact;
