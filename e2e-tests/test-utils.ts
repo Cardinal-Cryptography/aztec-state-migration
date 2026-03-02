@@ -1,14 +1,16 @@
 import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
 import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
-import { MigrationArchiveRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationArchiveRegistry.js";
-import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
+import {
+  MigrationArchiveRegistryContract,
+  MigrationKeyRegistryContract,
+} from "aztec-state-migration/noir-contracts";
 import { Fq, Fr } from "@aztec/foundation/curves/bn254";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import { EthAddress } from "@aztec/foundation/eth-address";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
-import { buildArchiveProof } from "../ts/aztec-state-migration/index.js";
-import type { ArchiveProofData } from "../ts/aztec-state-migration/index.js";
-import type { blockHeaderToNoir } from "../ts/aztec-state-migration/noir-helpers/block-header.js";
+import { buildArchiveProof } from "aztec-state-migration";
+import type { ArchiveProofData } from "aztec-state-migration";
+import { blockHeaderToNoir } from "aztec-state-migration";
 import type { DeploymentResult } from "./deploy-types.js";
 import { EmbeddedWallet } from "@aztec/wallets/embedded";
 import { AccountManager } from "@aztec/aztec.js/wallet";

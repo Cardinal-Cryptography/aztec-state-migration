@@ -12,6 +12,8 @@ yarn noir:compile
 yarn sol:compile
 # generate noir contract ts artifacts
 yarn noir:codegen
+# build SDK
+yarn ts:build
 ```
 2.
 ```sh

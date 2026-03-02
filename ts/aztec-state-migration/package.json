@@ -1,0 +1,78 @@
+{
+  "name": "aztec-state-migration",
+  "author": "Cardinal Cryptography",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24.12.0"
+  },
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./wallet": {
+      "browser": {
+        "types": "./dist/wallet/entrypoints/browser.d.ts",
+        "default": "./dist/wallet/entrypoints/browser.js"
+      },
+      "default": {
+        "types": "./dist/wallet/entrypoints/node.d.ts",
+        "default": "./dist/wallet/entrypoints/node.js"
+      }
+    },
+    "./noir-contracts": {
+      "browser": {
+        "types": "./dist/noir-contracts/lazy.d.ts",
+        "default": "./dist/noir-contracts/lazy.js"
+      },
+      "default": {
+        "types": "./dist/noir-contracts/index.d.ts",
+        "default": "./dist/noir-contracts/index.js"
+      }
+    },
+    "./noir-contracts/lazy": {
+      "types": "./dist/noir-contracts/lazy.d.ts",
+      "default": "./dist/noir-contracts/lazy.js"
+    },
+    "./wallet/base": {
+      "types": "./dist/wallet/migration-embedded-wallet.d.ts",
+      "default": "./dist/wallet/migration-embedded-wallet.js"
+    },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "default": "./dist/constants.js"
+    },
+    "./common-notes": {
+      "types": "./dist/common-notes.d.ts",
+      "default": "./dist/common-notes.js"
+    },
+    "./mode-a": {
+      "types": "./dist/mode-a/index.d.ts",
+      "default": "./dist/mode-a/index.js"
+    },
+    "./mode-b": {
+      "types": "./dist/mode-b/index.d.ts",
+      "default": "./dist/mode-b/index.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "dependencies": {
+    "@aztec/accounts": "v4.0.0-devnet.2-patch.0",
+    "@aztec/wallets": "v4.0.0-devnet.2-patch.0",
+    "@aztec/aztec.js": "v4.0.0-devnet.2-patch.0",
+    "@aztec/constants": "v4.0.0-devnet.2-patch.0",
+    "@aztec/entrypoints": "v4.0.0-devnet.2-patch.0",
+    "@aztec/foundation": "v4.0.0-devnet.2-patch.0",
+    "@aztec/noir-contracts.js": "v4.0.0-devnet.2-patch.0",
+    "@aztec/pxe": "v4.0.0-devnet.2-patch.0",
+    "@aztec/stdlib": "v4.0.0-devnet.2-patch.0"
+  }
+}

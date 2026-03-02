@@ -21,13 +21,13 @@ import { Point } from "@aztec/foundation/schemas";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationAccount } from "./migration-account.js";
 import {
-  signMigrationModeA as signModeA,
   signMigrationModeB as signModeB,
   signPublicStateMigrationModeB as signPubStateModeB,
-} from "../keys.js";
+} from "../mode-b/signature.js";
+import { signMigrationModeA as signModeA } from "../mode-a/signature.js";
 import { PublicKeys } from "@aztec/stdlib/keys";
 import { AbiType, decodeFromAbi, EventSelector } from "@aztec/stdlib/abi";
-import { MigrationKeyRegistryContractArtifact } from "../noir-contracts/MigrationKeyRegistry.js";
+import { MigrationKeyRegistryContract } from "../noir-contracts/MigrationKeyRegistry.js";
 import { buildMigrationNoteProof } from "../mode-a/proofs.js";
 import { Logger } from "@aztec/foundation/log";
 import { BlockHash } from "@aztec/stdlib/block";
@@ -415,8 +415,7 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     const keyNotes = await this.getNotes({
       owner: owner,
       contractAddress: keyRegistry,
-      storageSlot:
-        MigrationKeyRegistryContractArtifact.storageLayout.registered_keys.slot,
+      storageSlot: MigrationKeyRegistryContract.storage.registered_keys.slot,
       scopes: [owner],
     });
     if (keyNotes.length === 0) {
