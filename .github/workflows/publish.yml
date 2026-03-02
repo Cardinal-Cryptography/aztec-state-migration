@@ -7,7 +7,7 @@ on:
         description: 'Version to publish (e.g., 0.2.0). Leave empty to use package.json version.'
         required: false
         type: string
-      dry-run:
+      dry_run:
         description: 'Dry run (no actual publish)'
         required: false
         type: boolean
@@ -54,17 +54,21 @@ jobs:
       - name: Set version
         if: inputs.version != ''
         working-directory: ts/aztec-state-migration
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$ ]] || { echo "Invalid semver: $VERSION"; exit 1; }
+          npm version "$VERSION" --no-git-tag-version
 
       - name: Publish (dry run)
-        if: inputs.dry-run
+        if: inputs.dry_run
         working-directory: ts/aztec-state-migration
         run: npm publish --access public --dry-run
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish
-        if: ${{ !inputs.dry-run }}
+        if: ${{ !inputs.dry_run }}
         working-directory: ts/aztec-state-migration
         run: npm publish --access public
         env:
