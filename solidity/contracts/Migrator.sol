@@ -48,12 +48,12 @@ contract Migrator {
         IRollup newRollup = IRollup(address(REGISTRY.getRollup(l2Migrator.version)));
 
         // Get the proven archive root from old rollup
-        uint256 provenCheckpointNumber = oldRollup.getProvenCheckpointNumber();
-        bytes32 archiveRoot = oldRollup.archiveAt(provenCheckpointNumber);
+        uint256 provenBlockNumber = oldRollup.getProvenCheckpointNumber();
+        bytes32 archiveRoot = oldRollup.archiveAt(provenBlockNumber);
 
-        // Content: poseidon2(oldVersion, archiveRoot, provenCheckpointNumber)
+        // Content: poseidon2(oldVersion, archiveRoot, provenBlockNumber)
         // This allows the L2 contract to verify the message authenticity
-        bytes32 content = bytes32(POSEIDON2.hash_3(oldVersion, uint256(archiveRoot), provenCheckpointNumber));
+        bytes32 content = bytes32(POSEIDON2.hash_3(oldVersion, uint256(archiveRoot), provenBlockNumber));
 
         // Send to new rollup via L1→L2 message
         // Use SECRET_HASH_FOR_ZERO so L2 can consume with secret=0
@@ -61,7 +61,7 @@ contract Migrator {
         (leaf, leafIndex) = inbox.sendL2Message(l2Migrator, content, SECRET_HASH_FOR_ZERO);
 
         emit ArchiveRootMigrated(
-            oldVersion, l2Migrator.version, l2Migrator.actor, archiveRoot, provenCheckpointNumber, leaf, leafIndex
+            oldVersion, l2Migrator.version, l2Migrator.actor, archiveRoot, provenBlockNumber, leaf, leafIndex
         );
     }
 
@@ -80,8 +80,8 @@ contract Migrator {
         IRollup newRollup = IRollup(address(REGISTRY.getRollup(l2Migrator.version)));
 
         // Ensure the requested block is finalized
-        uint256 provenCheckpointNumber = oldRollup.getProvenCheckpointNumber();
-        require(blockNumber <= provenCheckpointNumber, "Block not yet proven");
+        uint256 provenBlockNumber = oldRollup.getProvenCheckpointNumber();
+        require(blockNumber <= provenBlockNumber, "Block not yet proven");
 
         bytes32 archiveRoot = oldRollup.archiveAt(blockNumber);
 
@@ -98,14 +98,10 @@ contract Migrator {
     /// @notice Get archive root info from a rollup version (view function for off-chain use)
     /// @param version The rollup version to query
     /// @return archiveRoot The current archive root
-    /// @return provenCheckpointNumber The last proven checkpoint number
-    function getArchiveInfo(uint256 version)
-        external
-        view
-        returns (bytes32 archiveRoot, uint256 provenCheckpointNumber)
-    {
+    /// @return provenBlockNumber The last proven block number
+    function getArchiveInfo(uint256 version) external view returns (bytes32 archiveRoot, uint256 provenBlockNumber) {
         IRollup rollup = IRollup(address(REGISTRY.getRollup(version)));
-        provenCheckpointNumber = rollup.getProvenCheckpointNumber();
-        archiveRoot = rollup.archiveAt(provenCheckpointNumber);
+        provenBlockNumber = rollup.getProvenCheckpointNumber();
+        archiveRoot = rollup.archiveAt(provenBlockNumber);
     }
 }
