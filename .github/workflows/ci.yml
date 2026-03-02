@@ -56,6 +56,8 @@ jobs:
         run: yarn noir:compile && yarn noir:codegen
       - name: Compile Solidity contracts
         run: yarn sol:compile
+      - name: Build TypeScript SDK
+        run: yarn ts:build
       - name: Run hash compatibility check
         run: bash e2e-tests/hash-compatibility.sh
       - name: Run noir/aztec unit tests
