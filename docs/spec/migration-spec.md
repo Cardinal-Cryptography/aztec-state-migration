@@ -233,7 +233,7 @@ This separation allows block registration to happen once per block, with multipl
 
 ### Block Header Binding
 
-The L1 Migrator contract reads the old rollup's `provenCheckpointNumber` and sends it to the new rollup via the inbox.
+The L1 Migrator contract reads the old rollup's `provenBlockNumber` and sends it to the new rollup via the inbox.
 
 The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a public function that checks it against the stored block hash.
 
@@ -496,13 +496,11 @@ The tables below list library functions first, then app-level interfaces.
 |----------|--------|---------|-------------|
 | `migrateArchiveRoot` | `uint256 oldVersion, DataStructures.L2Actor calldata l2Migrator` | `bytes32 leaf, uint256 leafIndex` | Bridge latest proven archive root to new rollup via L1->L2 message |
 | `migrateArchiveRootAtBlock` | `uint256 oldVersion, uint256 blockNumber, DataStructures.L2Actor calldata l2Migrator` | `bytes32 leaf, uint256 leafIndex` | Bridge archive root at a specific historical block height |
-| `getArchiveInfo` | `uint256 version` | `bytes32 archiveRoot, uint256 provenCheckpointNumber` | View: archive root and proven checkpoint number for the given version |
+| `getArchiveInfo` | `uint256 version` | `bytes32 archiveRoot, uint256 provenBlockNumber` | View: archive root and proven block number for the given version |
 
 | Event | Params | Description |
 |-------|--------|-------------|
 | `ArchiveRootMigrated` | `uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenBlockNumber, bytes32 messageLeaf, uint256 messageLeafIndex` | Emitted on successful bridge (3 indexed, 4 non-indexed params) |
-
-> **Note on naming:** The Solidity event uses `provenBlockNumber` while `getArchiveInfo` returns `provenCheckpointNumber`. The Noir/spec convention uses `proven_block_number`. These refer to the same value.
 
 ## PublicImmutable for Cross-Context Configuration
 
