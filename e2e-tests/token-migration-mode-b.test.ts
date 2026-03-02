@@ -1,8 +1,8 @@
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeB } from "aztec-state-migration/mode-b";
+import { signMigrationModeB } from "../ts/aztec-state-migration/index.js";
 import { deploy } from "./deploy.js";
 import {
-  deployAppPair,
+  deployTokenAppPair,
   deployArchiveRegistry,
   deployKeyRegistry,
   bridgeBlock,
@@ -10,14 +10,14 @@ import {
   assertEq,
   expectRevert,
 } from "./test-utils.js";
-import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
-import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
-import { MigrationKeyRegistryContract } from "aztec-state-migration/noir-contracts";
-import { UintNote } from "aztec-state-migration/common-notes";
+import { TokenMigrationAppV1Contract } from "./artifacts/TokenMigrationAppV1.js";
+import { TokenMigrationAppV2Contract } from "./artifacts/TokenMigrationAppV2.js";
+import { MigrationKeyRegistryContract } from "../ts/aztec-state-migration/noir-contracts/MigrationKeyRegistry.js";
+import { UintNote } from "../ts/aztec-state-migration/common-notes.js";
 import { NoteStatus } from "@aztec/stdlib/note";
 
 async function main() {
-  console.log("=== Mode B (Emergency Snapshot) Migration E2E Test ===\n");
+  console.log("=== Token Mode B (Emergency Snapshot) Migration E2E Test ===\n");
 
   // ============================================================
   // Step 0: Deploy shared infrastructure
@@ -36,7 +36,7 @@ async function main() {
   } = env[env.newRollupVersion];
 
   // ============================================================
-  // Step 1: Create user wallets (MigrationTestWallet)
+  // Step 1: Create user wallets
   // ============================================================
   console.log("Step 1. Creating user wallets...");
 
@@ -44,10 +44,10 @@ async function main() {
   const newUserManager = await deployAndFundAccount(env, newAztecNode);
 
   console.log(`   Old User: ${oldUserManager.address}`);
-  console.log(`   New User: ${newUserManager.address}`);
+  console.log(`   New User: ${newUserManager.address}\n`);
 
   // ============================================================
-  // Step 2: Deploy L2 contracts
+  // Step 2: Deploy L2 contracts (with KeyRegistry)
   // ============================================================
   console.log("Step 2. Deploying L2 contracts...");
 
@@ -59,57 +59,74 @@ async function main() {
     oldKeyRegistry.address,
   );
 
-  const { oldApp, newApp } = await deployAppPair(
+  const { oldApp, newApp } = await deployTokenAppPair(
     env,
     newArchiveRegistry.address,
   );
-  const oldAppUser = ExampleMigrationAppV1Contract.at(
+  const oldAppUser = TokenMigrationAppV1Contract.at(
     oldApp.address,
     oldUserWallet,
   );
-  const newAppUser = ExampleMigrationAppV2Contract.at(
+  const newAppUser = TokenMigrationAppV2Contract.at(
     newApp.address,
     newUserWallet,
   );
-
-  console.log(`   old_example_app: ${oldApp.address}`);
-  console.log(`   new_example_app: ${newApp.address}`);
-
+  console.log(`   old_token_app: ${oldApp.address}`);
+  console.log(`   new_token_app: ${newApp.address}`);
   console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
 
   // ============================================================
-  // Step 3: Mint tokens to Alice on OLD rollup
+  // Step 3: Mint tokens on OLD rollup
   // ============================================================
-  console.log("Step 3. Minting tokens to Alice on OLD rollup...");
+  console.log("Step 3. Minting tokens on OLD rollup...");
 
   const MINT_AMOUNT_1 = 500n;
   const MINT_AMOUNT_2 = 300n;
-  const BURN_AMOUNT_1 = 150n;
+  const BURN_AMOUNT = 150n;
 
   await oldApp.methods
-    .mint(oldUserManager.address, MINT_AMOUNT_1)
+    .mint_to_private(oldUserManager.address, MINT_AMOUNT_1)
     .send({ from: oldDeployerManager.address });
   console.log(`   Minted ${MINT_AMOUNT_1} tokens (mint 1)`);
 
   await oldApp.methods
-    .mint(oldUserManager.address, MINT_AMOUNT_2)
+    .mint_to_private(oldUserManager.address, MINT_AMOUNT_2)
     .send({ from: oldDeployerManager.address });
   console.log(`   Minted ${MINT_AMOUNT_2} tokens (mint 2)`);
 
+  // ============================================================
+  // Step 4: Burn tokens to create a nullified note
+  // ============================================================
+  console.log("Step 4. Burning tokens to create nullified note...");
+
   await oldAppUser.methods
-    .burn(oldUserManager.address, BURN_AMOUNT_1)
+    .burn_private(oldUserManager.address, BURN_AMOUNT, 0)
     .send({ from: oldUserManager.address });
-  console.log(`   Burned ${BURN_AMOUNT_1} tokens (burn 1)`);
+  console.log(`   Burned ${BURN_AMOUNT} tokens`);
 
   const oldBalance = await oldAppUser.methods
-    .get_balance(oldUserManager.address)
+    .balance_of_private(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
-  console.log(`   Total balance on OLD rollup: ${oldBalance}\n`);
+  assertEq(
+    oldBalance,
+    MINT_AMOUNT_1 + MINT_AMOUNT_2 - BURN_AMOUNT,
+    "Old balance after burn",
+  );
+
+  const oldTotalSupply = await oldApp.methods
+    .total_supply()
+    .simulate({ from: oldDeployerManager.address });
+  assertEq(
+    oldTotalSupply,
+    MINT_AMOUNT_1 + MINT_AMOUNT_2 - BURN_AMOUNT,
+    "Old total supply after burn",
+  );
+  console.log(`   Balance: ${oldBalance}, total_supply: ${oldTotalSupply}\n`);
 
   // ============================================================
-  // Step 4: Register migration key for Alice
+  // Step 5: Register migration key
   // ============================================================
-  console.log("Step 4. Registering migration key for Alice...");
+  console.log("Step 5. Registering migration key...");
 
   const mpk = await oldUserWallet.getMigrationPublicKey(
     oldUserManager.address,
@@ -130,9 +147,9 @@ async function main() {
   console.log(`   Verified registered mpk: ${registeredKey}\n`);
 
   // ============================================================
-  // Steps 5-7: Bridge + set snapshot height
+  // Step 6: Bridge archive root + set snapshot height
   // ============================================================
-  console.log("Step 5-7. Bridging archive root and setting snapshot height...");
+  console.log("Step 6. Bridging archive root and setting snapshot height...");
 
   const { provenBlockNumber, archiveProof, blockHeader } = await bridgeBlock(
     env,
@@ -140,8 +157,7 @@ async function main() {
   );
   console.log(`   Bridge complete. Proven block: ${provenBlockNumber}`);
 
-  // Set snapshot height for Mode B
-  const setSnapshotTx = await newArchiveRegistry.methods
+  await newArchiveRegistry.methods
     .set_snapshot_height(
       provenBlockNumber,
       blockHeader,
@@ -156,9 +172,9 @@ async function main() {
   console.log(`   Stored snapshot height: ${storedSnapshot}\n`);
 
   // ============================================================
-  // Step 8: Derive account keys for Mode B
+  // Step 7: Derive account keys
   // ============================================================
-  console.log("Step 8. Deriving account keys...");
+  console.log("Step 7. Deriving account keys...");
 
   const publicKeys = await oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
@@ -168,16 +184,14 @@ async function main() {
     newUserManager.address,
     newApp.address,
   );
-
-  console.log(`   nhk derived`);
-  console.log(`   Partial address: ${partialAddress}\n`);
+  console.log(`   nhk derived, partial address: ${partialAddress}\n`);
 
   // ============================================================
-  // Step 9: Build proofs and sign
+  // Step 8: Build proofs and sign
   // ============================================================
-  console.log("Step 9. Building proofs and signing...");
+  console.log("Step 8. Building proofs and signing...");
 
-  const balancesSlot = oldApp.artifact.storageLayout["balances"].slot;
+  const balancesSlot = oldApp.artifact.storageLayout["private_balances"].slot;
 
   const balanceNotesAll = await oldUserWallet.getNotes({
     owner: oldUserManager.address,
@@ -203,13 +217,15 @@ async function main() {
     throw new Error("No active balance notes found");
   }
 
-  // The ExampleMigrationApp currently only creates one note per call.
-  const balanceNote = balanceNotesActive[0];
+  console.log(
+    `   Active notes: ${balanceNotesActive.length}, Nullified notes: ${balanceNotesNullified.length}`,
+  );
 
-  // Build proofs via wallet
-  const fullProof = await oldUserWallet.buildFullNoteProof(
+  const balanceNotes = balanceNotesActive.slice(0, 1);
+
+  const fullProofs = await oldUserWallet.buildFullNoteProofs(
     provenBlockNumber,
-    balanceNote,
+    balanceNotes,
     (note) => UintNote.fromNote(note),
   );
 
@@ -219,7 +235,6 @@ async function main() {
     provenBlockNumber,
   );
 
-  // Sign via standalone function
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
@@ -227,31 +242,32 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    [balanceNote],
+    balanceNotes,
     newUserManager.address,
     newApp.address,
   );
 
-  console.log(`   Migration args prepared.\n`);
+  console.log("   Migration args prepared.\n");
 
   // ============================================================
-  // Step 10: Call migrate_mode_b on NEW rollup
+  // Step 9: Call migrate_mode_b on NEW rollup
   // ============================================================
-  console.log("Step 10. Calling migrate_mode_b on NEW rollup...");
+  console.log("Step 9. Calling migrate_mode_b on NEW rollup...");
 
-  // The ExampleMigrationApp currently only supports migrating one note at a time.
-  const migrateAmount = fullProof.note_proof_data.data.value;
+  const noteProof = fullProofs[0];
+  const migrateAmount = noteProof.note_proof_data.data.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
   const newBalanceBefore = await newAppUser.methods
-    .get_balance(newUserManager.address)
+    .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
+  assertEq(newBalanceBefore, 0n, "New balance before migrate");
 
   await newAppUser.methods
     .migrate_mode_b(
+      migrateAmount,
       signature,
-      fullProof,
+      noteProof,
       blockHeader,
       oldUserManager.address,
       publicKeys,
@@ -262,36 +278,55 @@ async function main() {
     .send({ from: newUserManager.address });
 
   const newBalanceAfter = await newAppUser.methods
-    .get_balance(newUserManager.address)
+    .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);
-  assertEq(
-    newBalanceAfter,
-    migrateAmount,
-    "Migrated balance on NEW rollup does not match expected amount",
-  );
+  assertEq(newBalanceAfter, migrateAmount, "New balance after migrate");
+
+  const newTotalSupply = await newApp.methods
+    .total_supply()
+    .simulate({ from: newDeployerManager.address });
+  assertEq(newTotalSupply, migrateAmount, "New total supply after migrate");
 
   console.log(
-    "\n   Mode B migration successful! Balance matches migrated amount.",
+    `   Balance on NEW rollup: ${newBalanceAfter}, total_supply: ${newTotalSupply}`,
   );
+  console.log("   Mode B migration successful!\n");
 
   // ============================================================
-  // Step 11: Call migrate_mode_b on NEW rollup with nullified note (should fail)
+  // Step 10: Double migration negative test
   // ============================================================
-  console.log(
-    "Step 11. Calling migrate_mode_b on NEW rollup with nullified note (should fail)...",
+  console.log("Step 10. Testing double migration (should fail)...");
+  await expectRevert(
+    newAppUser.methods
+      .migrate_mode_b(
+        migrateAmount,
+        signature,
+        noteProof,
+        blockHeader,
+        oldUserManager.address,
+        publicKeys,
+        partialAddress,
+        keyNoteProof,
+        { hi: nhk.hi, lo: nhk.lo },
+      )
+      .send({ from: newUserManager.address }),
   );
+  console.log("   Double migration correctly rejected!\n");
+
+  // ============================================================
+  // Step 11: Nullified note rejection test
+  // ============================================================
+  console.log("Step 11. Testing nullified note migration (should fail)...");
 
   if (balanceNotesNullified.length === 0) {
     throw new Error("No nullified balance notes found to test failure case");
   }
 
-  // Take one nullified note
   const nullifiedNote = balanceNotesNullified[0];
 
-  const nullifiedNoteProof = await oldUserWallet.buildFullNoteProof(
+  const [nullifiedNoteProof] = await oldUserWallet.buildFullNoteProofs(
     provenBlockNumber,
-    nullifiedNote,
+    [nullifiedNote],
     (note) => UintNote.fromNote(note),
   );
 
@@ -304,9 +339,12 @@ async function main() {
     newApp.address,
   );
 
+  const nullifiedAmount = nullifiedNoteProof.note_proof_data.data.value;
+
   await expectRevert(
     newAppUser.methods
       .migrate_mode_b(
+        nullifiedAmount,
         nullifiedNoteSig,
         nullifiedNoteProof,
         blockHeader,
@@ -316,24 +354,22 @@ async function main() {
         keyNoteProof,
         { hi: nhk.hi, lo: nhk.lo },
       )
-      .send({ from: newUserManager.address }),
+      .simulate({ from: newUserManager.address }),
     "Note nullifier non-inclusion",
   );
-  console.log("   Expected failure: Note is not active");
-  // ============================================================
+  console.log("   Nullified note correctly rejected!\n");
 
   // ============================================================
   // Summary
   // ============================================================
-
-  console.log("\n=== Mode B Migration Test Summary ===\n");
+  console.log("=== Token Mode B Migration Test Summary ===\n");
   console.log("Contracts deployed:");
   console.log("  OLD Rollup (L2):");
-  console.log(`    - ExampleMigrationApp: ${oldApp.address}`);
+  console.log(`    - TokenMigrationApp: ${oldApp.address}`);
   console.log(`    - MigrationKeyRegistry: ${oldKeyRegistry.address}`);
   console.log("  NEW Rollup (L2):");
   console.log(`    - MigrationArchiveRegistry: ${newArchiveRegistry.address}`);
-  console.log(`    - ExampleMigrationApp: ${newApp.address}`);
+  console.log(`    - TokenMigrationApp: ${newApp.address}`);
   console.log(`\nSnapshot height: ${provenBlockNumber}`);
   console.log(`Migrated amount: ${migrateAmount}`);
   console.log("\nBalances:");

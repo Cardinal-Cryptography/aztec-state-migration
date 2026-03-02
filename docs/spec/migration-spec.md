@@ -1,17 +1,28 @@
 ---
 layout: default
-title: Migration Specification
+title: General Migration Specification
 ---
 
 [← Home](../index.md)
 
-# Migration Specification
 
-## Overview
 
-Migration targets Aztec-native tokens. Throughout the document, **TokenV1** refers to the original token contract on the old rollup, and **TokenV2** refers to its counterpart on the new rollup.
+# Problem Statement
 
-The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users lock or burn balances on the old rollup (Mode A) or prove state at a safe snapshot (Mode B), then claim equivalents on the new rollup using proofs against old rollup block hashes derived from archive roots relayed via L1.
+The problem we are trying to solve is the one stated in [Request for Grant Proposals: Application State Migration](https://forum.aztec.network/t/request-for-grant-proposals-application-state-migration/8298). Roughly speaking, in the initial phase of Aztec Network, there might be need to upgrade the rollup in a way which does not copy the old state to the upgraded rollup. In other words, the upgraded rollup is essentially a fresh chain with only critical data migrated from the existing one. In particular no app data (contract storage) is moved. The reason for this is explained in the above linked forum, but one of the problems is user addresses. Because of how aztec addresses are technically designed, on a new rollup keeping the same address by the same user might not be possible. For this reasons copying state, like `AztecAddress -> u128` mappings wouldn't make much sense, because on the new rollup the old addresses would not be valid anymore. 
+
+Now the question becomes: if addresses are not preserved, how can users migrate state from the old rollup to new, while preserving safety and privacy. This is what this project is about.
+
+# General Migration Specification
+
+In this project we designed two general ways to solve the above stated problem. We call them `Mode A` and `Mode B`. This document covers shared protocol concepts, architecture, and API used by both migration modes. For mode-specific details, see:
+
+- [Mode A Specification](mode-a-spec.md) -- Cooperative lock-and-claim migration
+- [Mode B Specification](mode-b-spec.md) -- Emergency snapshot migration
+
+The app developers can choose whether they implement just mode A, or just mode B, or both. Also:
+- For mode B the app developers don't really need to prepare for the possibility of a migration. Only when the rollup upgrade happens, they need to deploy an appropriately prepared version of their contract on the new rollup.
+- For mode A, as long as the contract is upgradeable, the app developers also don't need to prepare. Only if the app contract is immutable, then the developer has to deploy the contract with mode A migration in mind.
 
 ## Scope
 
@@ -20,35 +31,37 @@ The system implements a burn-to-migrate pattern for Aztec rollup upgrades. Users
 
 **Out of Scope:** L1-bridged assets require L1 portal contract modifications and are not covered by this specification. See [Non-Native Assets](../non-native-assets.md) for constraints and approaches.
 
+
 ## Goals & Non-Goals
 
 **Goals:** Trustless migration, routine (Mode A) and emergency snapshot (Mode B), privacy preservation (recipient privacy), double-claim prevention, recipient flexibility.
 
-**Non-Goals:** Unlocking burns, automatic migration, key recovery.
+**Non-Goals:** automatic migration, key recovery, out-of-the-box non-native assets migration.
 
 ## Key Design Decisions
 
-1. **Burns/locks are permanent.** No unlock.
-2. **TokenV2 has deployment-time config:** `old_rollup_app_address`, `archive_root_address` (both `PublicImmutable` fields on the app contract). Despite the name, `archive_root_address` stores the address of the `MigrationArchiveRegistry` contract on the new rollup, not an archive root hash. Rollup version identifiers are read dynamically: `old_rollup` from `block_header.global_variables.version` and `current_rollup` from `context.version()`. The `MigrationArchiveRegistry` (a separate shared contract on the new rollup) stores `old_key_registry` (old rollup key registry address, for Mode B key note siloing) and `old_rollup_version` (for L1 message verification).
-3. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
-4. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
+
+1. **Trusted anchors** are archive roots relayed from L1 via a portal to a shared **MigrationArchiveRegistry** contract on new (target) Aztec rollup, which verifies and stores block hashes (not raw archive roots). Migrating apps read verified block hashes from this single instance.
+2. **Migration identity uses a separate keypair**, stored by the user (preferably in the wallet). The keypair is either committed in a registry contract (Mode B) or carried inside the lock note (Mode A). This spec does not assume migration keys are known at account creation, as that would require a protocol-level change to account deployment. Hence Mode B relies on an explicit MigrationKeyRegistry. Future account versions may embed migration keys in the salt preimage or a dedicated field (see Future work).
 
 ## Architecture
 
 ```
 Old Rollup L2          L1                     New Rollup L2
 ┌────────────┐      ┌──────────────┐      ┌──────────────────────────┐
-│  TokenV1   │      │ Migrator (L1)│─────▶│ MigrationArchiveRegistry │
+│   AppV1    │      │ Migrator (L1)│─────▶│ MigrationArchiveRegistry │
 │  lock_*()  │      │  relays      │ inbox│                          │
 └────────────┘      │ archive_root │      │   stores block hashes    │
 ┌─────────────┐     └──────────────┘      └──────────┬───────────────┘
 │ MigrationKey│                                       │ reads
 │  Registry   │                              ┌────────▼────────┐
-│  (Mode B)   │                              │    TokenV2      │
+│  (Mode B)   │                              │     AppV2       │
 └─────────────┘                              │  migrate_*()    │
                                              └─────────────────┘
 
 ```
+
+> **Note on generality.** The migration mechanism is fully general and can be adapted to almost any state that is native to the L2 -- token balances, NFT ownership, public storage structs, maps, etc. For concreteness, the spec often uses a token contract as the running example (AppV1/AppV2), but the same flows apply to any migrating application contract.
 
 ## L1 Portal + MigrationArchiveRegistry
 
@@ -75,14 +88,15 @@ poseidon2_hash([old_rollup_version, archive_root, proven_block_number])
 
 A convenience function `consume_l1_to_l2_message_and_register_block` combines both steps in a single call.
 
-**Inbox message consumption** requires a `secret` because L1 messages commit to a `secretHash`, and L2 consumption reveals the preimage. For permissionless root syncing, the portal uses a public/deterministic secret (for example `0`). Reusing the same secret across many messages is safe because the message leaf index is part of consumption.
+**Inbox message consumption** requires a `secret` because L1 messages commit to a `secretHash`, and L2 consumption reveals the preimage. For permissionless root syncing, the portal uses a public/deterministic secret (just `0`). Reusing the same secret across many messages is safe because the message leaf index is part of consumption.
 
 **Storage:** MigrationArchiveRegistry stores `block_number → block_hash` for all registered blocks, and for Mode B, a write-once `snapshot_block_hash`. Any migrating app can call `verify_migration_mode_a(block_number, block_hash)` or `verify_migration_mode_b(block_hash)` to check a block hash against the stored value.
 
-**App-level block hash policy:** Each migrating app enforces its own policy on which block hashes it accepts:
+**Snapshot Block in Mode B** In Mode B the app is migrated based on a particular finalized block height from the old rollup. In the PoC implementation this block_height is selected globally for all the apps by a distinguished account on the new rollup. This is completely flexible and can be easily changed to a version where:
+- Each app chooses its own snapshot block.
+- The choice of the snapshot block is decentralized.
 
-- **Mode A:** accept any registered block hash.
-- **Mode B:** accept only the block hash at snapshot height H (stored as `snapshot_block_hash`).
+Picking the snapshot block should be a result of social consensus among the Aztec community, and thus is considered a problem to be solved independently.
 
 ## Identity & Migration Key Registry
 
@@ -96,33 +110,10 @@ Migration claims must be authorized in a way that does **not** depend on success
 The migration keypair is used **only** to authorize migration claims. It is not used as an Aztec account transaction signing key.
 
 **Security comparison with other Aztec keys:**
-- **Signing key leak:** attacker can spend your funds on the current rollup
-- **Nullifier key leak:** attacker can link your transactions (privacy loss), but cannot spend
-- **Viewing key leak:** attacker can see your balances (privacy loss), but cannot spend
-- **Migration key leak:** attacker can claim your tokens on the new rollup during migration (fund loss, scoped to migration)
-
-**Key derivation:** `msk` is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])`. No random generation or explicit persistence needed -- the key can be re-derived from the account secret at any time. `mpk` is the corresponding Grumpkin curve point.
-
-### Claim authorization signature
-
-For each claim, the claimant provides a **Schnorr signature** over a domain-separated message:
-
-```
-notes_hash = poseidon2_hash([note_hash_1, ..., note_hash_N])
-msg = poseidon2_hash([CLAIM_DOMAIN, old_rollup, current_rollup, notes_hash, recipient, new_app_address])
-sig = schnorr_sign(msk, msg)
-```
-
-- `notes_hash` is the Poseidon2 hash of all note hashes being claimed in the batch.
-- `CLAIM_DOMAIN` provides **domain separation** -- each mode uses a distinct domain tag (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`, `DOM_SEP__CLAIM_B_PUBLIC`) to prevent signatures from being reused across modes.
-- `recipient` is the new-rollup address that will receive the migrated tokens.
-
-On claim, the migration circuit:
-
-1. Reconstructs the message from the migration context (old/new rollup versions, `notes_hash`, `msg_sender`, `this_address`).
-2. Verifies the Schnorr signature under `mpk` (the full Grumpkin point).
-
-This binds the claim to the chosen recipient and app contract, preventing front-running and third-party redirection.
+- **Signing key leak:** attacker can spend your funds on the current rollup (assuming they also have the nullifier key),
+- **Nullifier key leak:** attacker can link your transactions (privacy loss), but cannot spend (unless they also have the signing key),
+- **Viewing key leak:** attacker can see your balances (privacy loss), but cannot spend (unless they also have the signing key)
+- **Migration key leak:** An attacker can claim your tokens on the new rollup during migration, resulting in fund loss scoped to the migration window. In Mode A, this is exploitable unconditionally. In Mode B, it is only exploitable if the attacker also knows the `nhk`.
 
 ### Where `mpk` comes from
 
@@ -130,9 +121,9 @@ Mode A and Mode B use different sources for the migration public key.
 
 #### Mode A: `mpk` is carried in the lock note
 
-In Mode A the user creates a MigrationNote on the old rollup. The note preimage includes the full `mpk` (Grumpkin point), so the migration circuit can verify the signature directly against the `mpk` embedded in the proven note.
+In Mode A the user creates a `MigrationNote` on the old rollup. The note preimage includes the full `mpk` (Grumpkin point), so the migration circuit can verify the signature directly against the `mpk` embedded in the proven note.
 
-Mode A does not require a separate identity registry.
+Mode A does not require a separate identity registry. See [Mode A Specification](mode-a-spec.md) for the full lock-and-claim flow.
 
 #### Mode B: `mpk` must be committed before snapshot height H
 
@@ -143,6 +134,7 @@ Mode B uses a shared **MigrationKeyRegistry** contract on the old rollup:
 - Users call `register(mpk)` which creates a `MigrationKeyNote` containing the full `mpk` point, bound to the caller's address.
 - The note is stored in the old rollup's **note hash tree**, provable via Merkle inclusion proof at any block height.
 
+
 **Key note verification (new rollup claim):**
 
 - The claimant provides a `KeyNoteProofData` containing the `MigrationKeyNote` preimage, nonce, and sibling path.
@@ -150,7 +142,9 @@ Mode B uses a shared **MigrationKeyRegistry** contract on the old rollup:
 - The circuit checks that the key note's owner matches the claimed note owner.
 - The Schnorr signature is verified against the `mpk` from the key note.
 
-**Important constraint:** if a user did not register their `mpk` before snapshot height H, they cannot claim in Mode B.
+**Important constraint:** if a user did not register their `mpk` before snapshot height H, they cannot claim in Mode B. See [Mode B Specification](mode-b-spec.md) for key registry details and snapshot timing.
+
+Luckily registration is required to be done just once per user, not once per every app.
 
 ### Mode B ownership binding for private notes
 
@@ -160,7 +154,7 @@ Mode B therefore requires:
 
 - The user's nullifier hiding key `nhk` as a witness -- from which `npk_m` is derived via EC scalar multiplication and the owner address is recomputed from the full public key set and partial address.
 - A proof that the owner's `MigrationKeyNote` (containing `mpk`) exists in the note hash tree at height H.
-- A valid Schnorr signature under the corresponding `mpk`.
+- A valid Schnorr signature generated using the `msk` key.
 
 This makes "knowledge of the migration secret key + nullifier hiding key" the authorization condition for claiming private notes.
 
@@ -168,20 +162,14 @@ This makes "knowledge of the migration secret key + nullifier hiding key" the au
 
 For public state (non-owned), no signature or key note proof is needed -- the data is publicly visible and anyone can trigger the migration. The circuit only verifies the data existed in the public data tree at snapshot height H.
 
-For **owned** public state, the same Schnorr signature and key note proof are required, using a separate domain tag (`DOM_SEP__CLAIM_B_PUBLIC`). The signature binds the data hash (instead of note hashes) to the migration context.
+For **owned** public state, the same Schnorr signature and key note proof are required, using the same domain tag (`DOM_SEP__CLAIM_B`). The builder accumulates both note hashes and public state data into a single hash, so one signature covers the entire migration.
 
-### Wallet guidance
-
-Wallets should:
-
-- derive `msk` deterministically from the account secret key
-- encourage or automate registry registration well before any planned snapshot migration.
 
 ### Future work: protocol-level identity commitments
 
 The [forum post](https://forum.aztec.network/t/request-for-grant-proposals-application-state-migration/8298/2?u=adamgagol) discusses several approaches to embed migration keys at the protocol level:
 
-- Salt-based commitment: New accounts deploy with salt = h(actual_salt, h(`mpk`, root)), embedding the
+- Salt-based commitment: New accounts deploy with salt = `h(actual_salt, h(mpk, root))`, embedding the
   migration key in address derivation. No registry transaction needed.
 - Protocol-level field: A dedicated `mpk` field in account data or address preimage.
 
@@ -189,11 +177,106 @@ A hybrid claim circuit could accept either salt preimage proofs (new accounts) o
 
 An external registry works for all existing accounts without protocol changes and remains compatible with future approaches.
 
-## Batching multiple notes
+## Authentication
 
-Both Mode A and Mode B circuits accept arrays of note proof data (`[MigrationNoteProofData; N]` and `[FullNoteProofData; N]` respectively) and loop over all N notes in a single proof. Apps choose N based on their needs; the library circuits support arbitrary batch sizes.
+Migration claims are authenticated via Schnorr signatures over a Poseidon2 message hash. The signature binds the claim to a specific recipient and app contract, preventing front-running.
 
-For Mode A, `lock_migration_notes` already creates one `MigrationNote` per element in the input array, and emits a `MigrationDataEvent` for each.
+### Schnorr Signature Mechanics
+
+For each claim, the claimant provides a Schnorr signature over a domain-separated message:
+
+```
+data_hash = poseidon2_hash([hash_1, ..., hash_N])
+msg = poseidon2_hash([CLAIM_DOMAIN, old_rollup, current_rollup, data_hash, recipient, new_app_address])
+sig = schnorr_sign(msk, msg)
+```
+
+- `data_hash` is the Poseidon2 hash of all note hashes (or public state fields) being claimed in the batch.
+- `CLAIM_DOMAIN` provides **domain separation** -- each mode uses a distinct domain tag (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`) to prevent signatures from being reused across modes.
+- `recipient` is the new-rollup address that will receive the migrated tokens.
+
+On claim, the migration circuit:
+
+1. Reconstructs the message from the migration context (old/new rollup versions, `data_hash`, `msg_sender`, `this_address`).
+2. Verifies the Schnorr signature under `mpk` (the full Grumpkin point).
+
+This binds the claim to the chosen recipient and app contract, preventing front-running and third-party redirection.
+
+**Verification** (`signature.nr`, function `verify_migration_signature`):
+
+```
+schnorr::verify_signature(mpk, signature.bytes, msg.to_be_bytes::<32>())
+```
+
+For mode-specific domain separators and message fields, see [Mode A Specification -- Authentication](mode-a-spec.md#authentication) and [Mode B Specification -- Authentication](mode-b-spec.md#authentication-model).
+
+### Key Derivation
+
+The migration secret key (MSK) is derived deterministically from the account's secret key:
+
+```
+msk = sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])
+```
+
+The migration public key (MPK) is the corresponding Grumpkin curve point. No random generation or explicit persistence is needed -- the key can be re-derived from the account secret at any time. The MSK stays entirely off-chain -- it is used only for deriving `mpk` and signing. The circuit receives `mpk` directly.
+
+(`ts/aztec-state-migration/keys.ts`, export `deriveMasterMigrationSecretKey`)
+
+## Block Hash Verification
+
+Block hash trust is established in two steps, both on the `MigrationArchiveRegistry`:
+
+1. **`register_block`:** Verifies a block header against a consumed L1-bridged archive root via Merkle proof. Stores the mapping `block_number -> block_hash`.
+2. **Mode-specific verification:** Mode A calls `verify_migration_mode_a(block_number, block_hash)` to check against any registered block hash. Mode B calls `verify_migration_mode_b(block_hash)` to check against the snapshot block hash.
+
+This separation allows block registration to happen once per block, with multiple migration claims referencing the same registered block.
+
+### Block Header Binding
+
+The L1 Migrator contract reads the old rollup's `provenBlockNumber` and sends it to the new rollup via the inbox.
+
+The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a public function that checks it against the stored block hash.
+
+This private->public split is necessary because the block hashes are stored in public state. The private function computes the block hash and the public function checks it, connected via the enqueue mechanism.
+
+## Migration Nullifiers
+
+```
+Mode A (private notes):  poseidon2_hash_with_separator([note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
+Mode B (private notes):  poseidon2_hash_with_separator([unique_note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
+Mode B (public state):   poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], DOM_SEP__PUBLIC_MIGRATION_NULLIFIER)
+```
+
+Mode A uses the MigrationNote's own randomness (not the user's secret key) to preserve privacy -- observers cannot link old/new rollup identities by predicting the nullifier.
+
+Mode B private notes use the unique note hash and randomness for the same reason.
+
+Mode B public state uses a deterministic nullifier derived from the old app contract address and the base storage slot. One nullifier is emitted per `PublicStateProofData` (per storage struct), covering all consecutive field slots.
+
+## Batching Multiple Notes and State
+
+Both modes expose a **migration builder** that lets app developers chain (bundle) different types of notes and data in a single migration proof.
+
+**Mode A** — `MigrationModeA` builder:
+```
+MigrationModeA::new(context, old_app, archive_registry, block_header, mpk)
+    .with_note(note_proof_data_1)
+    .with_note(note_proof_data_2)
+    .finish(recipient, signature);
+```
+
+**Mode B** — `MigrationModeB` builder, which additionally supports public state and map state:
+```
+MigrationModeB::new(context, old_app, archive_registry, block_header)
+    .with_owner(owner, key_note)
+    .with_public_state(public_state_proof, slot)
+    .with_public_map_state(map_proof, map_slot, [key])
+    .with_notes_owner(public_keys, partial_address, nhk)
+    .with_note(note_proof, note_slot)
+    .finish(recipient, signature);
+```
+
+Each `.with_note(...)` or `.with_public_state(...)` call verifies one inclusion proof and emits a nullifier. The builder accumulates a running hash of all migrated data, which is checked against the migration signature in `finish()`.
 
 ## Data Structures & Hashing
 
@@ -209,7 +292,7 @@ unique    = compute_unique_note_hash(nonce, siloed)
 
 **OriginalNote (Mode B):**
 
-Membership proof is over the unique note hash inserted into TokenV1's balance slot. The circuit recomputes the full hash chain from the note preimage.
+Membership proof is over the unique note hash inserted into the old-rollup app contract's (AppV1) storage slot. The circuit recomputes the full hash chain from the note preimage.
 
 ## Proof Data Types
 
@@ -320,9 +403,9 @@ Defined in `signature.nr`. Accepted by all `migrate_*` functions.
 
 ## Supply Control (optional cap)
 
-TokenV2 may enforce a `mintable_supply` cap set at activation (turnstile).
+AppV2 may enforce a `mintable_supply` cap set at activation (turnstile). This is most relevant for token contracts, but the pattern applies to any app that tracks a bounded quantity.
 
-- **Recommended:** enable the cap in both modes, but only if TokenV1 supply is frozen (mint/burn disabled) before activation and `mintable_supply` is set to the known total supply. If supply is not frozen, an incorrect cap can block valid claims, so it is advised to either set the cap with some leeway (depending on whether app developers decide to honor tokens minted after migration has started), or update the cap.
+- **Recommended:** enable the cap in both modes, but only if AppV1 supply is frozen (mint/burn disabled) before activation and `mintable_supply` is set to the known total supply. If supply is not frozen, an incorrect cap can block valid claims, so it is advised to either set the cap with some leeway (depending on whether app developers decide to honor tokens minted after migration has started), or update the cap.
 - Mode B may set `mintable_supply` to a safe cap (for example total supply as of H).
 
 If implemented via a public `_decrement_supply(amount)`, amounts become public.
@@ -413,27 +496,55 @@ The tables below list library functions first, then app-level interfaces.
 |----------|--------|---------|-------------|
 | `migrateArchiveRoot` | `uint256 oldVersion, DataStructures.L2Actor calldata l2Migrator` | `bytes32 leaf, uint256 leafIndex` | Bridge latest proven archive root to new rollup via L1->L2 message |
 | `migrateArchiveRootAtBlock` | `uint256 oldVersion, uint256 blockNumber, DataStructures.L2Actor calldata l2Migrator` | `bytes32 leaf, uint256 leafIndex` | Bridge archive root at a specific historical block height |
-| `getArchiveInfo` | `uint256 version` | `bytes32 archiveRoot, uint256 provenCheckpointNumber` | View: archive root and proven checkpoint number for the given version |
+| `getArchiveInfo` | `uint256 version` | `bytes32 archiveRoot, uint256 provenBlockNumber` | View: archive root and proven block number for the given version |
 
 | Event | Params | Description |
 |-------|--------|-------------|
 | `ArchiveRootMigrated` | `uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenBlockNumber, bytes32 messageLeaf, uint256 messageLeafIndex` | Emitted on successful bridge (3 indexed, 4 non-indexed params) |
 
-> **Note on naming:** The Solidity event uses `provenBlockNumber` while `getArchiveInfo` returns `provenCheckpointNumber`. The Noir/spec convention uses `proven_block_number`. These refer to the same value.
+## PublicImmutable for Cross-Context Configuration
 
-## Migration Nullifiers
+Storage fields like `old_rollup_app_address` (in migrating app contracts), `old_key_registry`, and `old_rollup_version` (in `MigrationArchiveRegistry`) use `PublicImmutable` rather than constants or private state because:
 
-```
-Mode A (private notes):  poseidon2_hash_with_separator([note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
-Mode B (private notes):  poseidon2_hash_with_separator([unique_note_hash, randomness], DOM_SEP__NOTE_NULLIFIER)
-Mode B (public state):   poseidon2_hash_with_separator([old_app.to_field(), base_storage_slot], DOM_SEP__PUBLIC_MIGRATION_NULLIFIER)
-```
+- They need to be set at deployment time (not known at compile time)
+- They need to be readable in both private and public contexts
+- In Aztec V4, `PublicImmutable` supports direct `.read()` calls in private contexts, reading from historical public storage at the anchor block -- it does NOT use notes, despite the private context
 
-Mode A uses the MigrationNote's own randomness (not the user's secret key) to preserve privacy -- observers cannot link old/new rollup identities by predicting the nullifier.
+Private migration functions can read deployment configuration without note management overhead.
 
-Mode B private notes use the unique note hash and randomness for the same reason.
+## Wallet Integration (Shared)
 
-Mode B public state uses a deterministic nullifier derived from the old app contract address and the base storage slot. One nullifier is emitted per `PublicStateProofData` (per storage struct), covering all consecutive field slots.
+### Key Management
+
+The wallet derives a dedicated migration secret key (MSK) and migration public key (MPK) via `deriveMasterMigrationSecretKey(secretKey)`. The MSK is derived deterministically from the account's secret key, so no additional key storage is needed. The MPK is passed to migration transactions. The MSK stays entirely off-chain and is used only for signing claim messages.
+
+### Browser vs Node Environments
+
+The migration library provides two wallet entrypoints:
+
+- **`NodeMigrationEmbeddedWallet`** -- Uses LMDB for persistent storage and bundles all account contract providers eagerly. Suitable for server-side processes, CLI tools, and test environments.
+- **`BrowserMigrationEmbeddedWallet`** -- Uses IndexedDB for persistent storage and lazy-loads account contract providers via dynamic imports (enabling code splitting in bundlers). Suitable for web applications.
+
+Both entrypoints accept `nodeOrUrl: string | AztecNode` and namespace their storage directories by rollup address, so multiple rollup connections do not conflict. Key derivation uses the same `deriveMasterMigrationSecretKey(secretKey)` path in both environments -- there is no WebCrypto or HSM integration yet.
+
+For the old-rollup wallet instance in Mode B, browser wallets may use the ephemeral storage option (`openTmpStore`) if the old rollup's PXE data does not need to persist beyond the migration session.
+
+### Key Persistence
+
+`MigrationAccountWithSecretKey` stores the account secret key in memory. `MigrationEmbeddedWallet` persists account metadata (secret key, salt, signing key, account type) to its backing store via `WalletDB` -- IndexedDB in the browser, LMDB in Node. The migration secret key (MSK) is derived deterministically from the account secret key via `sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])` and can be re-derived at any time, so it does not require separate persistence.
+
+Production wallets should protect the account secret key (the MSK derivation source) via hardware-backed storage, encrypted keystores, or similar mechanisms. The current `MigrationAccountWithSecretKey` implementation is designed for testing and development.
+
+For mode-specific wallet responsibilities, see [Mode A Specification -- Wallet Integration](mode-a-spec.md#wallet-integration) and [Mode B Specification -- Wallet Integration](mode-b-spec.md#wallet-integration).
+
+## PoC Limitations
+
+The following limitations apply to the current proof-of-concept implementation and are **not suitable for production**:
+
+1. **No supply cap enforcement.** The PoC app contract mints freely on each successful migration. A production deployment should enforce a `mintable_supply` cap set at deployment.
+2. **No access control on `mint()` / `burn()`.** The PoC app contract has no access control on `mint()` and `burn()` functions. A production token contract would restrict minting to authorized callers (e.g., migration-only minting).
+
+For mode-specific limitations, see [Mode A Specification -- PoC Limitations](mode-a-spec.md#poc-limitations) and [Mode B Specification -- PoC Limitations](mode-b-spec.md#poc-limitations).
 
 ## Open Items
 
@@ -442,8 +553,8 @@ Mode B public state uses a deterministic nullifier derived from the old app cont
 
 ## See Also
 
+- [Mode A Specification](mode-a-spec.md) -- Cooperative lock-and-claim migration flow
+- [Mode B Specification](mode-b-spec.md) -- Emergency snapshot migration flow
 - [Architecture](../architecture.md) -- System overview, component catalog, L1-L2 bridge flow
-- [Mode A](../mode-a.md) -- Cooperative lock-and-claim migration flow
-- [Mode B](../mode-b.md) -- Emergency snapshot migration flow
 - [Integration Guide](../integration-guide.md) -- TS SDK, wallet classes, proof data types
-- [Threat Model](../threat-model.md) -- Trust assumptions and security considerations
+- [Security](../security.md) -- Trust assumptions and security considerations

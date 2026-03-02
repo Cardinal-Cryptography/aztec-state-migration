@@ -33,7 +33,7 @@ pub contract NftMigrationAppV2 {
         public_owners: Map<Field, PublicMutable<AztecAddress, Context>, Context>,
         minter: PublicImmutable<AztecAddress, Context>,
         // --- V2-only fields (not present in V1) ---
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
+        archive_registry_address: PublicImmutable<AztecAddress, Context>,
         old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
     }
 
@@ -41,11 +41,11 @@ pub contract NftMigrationAppV2 {
     #[initializer]
     fn constructor(
         minter: AztecAddress,
-        archive_root_address: AztecAddress,
+        archive_registry_address: AztecAddress,
         old_rollup_app_address: AztecAddress,
     ) {
         self.storage.minter.initialize(minter);
-        self.storage.archive_root_address.initialize(archive_root_address);
+        self.storage.archive_registry_address.initialize(archive_registry_address);
         self.storage.old_rollup_app_address.initialize(old_rollup_app_address);
     }
 
@@ -114,7 +114,7 @@ pub contract NftMigrationAppV2 {
         MigrationModeA::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
             mpk,
         )
@@ -146,7 +146,7 @@ pub contract NftMigrationAppV2 {
         MigrationModeA::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
             mpk,
         )
@@ -185,7 +185,7 @@ pub contract NftMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
@@ -215,7 +215,7 @@ pub contract NftMigrationAppV2 {
         let old_owner = proof_data.data;
         assert(old_owner != AztecAddress::zero(), "Cannot migrate zero-address ownership");
 
-        let archive_registry = self.storage.archive_root_address.read();
+        let archive_registry = self.storage.archive_registry_address.read();
         let recipient = self.msg_sender();
         let old_app = self.storage.old_rollup_app_address.read();
         // Use V1's storage layout to get the correct slot on the old rollup

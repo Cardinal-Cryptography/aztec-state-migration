@@ -1,11 +1,11 @@
 ---
 layout: default
-title: Threat Model
+title: Security
 ---
 
 [← Home](index.md)
 
-# Threat Model
+# Security
 
 Trust assumptions, threat scenarios, mitigations, and known PoC limitations for the dual-rollup migration system.
 
@@ -45,11 +45,12 @@ A front-runner cannot change the recipient without invalidating the signature. S
 
 **Threat:** A proof valid for Mode A is replayed against Mode B (or vice versa), or a private claim proof is replayed against the public state migration path.
 
-**Mitigation:** Domain separation constants are included in every signed message:
+**Mitigation:** It is expected that only one migration mode will be used per a particular rollup update, and thus it will not be possible to go through both paths. 
+
+Note also that that each migration mode uses unique domain separators for signed messages, hence message replay cross modes is not possible anyway:
 
 - `DOM_SEP__CLAIM_A` -- Mode A claims (private and public balance)
-- `DOM_SEP__CLAIM_B` -- Mode B private note claims
-- `DOM_SEP__CLAIM_B_PUBLIC` -- Mode B public state owned-entry claims
+- `DOM_SEP__CLAIM_B` -- Mode B claims (private notes and owned public state)
 
 Each domain produces a different message hash, so a signature valid under one domain is invalid under another.
 
@@ -87,9 +88,7 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **`old_rollup_app_address` is a deployment-time configuration.** The migration circuit reads `old_rollup_app_address` from the new app's immutable public storage. This is not an unchecked witness -- it is constrained by the rollup's public state tree. However, if configured incorrectly at deployment, migrations will silently fail (archive root mismatch). Production should verify this address via an on-chain registry.
 
-- **L1 `migrateArchiveRoot` is permissionless.** Anyone can call `Migrator.sol` to bridge archive roots, consuming L1-to-L2 message slots. An attacker could spam calls to fill message trees or increase costs. Consider rate limiting or requiring a bond.
-
-- **Snapshot height governance has no access control beyond write-once (critical).** The first caller to `set_snapshot_height` wins. An incorrect snapshot height permanently bricks Mode B for affected users. Production must restrict this to governance.
+- **Snapshot height governance has no access control beyond write-once (critical).** The first caller to `set_snapshot_height` wins. The way this should be done in production is that there should be one (not necessarily trusted) party that deploys the contract with correctly set `snapshot_height` -- a value selected by social consensus. The the party posts the details: contract address in a public venue, and community members verify it. Once this is done, there is no trust required anymore because the contract is immutable.
 
 - **The PoC app contract has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. Production apps must restrict minting to verified migration proofs only.
 
@@ -97,17 +96,37 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently.
 
-- **On-curve assertion.** `register()` and `lock_migration_notes()` include an on-curve assertion (`y^2 = x^3 - 17`) for Grumpkin points. Invalid points cause a revert with the error message `"mpk not on Grumpkin curve"` (see `noir/aztec-state-migration/src/mode_a/ops.nr`).
 
-## Spec Open Items
+## Audit Recommendations
 
-> **Future work:** Evaluate salt-based commitment for new accounts. *(Source: `migration-spec.md:307`)*
+Before production use, the provided library should go through a security audit by an independent team of zk security experts.
 
-> **Future work:** Supply cap per-user batching. *(Source: `migration-spec.md:309`)*
+The highest-priority audit target is the **double-claim prevention** surface. Every path that computes or emits a nullifier must be verified to produce a unique, deterministic value that covers exactly the migrated state. Key functions:
+
+- `MigrationNote::compute_nullifier` (`mode_a/migration_note.nr`) -- Mode A nullifier from `note_hash` and `randomness`.
+- `migrate_note` in `mode_b/builder.nr` -- Mode B nullifier from `unique_note_hash` and `randomness`, plus the `push_nullifier` call.
+- `PublicStateProofData::migrate_public_state` (`mode_b/public_state_proof_data.nr`) -- public state nullifier from `old_app` and `base_storage_slot`. Verify that one nullifier per struct covers all consecutive slots and that no subset can be migrated independently.
+
+The second priority is **inclusion proof correctness** -- confirming that proofs cannot be forged or reused across contexts:
+
+- `NoteProofData::verify_note_inclusion` (`note_proof_data.nr`) -- note siloing with `old_app` address, uniqueness with nonce, and Merkle path verification.
+- `KeyNoteProofData::verify_key_note_inclusion` (`mode_b/key_note_proof_data.nr`) -- siloing with `old_key_registry` address (read from the archive registry, not supplied by the caller).
+- `NonNullificationProofData` (`mode_b/non_nullification_proof_data.nr`) -- low-leaf bounds check and Merkle proof against the nullifier tree root.
+- `PublicStateSlotProofData::verify_slot` (`mode_b/public_state_proof_data.nr`) -- public data tree leaf hash and Merkle path.
+
+The third priority is **signature and authentication**:
+
+- `verify_migration_signature` (`signature.nr`) -- domain separator binding, message construction, and Schnorr verification. Confirm that domain separators (`DOM_SEP__CLAIM_A`, `DOM_SEP__CLAIM_B`) produce non-overlapping message spaces.
+- Mode B address verification (`mode_b/builder.nr`) -- the `nhk` to `npk_m` derivation and `AztecAddress::compute` check that links note ownership to key ownership.
+
+Finally, **block hash verification** on the registry:
+
+- `verify_migration_mode_a` and `verify_migration_mode_b` (`migration-archive-registry/src/main.nr`) -- confirm that block hashes are checked against stored values and that `set_snapshot_height` enforces write-once semantics.
+- `register_block` and `set_snapshot_height` -- verify archive Merkle proof validation and that the stored roots originate from the L1 bridge (`consume_l1_to_l2_message`).
 
 ## See Also
 
-- [Migration Specification](spec/migration-spec.md) -- Nullifier formulas and API tables
-- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
-- [Mode B](mode-b.md) -- Emergency snapshot migration flow
+- [General Specification](spec/migration-spec.md) -- Nullifier formulas and API tables
+- [Mode A Specification](spec/mode-a-spec.md) -- Cooperative lock-and-claim migration flow
+- [Mode B Specification](spec/mode-b-spec.md) -- Emergency snapshot migration flow
 - [Architecture](architecture.md) -- System overview, component catalog, L1-L2 bridge flow

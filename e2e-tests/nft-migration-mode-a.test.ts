@@ -1,39 +1,40 @@
-import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
-import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
+import { NftMigrationAppV1Contract } from "./artifacts/NftMigrationAppV1.js";
+import { NftMigrationAppV2Contract } from "./artifacts/NftMigrationAppV2.js";
 import { Fr } from "@aztec/foundation/curves/bn254";
 import { signMigrationModeA } from "aztec-state-migration/mode-a";
 import { deploy } from "./deploy.js";
 import {
-  deployAppPair,
+  deployNftAppPair,
   deployArchiveRegistry,
   bridgeBlock,
   deployAndFundAccount,
   assertEq,
+  assertPrivateNftOwnership,
   expectRevert,
 } from "./test-utils.js";
 import { AbiType } from "@aztec/stdlib/abi";
+import { AztecAddress } from "@aztec/stdlib/aztec-address";
 
-/** ABI type for decoding the MigrationDataEvent payload.
- *  The ExampleApp passes raw `amount` (u128) as migration_data.
- *  #[derive(Serialize)] flattens MigrationDataEvent<u128> to a single Field,
- *  so { kind: "field" } decodes it as a bigint. */
 const MIGRATION_DATA_TYPE: AbiType = { kind: "field" };
 
 async function main() {
-  console.log("=== Cross-Rollup Migration E2E Test (Mode A) ===\n");
+  console.log("=== NFT Migration E2E Test (Mode A) ===\n");
 
   // ============================================================
   // Step 0: Deploy shared infrastructure
   // ============================================================
   const env = await deploy();
 
-  const { aztecNode: oldAztecNode, migrationWallet: oldUserWallet } =
-    env[env.oldRollupVersion];
+  const {
+    aztecNode: oldAztecNode,
+    deployerManager: oldDeployerManager,
+    migrationWallet: oldUserWallet,
+  } = env[env.oldRollupVersion];
   const { aztecNode: newAztecNode, migrationWallet: newUserWallet } =
     env[env.newRollupVersion];
 
   // ============================================================
-  // Step 1: Create user wallets (MigrationTestWallet)
+  // Step 1: Create user wallets
   // ============================================================
   console.log("Step 1. Creating user wallets...");
 
@@ -49,75 +50,82 @@ async function main() {
   console.log("Step 2. Deploying L2 contracts...");
 
   const newArchiveRegistry = await deployArchiveRegistry(env);
-  console.log(`   new_archive_registry: ${newArchiveRegistry.address}\n`);
+  console.log(`   new_archive_registry: ${newArchiveRegistry.address}`);
 
-  const { oldApp, newApp } = await deployAppPair(
+  const { oldApp, newApp } = await deployNftAppPair(
     env,
     newArchiveRegistry.address,
   );
-  const oldAppUser = ExampleMigrationAppV1Contract.at(
+  const oldAppUser = NftMigrationAppV1Contract.at(
     oldApp.address,
     oldUserWallet,
   );
-  const newAppUser = ExampleMigrationAppV2Contract.at(
+  const newAppUser = NftMigrationAppV2Contract.at(
     newApp.address,
     newUserWallet,
   );
-  console.log(`   old_example_app: ${oldApp.address}`);
-  console.log(`   new_example_app: ${newApp.address}`);
+  console.log(`   old_nft_app: ${oldApp.address}`);
+  console.log(`   new_nft_app: ${newApp.address}\n`);
 
   // ============================================================
-  // Step 3: Mint tokens on OLD rollup
+  // Step 3: Mint private NFT on OLD rollup
   // ============================================================
-  console.log("Step 3. Minting tokens on OLD rollup...");
-  const MINT_AMOUNT = 1000n;
-  await oldAppUser.methods
-    .mint(oldUserManager.address, MINT_AMOUNT)
-    .send({ from: oldUserManager.address });
-  const oldBalanceAfterMint = await oldAppUser.methods
-    .get_balance(oldUserManager.address)
-    .simulate({ from: oldUserManager.address });
-  console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}\n`);
+  console.log("Step 3. Minting private NFT on OLD rollup...");
+
+  const PRIVATE_TOKEN_ID = 42n;
+  await oldApp.methods
+    .mint_to_private(oldUserManager.address, PRIVATE_TOKEN_ID)
+    .send({ from: oldDeployerManager.address });
+
+  await assertPrivateNftOwnership(
+    oldAppUser,
+    oldUserManager.address,
+    PRIVATE_TOKEN_ID,
+    true,
+    oldUserManager.address,
+  );
+  console.log(`   Minted NFT #${PRIVATE_TOKEN_ID}\n`);
 
   // ============================================================
-  // Step 4: Lock tokens for migration on OLD rollup
+  // Step 4: Lock private NFT for migration
   // ============================================================
-  console.log("Step 4. Locking tokens for migration...");
+  console.log("Step 4. Locking private NFT for migration...");
+
   const mpk = await oldUserWallet.getMigrationPublicKey(
     oldUserManager.address,
   )!;
-  console.log(`   MPK: (${mpk.x}, ${mpk.y})`);
 
-  const LOCK_AMOUNT = 300n;
   await oldAppUser.methods
-    .lock_migration_notes_mode_a(
-      LOCK_AMOUNT,
-      env.newRollupVersion,
-      mpk.toNoirStruct(),
-    )
+    .lock_nft_mode_a(PRIVATE_TOKEN_ID, env.newRollupVersion, mpk.toNoirStruct())
     .send({ from: oldUserManager.address });
 
-  const oldBalanceAfterLock = await oldAppUser.methods
-    .get_balance(oldUserManager.address)
-    .simulate({ from: oldUserManager.address });
-  console.log(`   Balance after lock: ${oldBalanceAfterLock}\n`);
+  await assertPrivateNftOwnership(
+    oldAppUser,
+    oldUserManager.address,
+    PRIVATE_TOKEN_ID,
+    false,
+    oldUserManager.address,
+  );
+  console.log(
+    `   NFT #${PRIVATE_TOKEN_ID} locked (no longer in private set)\n`,
+  );
 
   // ============================================================
   // Step 5: Bridge archive root
   // ============================================================
   console.log("Step 5. Bridging archive root...");
+
   const { provenBlockNumber, blockHeader } = await bridgeBlock(
     env,
     newArchiveRegistry,
   );
-  console.log(`   Proven block: ${provenBlockNumber}`);
+  console.log(`   Proven block: ${provenBlockNumber}\n`);
 
   // ============================================================
-  // Steps 6-7: Prepare migration args and call migrate on NEW rollup
+  // Step 6: Get migration notes and build proofs
   // ============================================================
   console.log("Step 6. Preparing migration args...");
 
-  // Get lock notes via wallet
   const lockNotesAndData = await oldUserWallet.getMigrationNotesAndData<bigint>(
     oldApp.address,
     oldUserManager.address,
@@ -130,13 +138,11 @@ async function main() {
   }
   const lockNoteAndData = lockNotesAndData[0];
 
-  // Build proofs via wallet, combining note proofs with event data
   const migrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
     provenBlockNumber,
     lockNoteAndData,
   );
 
-  // Sign via standalone function
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
@@ -150,15 +156,22 @@ async function main() {
     newApp.address,
   );
 
-  console.log("Step 7. Calling migrate on NEW rollup...");
+  // ============================================================
+  // Step 7: Call migrate_nft_mode_a on NEW rollup
+  // ============================================================
+  console.log("Step 7. Calling migrate_nft_mode_a on NEW rollup...");
 
-  const newBalanceBefore = await newAppUser.methods
-    .get_balance(newUserManager.address)
-    .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup before migrate: ${newBalanceBefore}`);
+  await assertPrivateNftOwnership(
+    newAppUser,
+    newUserManager.address,
+    PRIVATE_TOKEN_ID,
+    false,
+    newUserManager.address,
+  );
 
   await newAppUser.methods
-    .migrate_mode_a(
+    .migrate_nft_mode_a(
+      PRIVATE_TOKEN_ID,
       mpk.toNoirStruct(),
       signature,
       migrationNoteProof,
@@ -166,25 +179,24 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newBalanceAfter = await newAppUser.methods
-    .get_balance(newUserManager.address)
-    .simulate({ from: newUserManager.address });
-  console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
-  assertEq(
-    newBalanceAfter,
-    LOCK_AMOUNT,
-    "Migrated balance on NEW rollup does not match locked amount",
+  await assertPrivateNftOwnership(
+    newAppUser,
+    newUserManager.address,
+    PRIVATE_TOKEN_ID,
+    true,
+    newUserManager.address,
   );
-
-  console.log("\n   Cross-rollup migration fully successful!");
+  console.log(`   NFT #${PRIVATE_TOKEN_ID} migrated to NEW rollup!`);
+  console.log("   Private NFT migration successful!\n");
 
   // ============================================================
-  // Step 7b: Double migration negative test (should fail)
+  // Step 8: Double migration negative test
   // ============================================================
-  console.log("\nStep 7b. Testing double private migration (should fail)...");
+  console.log("Step 8. Testing double migration (should fail)...");
   await expectRevert(
     newAppUser.methods
-      .migrate_mode_a(
+      .migrate_nft_mode_a(
+        PRIVATE_TOKEN_ID,
         mpk.toNoirStruct(),
         signature,
         migrationNoteProof,
@@ -192,75 +204,72 @@ async function main() {
       )
       .send({ from: newUserManager.address }),
   );
-  console.log("   Double private migration correctly rejected!\n");
+  console.log("   Double migration correctly rejected!\n");
 
   // ============================================================
-  // Step 8: Mint PUBLIC tokens on OLD rollup
+  // Step 9: Mint public NFT on OLD rollup
   // ============================================================
-  console.log("\n=== Test Scenario 2: Public Balance Migration ===\n");
-  console.log("Step 8. Minting PUBLIC tokens on OLD rollup...");
+  console.log("=== Test Scenario 2: Public NFT Migration ===\n");
+  console.log("Step 9. Minting public NFT on OLD rollup...");
 
-  const PUBLIC_MINT_AMOUNT = 1000n;
-  await oldAppUser.methods
-    .mint_public(oldUserManager.address, PUBLIC_MINT_AMOUNT)
-    .send({ from: oldUserManager.address });
+  const PUBLIC_TOKEN_ID = 99n;
+  await oldApp.methods
+    .mint_to_public(oldUserManager.address, PUBLIC_TOKEN_ID)
+    .send({ from: oldDeployerManager.address });
 
-  const oldPublicBalanceAfterMint = await oldAppUser.methods
-    .get_public_balance(oldUserManager.address)
+  const oldPublicOwner = await oldAppUser.methods
+    .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: oldUserManager.address });
-  console.log(
-    `   Minted ${PUBLIC_MINT_AMOUNT} public tokens to old rollup user`,
+  assertEq(
+    oldPublicOwner.toString(),
+    oldUserManager.address.toString(),
+    "Old public owner after mint",
   );
   console.log(
-    `   Public balance on OLD rollup: ${oldPublicBalanceAfterMint}\n`,
+    `   Minted public NFT #${PUBLIC_TOKEN_ID}, owner: ${oldPublicOwner}\n`,
   );
 
   // ============================================================
-  // Step 9: Lock PUBLIC tokens for migration on OLD rollup
+  // Step 10: Lock public NFT for migration
   // ============================================================
-  console.log("Step 9. Locking PUBLIC tokens for migration on OLD rollup...");
+  console.log("Step 10. Locking public NFT for migration...");
 
-  const PUBLIC_LOCK_AMOUNT = 500n;
-  console.log(`   Locking ${PUBLIC_LOCK_AMOUNT} public tokens...`);
-  console.log(`   Destination rollup: ${env.newRollupVersion}`);
-
-  const lockPublicTx = await oldAppUser.methods
-    .lock_public_for_migration(
-      PUBLIC_LOCK_AMOUNT,
+  await oldAppUser.methods
+    .lock_public_nft_for_migration(
+      PUBLIC_TOKEN_ID,
       env.newRollupVersion,
       mpk.toNoirStruct(),
     )
     .send({ from: oldUserManager.address });
 
-  const oldPublicBalanceAfterLock = await oldAppUser.methods
-    .get_public_balance(oldUserManager.address)
+  const oldPublicOwnerAfterLock = await oldAppUser.methods
+    .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: oldUserManager.address });
-  console.log(
-    `   Public balance on OLD rollup after lock: ${oldPublicBalanceAfterLock}`,
+  assertEq(
+    oldPublicOwnerAfterLock.toString(),
+    AztecAddress.ZERO.toString(),
+    "Old public owner after lock (should be zero)",
   );
   console.log(
-    `   ✅ ${PUBLIC_MINT_AMOUNT - BigInt(oldPublicBalanceAfterLock)} public tokens locked for migration\n`,
+    `   Public owner after lock: ${oldPublicOwnerAfterLock} (cleared)\n`,
   );
 
   // ============================================================
-  // Step 10: Bridge new archive root if needed
+  // Step 11: Bridge archive root again
   // ============================================================
-  console.log("Step 10. Bridging archive root for public lock note...");
+  console.log("Step 11. Bridging archive root for public lock...");
 
   const {
     provenBlockNumber: publicProvenBlockNumber,
     blockHeader: publicBlockHeader,
   } = await bridgeBlock(env, newArchiveRegistry);
-  console.log(`   Proven block: ${publicProvenBlockNumber}`);
+  console.log(`   Proven block: ${publicProvenBlockNumber}\n`);
 
   // ============================================================
-  // Step 11: Get public lock note and merkle proofs
+  // Step 12: Get notes, filter, build proof
   // ============================================================
-  console.log(
-    "Step 11. Computing public lock note hash and getting merkle proofs...",
-  );
+  console.log("Step 12. Getting notes and building proofs...");
 
-  // Get the actual lock note from PXE
   const allLockNotesAndData =
     await oldUserWallet.getMigrationNotesAndData<bigint>(
       oldApp.address,
@@ -274,7 +283,6 @@ async function main() {
     );
   }
 
-  // const alreadyMigratedNoteHashes = lockNotes.map((note) => note.noteHash);
   const filteredNotes = await newUserWallet.filterOutMigratedNotes(
     newApp.address,
     allLockNotesAndData,
@@ -282,17 +290,16 @@ async function main() {
 
   if (filteredNotes.length !== 1) {
     throw new Error(
-      `Expected exactly 1 migration note for the public lock, but found ${filteredNotes.length}`,
+      `Expected exactly 1 remaining note, but found ${filteredNotes.length}`,
     );
   }
-  const migrationNote = filteredNotes[0];
+  const filteredNote = filteredNotes[0];
 
   const publicMigrationNoteProof = await oldUserWallet.buildMigrationNoteProof(
     publicProvenBlockNumber,
-    migrationNote,
+    filteredNote,
   );
 
-  // Sign via standalone function
   const publicSignature = await signMigrationModeA(
     oldMigrationSigner,
     publicBlockHeader.global_variables.version,
@@ -303,19 +310,22 @@ async function main() {
   );
 
   // ============================================================
-  // Step 12: Call migrate_to_public_mode_a on NEW rollup
+  // Step 13: Call migrate_nft_to_public_mode_a on NEW rollup
   // ============================================================
-  console.log("Step 12. Calling migrate_to_public_mode_a on NEW rollup...");
+  console.log("Step 13. Calling migrate_nft_to_public_mode_a on NEW rollup...");
 
-  const newPublicBalanceBefore = await newAppUser.methods
-    .get_public_balance(newUserManager.address)
+  const newPublicOwnerBefore = await newAppUser.methods
+    .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: newUserManager.address });
-  console.log(
-    `   Public balance on NEW rollup before: ${newPublicBalanceBefore}`,
+  assertEq(
+    newPublicOwnerBefore.toString(),
+    AztecAddress.ZERO.toString(),
+    "New public owner before migrate",
   );
 
   await newAppUser.methods
-    .migrate_to_public_mode_a(
+    .migrate_nft_to_public_mode_a(
+      PUBLIC_TOKEN_ID,
       mpk.toNoirStruct(),
       publicSignature,
       publicMigrationNoteProof,
@@ -323,26 +333,25 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newPublicBalanceAfter = await newAppUser.methods
-    .get_public_balance(newUserManager.address)
+  const newPublicOwnerAfter = await newAppUser.methods
+    .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: newUserManager.address });
-  console.log(
-    `   Public balance on NEW rollup after: ${newPublicBalanceAfter}`,
-  );
   assertEq(
-    newPublicBalanceAfter,
-    PUBLIC_LOCK_AMOUNT,
-    "Migrated public balance on NEW rollup does not match locked amount",
+    newPublicOwnerAfter.toString(),
+    newUserManager.address.toString(),
+    "New public owner after migrate",
   );
-  console.log("   Public balance migration fully successful!");
+  console.log(`   Public owner on NEW rollup: ${newPublicOwnerAfter}`);
+  console.log("   Public NFT migration successful!\n");
 
   // ============================================================
-  // Step 12b: Double public migration negative test (should fail)
+  // Step 14: Double public migration negative test
   // ============================================================
-  console.log("\nStep 12b. Testing double public migration (should fail)...");
+  console.log("Step 14. Testing double public migration (should fail)...");
   await expectRevert(
     newAppUser.methods
-      .migrate_to_public_mode_a(
+      .migrate_nft_to_public_mode_a(
+        PUBLIC_TOKEN_ID,
         mpk.toNoirStruct(),
         publicSignature,
         publicMigrationNoteProof,
@@ -355,12 +364,10 @@ async function main() {
   // ============================================================
   // Summary
   // ============================================================
-
-  console.log("Balances:");
-  console.log(`  OLD rollup private balance: ${oldBalanceAfterLock}`);
-  console.log(`  OLD rollup public balance: ${oldPublicBalanceAfterLock}`);
-  console.log(`  NEW rollup private balance: ${newBalanceAfter}`);
-  console.log(`  NEW rollup public balance: ${newPublicBalanceAfter}`);
+  console.log("=== NFT Mode A Migration Test Summary ===\n");
+  console.log(`  Private NFT #${PRIVATE_TOKEN_ID}: migrated to NEW rollup`);
+  console.log(`  Public NFT #${PUBLIC_TOKEN_ID}: migrated to NEW rollup`);
+  console.log("  Double migration: correctly rejected for both");
 }
 
 main().catch((e) => {

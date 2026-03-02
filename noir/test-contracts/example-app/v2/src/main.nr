@@ -51,14 +51,14 @@ pub contract ExampleMigrationAppV2 {
         //
         owned_struct_nested_map: Map<Field, Map<AztecAddress, PublicMutable<SomeStruct, Context>, Context>, Context>,
         // --- V2-only fields (not present in V1) ---
-        archive_root_address: PublicImmutable<AztecAddress, Context>,
+        archive_registry_address: PublicImmutable<AztecAddress, Context>,
         old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
     }
 
     #[external("public")]
     #[initializer]
-    fn constructor(archive_root_address: AztecAddress, old_rollup_app_address: AztecAddress) {
-        self.storage.archive_root_address.initialize(archive_root_address);
+    fn constructor(archive_registry_address: AztecAddress, old_rollup_app_address: AztecAddress) {
+        self.storage.archive_registry_address.initialize(archive_registry_address);
         self.storage.old_rollup_app_address.initialize(old_rollup_app_address);
     }
 
@@ -134,7 +134,7 @@ pub contract ExampleMigrationAppV2 {
         MigrationModeA::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
             mpk,
         )
@@ -166,7 +166,7 @@ pub contract ExampleMigrationAppV2 {
         MigrationModeA::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
             mpk,
         )
@@ -211,7 +211,7 @@ pub contract ExampleMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             old_app,
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
@@ -232,7 +232,7 @@ pub contract ExampleMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .without_owner()
@@ -255,7 +255,7 @@ pub contract ExampleMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .without_owner()
@@ -281,7 +281,7 @@ pub contract ExampleMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .with_owner(old_owner, key_note)
@@ -308,7 +308,7 @@ pub contract ExampleMigrationAppV2 {
         MigrationModeB::new(
             self.context,
             self.storage.old_rollup_app_address.read(),
-            self.storage.archive_root_address.read(),
+            self.storage.archive_registry_address.read(),
             block_header,
         )
             .with_owner(old_owner, key_note)

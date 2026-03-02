@@ -9,7 +9,7 @@
   "packageManager": "yarn@1.22.22",
   "workspaces": ["ts/aztec-state-migration", "e2e-tests"],
   "scripts": {
-    "clean": "rm -rf noir/target noir/codegenCache.json solidity/target solidity/cache && yarn workspace aztec-state-migration run clean",
+    "clean": "rm -rf noir/target e2e-tests/codegenCache.json e2e-tests/artifacts solidity/target solidity/cache && yarn workspace aztec-state-migration run clean",
     "sol": "yarn sol:deps && yarn sol:compile",
     "sol:deps": "cd solidity && forge soldeer install",
     "sol:compile": "cd solidity && forge build",
@@ -36,6 +36,12 @@
     "test:mode-b": "npx tsx e2e-tests/migration-mode-b.test.ts",
     "test:mode-b:public": "npx tsx e2e-tests/migration-public-mode-b.test.ts",
     "test:registry": "npx tsx e2e-tests/migration-key-registry.test.ts",
+    "test:token:mode-a": "npx tsx e2e-tests/token-migration-mode-a.test.ts",
+    "test:token:mode-b": "npx tsx e2e-tests/token-migration-mode-b.test.ts",
+    "test:token:mode-b:public": "npx tsx e2e-tests/token-migration-public-mode-b.test.ts",
+    "test:nft:mode-a": "npx tsx e2e-tests/nft-migration-mode-a.test.ts",
+    "test:nft:mode-b": "npx tsx e2e-tests/nft-migration-mode-b.test.ts",
+    "test:nft:mode-b:public": "npx tsx e2e-tests/nft-migration-public-mode-b.test.ts",
     "test:hash": "./e2e-tests/hash-compatibility.sh"
   },
   "devDependencies": {

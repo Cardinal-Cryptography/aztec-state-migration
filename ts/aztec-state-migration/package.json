@@ -9,7 +9,7 @@
   "packageManager": "yarn@1.22.22",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist artifacts codegenCache.json"
   },
   "exports": {
     ".": {

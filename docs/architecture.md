@@ -14,7 +14,7 @@ The migration framework spans two rollup instances and L1.
 ```
 Old Rollup L2                  L1                         New Rollup L2
 +-----------------------+   +------------------+   +------------------------------+
-| TokenV1               |   | Migrator.sol     |   | MigrationArchiveRegistry     |
+| AppV1 (old rollup)    |   | Migrator.sol     |   | MigrationArchiveRegistry     |
 |   lock_migration_*()  |   |   reads old      |   |   stores block hashes        |
 +-----------------------+   |   archive root,  |   |   verify_migration_mode_a()  |
 | MigrationKeyRegistry  |   |   sends L1->L2   |   |   verify_migration_mode_b()  |
@@ -70,9 +70,9 @@ Mode B identity contract. Uses `Owned<PrivateImmutable<MigrationKeyNote>>` for p
 
 Permissionless L1 contract (`solidity/contracts/Migrator.sol`) that bridges old rollup archive roots to the new rollup.
 
-- **`migrateArchiveRoot(oldVersion, l2Migrator)`** -- reads the old rollup's latest `provenCheckpointNumber` and archive root, sends an L1-to-L2 message
+- **`migrateArchiveRoot(oldVersion, l2Migrator)`** -- reads the old rollup's latest `provenBlockNumber` and archive root, sends an L1-to-L2 message
 - **`migrateArchiveRootAtBlock(oldVersion, blockNumber, l2Migrator)`** -- same, but for a specific block height
-- **`getArchiveInfo(version)`** -- view function returning current archive root and proven checkpoint
+- **`getArchiveInfo(version)`** -- view function returning current archive root and proven block number
 
 ## Three-Tier Composition Pattern
 
@@ -136,8 +136,8 @@ Private migration functions can then access deployment configuration directly, w
 
 ## See Also
 
-- [Migration Specification](spec/migration-spec.md) -- Protocol specification including nullifier formulas and API tables
-- [Mode A](mode-a.md) -- Cooperative lock-and-claim migration flow
-- [Mode B](mode-b.md) -- Emergency snapshot migration flow
+- [General Specification](spec/migration-spec.md) -- Protocol specification including nullifier formulas and API tables
+- [Mode A Specification](spec/mode-a-spec.md) -- Cooperative lock-and-claim migration flow
+- [Mode B Specification](spec/mode-b-spec.md) -- Emergency snapshot migration flow
 - [Integration Guide](integration-guide.md) -- TS SDK, wallet classes, proof data types
-- [Threat Model](threat-model.md) -- Trust assumptions and security considerations
+- [Security](security.md) -- Trust assumptions and security considerations

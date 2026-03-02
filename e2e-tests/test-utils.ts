@@ -1,5 +1,9 @@
 import { ExampleMigrationAppV1Contract } from "./artifacts/ExampleMigrationAppV1.js";
 import { ExampleMigrationAppV2Contract } from "./artifacts/ExampleMigrationAppV2.js";
+import { TokenMigrationAppV1Contract } from "./artifacts/TokenMigrationAppV1.js";
+import { TokenMigrationAppV2Contract } from "./artifacts/TokenMigrationAppV2.js";
+import { NftMigrationAppV1Contract } from "./artifacts/NftMigrationAppV1.js";
+import { NftMigrationAppV2Contract } from "./artifacts/NftMigrationAppV2.js";
 import {
   MigrationArchiveRegistryContract,
   MigrationKeyRegistryContract,
@@ -35,6 +39,70 @@ import {
   decodeEventLog,
 } from "viem";
 
+export async function assertPrivateNftOwnership(
+  contract: { methods: { get_private_nfts: (...args: any[]) => any } },
+  owner: AztecAddress,
+  tokenId: bigint,
+  shouldOwn: boolean,
+  from: AztecAddress,
+) {
+  const [nftIds, _hasMore] = await contract.methods
+    .get_private_nfts(owner, 0)
+    .simulate({ from });
+  const owns = nftIds.some((id: bigint) => id === tokenId);
+  if (shouldOwn && !owns) {
+    throw new Error(`Expected ${owner} to privately own NFT ${tokenId}`);
+  }
+  if (!shouldOwn && owns) {
+    throw new Error(`Expected ${owner} NOT to privately own NFT ${tokenId}`);
+  }
+}
+
+export async function expectRevert(
+  promise: Promise<any>,
+  expectedErrorStr?: string,
+) {
+  let resolvedValue: any;
+
+  try {
+    resolvedValue = await promise;
+  } catch (e) {
+    // Case 1: Promise rejected (e.g. .simulate(), or .send() that throws)
+    const err = e as Error;
+    if (expectedErrorStr && !err.message.includes(expectedErrorStr)) {
+      throw new Error(
+        `Expected error to include "${expectedErrorStr}", but got: ${err.message}`,
+      );
+    }
+    console.log(`   Expected failure (thrown): ${err.message.slice(0, 100)}`);
+    return;
+  }
+
+  // Case 2: .send() returned a TxReceipt with revert status
+  if (
+    resolvedValue &&
+    typeof resolvedValue.hasExecutionReverted === "function" &&
+    resolvedValue.hasExecutionReverted()
+  ) {
+    if (
+      expectedErrorStr &&
+      resolvedValue.error &&
+      !resolvedValue.error.includes(expectedErrorStr)
+    ) {
+      throw new Error(
+        `Expected error to include "${expectedErrorStr}", but got: ${resolvedValue.error}`,
+      );
+    }
+    console.log(
+      `   Expected failure (receipt): ${resolvedValue.error?.slice(0, 100) || "reverted"}`,
+    );
+    return;
+  }
+
+  // Case 3: No error at all — test should fail
+  throw new Error("Expected transaction to fail, but it succeeded");
+}
+
 // ============================================================
 // Contract deployment helpers
 // ============================================================
@@ -66,6 +134,115 @@ export async function deployAppPair(
 
   const newApp = await ExampleMigrationAppV2Contract.deploy(
     new_r.deployerWallet,
+    newArchiveRegistryAddress,
+    effectiveOldAppAddress,
+  ).send({ from: new_r.deployerManager.address });
+
+  const newAppInstance = (
+    await new_r.deployerWallet.getContractMetadata(newApp.address)
+  ).instance;
+  new_r.migrationWallet.registerContract(newAppInstance!, newApp.artifact);
+  new_r.migrationWallet.registerSender(
+    new_r.deployerManager.address,
+    "new_deployer",
+  );
+
+  return { oldApp, newApp };
+}
+
+/**
+ * Deploy TokenMigrationApp on both old and new rollups.
+ * The new app is linked to the old app's address for migration verification.
+ */
+export async function deployTokenAppPair(
+  env: DeploymentResult,
+  newArchiveRegistryAddress: AztecAddress,
+  tokenConfig?: {
+    name?: string;
+    symbol?: string;
+    decimals?: number;
+    oldAppAddress?: AztecAddress;
+  },
+) {
+  const old_r = env[env.oldRollupVersion];
+  const new_r = env[env.newRollupVersion];
+
+  const name = tokenConfig?.name ?? "TestToken";
+  const symbol = tokenConfig?.symbol ?? "TST";
+  const decimals = tokenConfig?.decimals ?? 18;
+
+  const oldApp = await TokenMigrationAppV1Contract.deploy(
+    old_r.deployerWallet,
+    name,
+    symbol,
+    decimals,
+    old_r.deployerManager.address,
+  ).send({ from: old_r.deployerManager.address });
+
+  const oldAppInstance = (
+    await old_r.deployerWallet.getContractMetadata(oldApp.address)
+  ).instance;
+  old_r.migrationWallet.registerContract(oldAppInstance!, oldApp.artifact);
+  old_r.migrationWallet.registerSender(
+    old_r.deployerManager.address,
+    "old_deployer",
+  );
+
+  const effectiveOldAppAddress = tokenConfig?.oldAppAddress ?? oldApp.address;
+
+  const newApp = await TokenMigrationAppV2Contract.deploy(
+    new_r.deployerWallet,
+    name,
+    symbol,
+    decimals,
+    new_r.deployerManager.address,
+    newArchiveRegistryAddress,
+    effectiveOldAppAddress,
+  ).send({ from: new_r.deployerManager.address });
+
+  const newAppInstance = (
+    await new_r.deployerWallet.getContractMetadata(newApp.address)
+  ).instance;
+  new_r.migrationWallet.registerContract(newAppInstance!, newApp.artifact);
+  new_r.migrationWallet.registerSender(
+    new_r.deployerManager.address,
+    "new_deployer",
+  );
+
+  return { oldApp, newApp };
+}
+
+/**
+ * Deploy NftMigrationApp on both old and new rollups.
+ * The new app is linked to the old app's address for migration verification.
+ */
+export async function deployNftAppPair(
+  env: DeploymentResult,
+  newArchiveRegistryAddress: AztecAddress,
+  oldAppAddress?: AztecAddress,
+) {
+  const old_r = env[env.oldRollupVersion];
+  const new_r = env[env.newRollupVersion];
+
+  const oldApp = await NftMigrationAppV1Contract.deploy(
+    old_r.deployerWallet,
+    old_r.deployerManager.address,
+  ).send({ from: old_r.deployerManager.address });
+
+  const oldAppInstance = (
+    await old_r.deployerWallet.getContractMetadata(oldApp.address)
+  ).instance;
+  old_r.migrationWallet.registerContract(oldAppInstance!, oldApp.artifact);
+  old_r.migrationWallet.registerSender(
+    old_r.deployerManager.address,
+    "old_deployer",
+  );
+
+  const effectiveOldAppAddress = oldAppAddress ?? oldApp.address;
+
+  const newApp = await NftMigrationAppV2Contract.deploy(
+    new_r.deployerWallet,
+    new_r.deployerManager.address,
     newArchiveRegistryAddress,
     effectiveOldAppAddress,
   ).send({ from: new_r.deployerManager.address });
@@ -184,7 +361,7 @@ export interface BridgeResult {
 
 const L1MigratorAbi = parseAbi([
   "function migrateArchiveRoot(uint256 oldVersion, (bytes32 actor, uint256 version) l2Migrator) external returns (bytes32 leaf, uint256 leafIndex)",
-  "event ArchiveRootMigrated(uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenCheckpointNumber, bytes32 messageLeaf, uint256 messageLeafIndex)",
+  "event ArchiveRootMigrated(uint256 indexed oldVersion, uint256 indexed newVersion, bytes32 indexed l2Migrator, bytes32 archiveRoot, uint256 provenBlockNumber, bytes32 messageLeaf, uint256 messageLeafIndex)",
 ]);
 
 const InboxAbi = parseAbi([
@@ -302,7 +479,7 @@ async function migrateArchiveRootOnL1(
     "ArchiveRootMigrated",
   ) as {
     archiveRoot: `0x${string}`;
-    provenCheckpointNumber: bigint;
+    provenBlockNumber: bigint;
   };
   const msgArgs = findEvent(
     receipt.logs,
@@ -315,9 +492,7 @@ async function migrateArchiveRootOnL1(
   };
 
   return {
-    provenBlockNumber: BlockNumber.fromBigInt(
-      archiveArgs.provenCheckpointNumber,
-    ),
+    provenBlockNumber: BlockNumber.fromBigInt(archiveArgs.provenBlockNumber),
     provenArchiveRoot: Fr.fromHexString(archiveArgs.archiveRoot),
     l1ToL2LeafIndex: msgArgs.index,
     l1ToL2MessageHash: new Fr(BigInt(msgArgs.hash)),
