@@ -2,7 +2,7 @@ import { Account, AccountWithSecretKey, Salt } from "@aztec/aztec.js/account";
 import { deriveKeys, PublicKeys } from "@aztec/aztec.js/keys";
 import { Schnorr } from "@aztec/foundation/crypto/schnorr";
 import { Fq, Fr, Point } from "@aztec/aztec.js/fields";
-import { deriveMasterMigrationSecretKey } from "../keys.js";
+import { deriveMasterMigrationSecretKey } from "../key.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationSignature } from "../types.js";
 import {

@@ -3,11 +3,7 @@ import { Note, NoteDao } from "@aztec/stdlib/note";
 import { BaseWallet } from "@aztec/wallet-sdk/base-wallet";
 import { MIGRATION_NOTE_STORAGE_SLOT } from "../constants.js";
 import type { AztecNode } from "@aztec/stdlib/interfaces/client";
-import {
-  ArchiveProofData,
-  MigrationSignature,
-  NoteProofData,
-} from "../types.js";
+import { MigrationSignature, NoteProofData } from "../types.js";
 import {
   FullProofData,
   NonNullificationProofData,
@@ -19,19 +15,19 @@ import {
 } from "../mode-a/types.js";
 import { BlockNumber } from "@aztec/foundation/branded-types";
 import type { NotesFilter, PXE } from "@aztec/pxe/server";
-import { buildArchiveProof, buildNoteProof } from "../proofs.js";
+import { buildNoteProof } from "../proofs.js";
 import { buildNullifierProof } from "../mode-b/proofs.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationAccount } from "./migration-account.js";
 import {
-  signMigrationModeA as signModeA,
   signMigrationModeB as signModeB,
   signPublicStateMigrationModeB as signPubStateModeB,
-} from "../keys.js";
+} from "../mode-b/signature.js";
+import { signMigrationModeA as signModeA } from "../mode-a/signature.js";
 import { PublicKeys } from "@aztec/stdlib/keys";
 import { AbiType, decodeFromAbi, EventSelector } from "@aztec/stdlib/abi";
-import { MigrationKeyRegistryContractArtifact } from "../noir-contracts/MigrationKeyRegistry.js";
+import { MigrationKeyRegistryContract } from "../noir-contracts/MigrationKeyRegistry.js";
 import { buildMigrationNoteProof } from "../mode-a/proofs.js";
 import { Logger } from "@aztec/foundation/log";
 import { BlockHash } from "@aztec/stdlib/block";
@@ -173,16 +169,6 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     // const mask = await newAccount.getNhkApp(newAppAddress);
     const mask = Fq.ZERO; // for now just 0
     return oldAccount.getMaskedNhk(mask);
-  }
-
-  /**
-   * Build an archive membership proof for the given block.
-   *
-   * @param blockHash - The proven block hash to build the proof for.
-   * @returns An {@link ArchiveProofData} containing the block header and Merkle path.
-   */
-  async buildArchiveProof(blockHash: BlockHash): Promise<ArchiveProofData> {
-    return buildArchiveProof(this.aztecNode, blockHash);
   }
 
   /**
@@ -429,8 +415,7 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     const keyNotes = await this.getNotes({
       owner: owner,
       contractAddress: keyRegistry,
-      storageSlot:
-        MigrationKeyRegistryContractArtifact.storageLayout.registered_keys.slot,
+      storageSlot: MigrationKeyRegistryContract.storage.registered_keys.slot,
       scopes: [owner],
     });
     if (keyNotes.length === 0) {

@@ -31,7 +31,7 @@ import { MigrationAccountWithSecretKey } from "./migration-account.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AccountContractsProvider } from "./account-contract-providers/types.js";
 import { MigrationSignature } from "../types.js";
-import { deriveMasterMigrationSecretKey } from "../keys.js";
+import { deriveMasterMigrationSecretKey } from "../key.js";
 
 /**
  * Concrete migration wallet for testing. Creates its own PXE instance and

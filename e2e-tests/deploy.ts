@@ -18,7 +18,7 @@ import { fileURLToPath } from "url";
 import { getPXEConfig } from "@aztec/pxe/server";
 import { getInitialTestAccountsData } from "@aztec/accounts/testing";
 import type { DeploymentResult } from "./deploy-types.js";
-import { NodeMigrationEmbeddedWallet } from "../ts/aztec-state-migration/wallet/index.js";
+import { NodeMigrationEmbeddedWallet } from "aztec-state-migration/wallet";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
