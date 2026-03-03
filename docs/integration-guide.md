@@ -53,13 +53,13 @@ Mode A requires the old rollup to be live. Users pre-lock their state on the old
 
 Import `MigrationLock` and `Point` from the library:
 
-```noir
+```rust
 use aztec_state_migration::{mode_a::MigrationLock, Point};
 ```
 
 Use the `MigrationLock` builder to lock state:
 
-```noir
+```rust
 #[external("private")]
 fn lock_for_migration_mode_a(private_amount: u128, public_amount: u128, destination_rollup: Field, mpk: Point) {
     let note_owner = self.msg_sender();
@@ -85,7 +85,7 @@ Each `.lock_state(data)` call creates a `MigrationNote` and emits a `MigrationDa
 
 **Multiple entrypoints:** If a contract has separate lock functions (e.g. one for private, one for public state), use `new_with_offset` to avoid `data_id` collisions:
 
-```noir
+```rust
 // In lock_private(): data_id starts at 0
 MigrationLock::new(self.context, mpk, owner, dest)
     .lock_state(private_balance)
@@ -99,7 +99,7 @@ MigrationLock::new_with_offset(self.context, mpk, owner, dest, 1)
 
 **Batching:** It is recommended to batch multiple pieces of state into one `.lock_state()` call via a custom struct:
 
-```noir
+```rust
 #[derive(Packable, Serialize)]
 struct MigrationData { balance: u128, extra: Field }
 
@@ -112,7 +112,7 @@ MigrationLock::new(self.context, mpk, owner, dest)
 
 Import the Mode A builder and types:
 
-```noir
+```rust
 use aztec_state_migration::{
     MigrationSignature,
     mode_a::{MigrationModeA, MigrationNoteProofData},
@@ -122,7 +122,7 @@ use aztec_state_migration::{
 
 Verify the lock proof and mint on the new rollup:
 
-```noir
+```rust
 #[external("private")]
 fn migrate_mode_a(
     mpk: Point,
@@ -238,7 +238,7 @@ Mode B does not require the old rollup to be live. It uses a fixed snapshot heig
 
 Import the Mode B builder and types:
 
-```noir
+```rust
 use aztec_state_migration::{
     MigrationSignature, Scalar,
     mode_b::{FullNoteProofData, KeyNoteProofData, MigrationModeB, PublicStateProofData},
@@ -247,7 +247,7 @@ use aztec_state_migration::{
 
 #### Private Notes
 
-```noir
+```rust
 #[external("private")]
 fn migrate_mode_b(
     signature: MigrationSignature,
@@ -281,7 +281,7 @@ fn migrate_mode_b(
 
 **Custom notes** must use the canonical nullifier formula. Use `assert_note_has_canonical_nullifier` in tests to verify:
 
-```noir
+```rust
 use aztec_state_migration::mode_b::assert_note_has_canonical_nullifier;
 
 #[test]
@@ -293,7 +293,7 @@ unconstrained fn assert_canonical_nullifier() {
 
 #### Owned Public State
 
-```noir
+```rust
 #[external("private")]
 fn migrate_public_balance_mode_b(
     proof_data: PublicStateProofData<u128, 1>,
@@ -329,7 +329,7 @@ Use `.with_public_state(proof, slot)` for standalone `PublicMutable<T>`, and `.w
 
 For global state with no ownership (e.g. total supply):
 
-```noir
+```rust
 MigrationModeB::new(context, old_app, archive_registry, block_header)
     .without_owner()
     .with_public_state(proof, slot)
@@ -340,7 +340,7 @@ MigrationModeB::new(context, old_app, archive_registry, block_header)
 
 The builder supports chaining owned public state with private notes:
 
-```noir
+```rust
 MigrationModeB::new(context, old_app, archive_registry, block_header)
     .with_owner(owner, key_note)
     .with_public_state(public_proof, public_slot)
