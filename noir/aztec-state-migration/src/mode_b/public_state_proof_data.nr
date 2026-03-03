@@ -12,10 +12,10 @@ use aztec::{
 
 #[derive(Packable, Serialize, Deserialize)]
 pub(crate) struct PublicStateSlotProofData {
-    pub next_slot: Field,
-    pub next_index: Field,
-    pub leaf_index: Field,
-    pub sibling_path: [Field; PUBLIC_DATA_TREE_HEIGHT],
+    pub(crate) next_slot: Field,
+    pub(crate) next_index: Field,
+    pub(crate) leaf_index: Field,
+    pub(crate) sibling_path: [Field; PUBLIC_DATA_TREE_HEIGHT],
 }
 
 impl PublicStateSlotProofData {
@@ -61,12 +61,12 @@ pub struct PublicStateProofData<T, let N: u32> {
 }
 
 impl<T: Packable, let N: u32> PublicStateProofData<T, N> {
-    pub fn public_state_hash(self) -> Field {
+    pub(crate) fn public_state_hash(self) -> Field {
         poseidon2_hash(self.data.pack())
     }
 
     /// Verify public data existed in the public data tree
-    pub fn migrate_public_state(
+    pub(crate) fn migrate_public_state(
         self,
         context: &mut PrivateContext,
         base_storage_slot: Field,

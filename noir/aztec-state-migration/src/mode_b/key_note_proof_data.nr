@@ -10,7 +10,7 @@ pub type KeyNoteProofData = NoteProofData<MigrationKeyNote>;
 
 impl NoteProofData<MigrationKeyNote> {
     /// Verify the key note inclusion in the [KeyNote] hash tree
-    pub fn verify_key_note_inclusion(
+    pub(crate) fn verify_key_note_inclusion(
         self,
         context: &mut PrivateContext,
         migration_archive_registry: AztecAddress,

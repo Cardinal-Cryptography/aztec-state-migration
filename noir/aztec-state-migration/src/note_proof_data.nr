@@ -14,10 +14,10 @@ use aztec::{
 #[derive(Serialize, Packable)]
 pub struct NoteProofData<T> {
     pub data: T,
-    pub randomness: Field,
-    pub nonce: Field,
-    pub leaf_index: Field,
-    pub sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
+    pub(crate) randomness: Field,
+    nonce: Field,
+    leaf_index: Field,
+    sibling_path: [Field; NOTE_HASH_TREE_HEIGHT],
 }
 
 impl<T> NoteProofData<T> {
@@ -33,7 +33,7 @@ impl<T> NoteProofData<T> {
     /// # Returns
     /// The unique note hash (after siloing and uniqueness transforms), which can be
     /// used for nullifier computation.
-    pub fn verify_note_inclusion(
+    pub(crate) fn verify_note_inclusion(
         self,
         old_app: AztecAddress,
         note_hash: Field,
@@ -49,7 +49,7 @@ impl<T> NoteProofData<T> {
 }
 
 impl<T: NoteHash> NoteProofData<T> {
-    pub fn note_hash(self, note_owner: AztecAddress, expected_storage_slot: Field) -> Field {
+    pub(crate) fn note_hash(self, note_owner: AztecAddress, expected_storage_slot: Field) -> Field {
         self.data.compute_note_hash(note_owner, expected_storage_slot, self.randomness)
     }
 }
