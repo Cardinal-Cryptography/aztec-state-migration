@@ -6,6 +6,10 @@
 
 - **Constants codegen**: Noir constants (`constants.nr`) are manually mirrored in `ts/aztec-state-migration/constants.ts`. Add a build step to auto-generate the TS constants from the Noir source.
 
+## Release
+
+- **Publish TS SDK package**: Run the publish workflow (`.github/workflows/publish.yml`) to publish `aztec-state-migration` to npm.
+
 ## Testing
 
 - **More coverage**: Test more scenarios and edge cases — multi-note migrations, duplicate migrations, cross-contract migrations, error paths.
