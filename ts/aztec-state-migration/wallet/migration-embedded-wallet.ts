@@ -84,15 +84,14 @@ export class MigrationEmbeddedWallet extends MigrationBaseWallet {
       signingKey,
     );
     const account = await accountManager.getAccount();
+    if (!account) {
+      throw new Error(`Account not found in wallet for address: ${address}`);
+    }
     const migrationAccount = new MigrationAccountWithSecretKey(
       account,
       secretKey,
       salt,
     );
-
-    if (!account) {
-      throw new Error(`Account not found in wallet for address: ${address}`);
-    }
 
     return migrationAccount;
   }

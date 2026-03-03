@@ -86,15 +86,9 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **No supply cap enforcement.** The PoC app contract mints freely on each successful migration. A compromised archive root or bug could allow unlimited minting. Production should enforce a `mintable_supply` cap matching the total locked/snapshot supply.
 
-- **`old_rollup_app_address` is a deployment-time configuration.** The migration circuit reads `old_rollup_app_address` from the new app's immutable public storage. This is not an unchecked witness -- it is constrained by the rollup's public state tree. However, if configured incorrectly at deployment, migrations will silently fail (archive root mismatch). Production should verify this address via an on-chain registry.
-
 - **Snapshot height governance has no access control beyond write-once (critical).** The first caller to `set_snapshot_height` wins. The way this should be done in production is that there should be one (not necessarily trusted) party that deploys the contract with correctly set `snapshot_height` -- a value selected by social consensus. The the party posts the details: contract address in a public venue, and community members verify it. Once this is done, there is no trust required anymore because the contract is immutable.
 
-- **The PoC app contract has no access control on `mint()`/`burn()`.** There is no `#[only_self]` on public struct initialization functions. Production apps must restrict minting to verified migration proofs only.
-
 - **In-memory key storage.** The TS client stores migration keys in memory. Production should use secure storage (hardware wallet, encrypted keystore).
-
-- **Identical storage layout assumed.** Migration proofs assume the old and new rollup contracts use identical storage layouts for the migrated state. If layouts diverge, proofs will fail silently.
 
 
 ## Audit Recommendations
