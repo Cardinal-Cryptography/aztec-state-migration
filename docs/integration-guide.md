@@ -27,7 +27,7 @@ Migration uses a dedicated keypair (`msk`/`mpk`) rather than the account's exist
 
 The `msk` is derived deterministically from the account's secret key:
 
-```
+```typescript
 msk = sha512ToGrumpkinScalar([secretKey, DOM_SEP__MSK_M_GEN])
 mpk = msk * G   (Grumpkin generator)
 ```
@@ -168,7 +168,10 @@ const mpk = msk.toPublicKey(); // Grumpkin point
 #### 2. Lock state on old rollup
 
 ```typescript
-await oldContract.methods.lock_for_migration_mode_a(amount, newRollupVersion, mpk).send().wait();
+await oldContract.methods
+  .lock_for_migration_mode_a(privateAmount, publicAmount, newRollupVersion, mpk)
+  .send()
+  .wait();
 ```
 
 #### 3. Bridge archive root
@@ -395,7 +398,7 @@ const sig = await wallet.signPublicStateMigrationModeB(
 ```typescript
 // Private note claim
 await newContract.methods.migrate_mode_b(
-  amount, sig, fullProof, archiveProof.archive_block_header,
+  sig, fullProof, archiveProof.archive_block_header,
   owner, publicKeys, partialAddress, keyProof, nhk,
 ).send().wait();
 
