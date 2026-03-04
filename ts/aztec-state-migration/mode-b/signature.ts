@@ -1,10 +1,5 @@
-import { Fr, GrumpkinScalar } from "@aztec/aztec.js/fields";
-import { sha512ToGrumpkinScalar } from "@aztec/foundation/crypto/sha512";
-import {
-  DOM_SEP__CLAIM_A,
-  DOM_SEP__CLAIM_B,
-  DOM_SEP__MSK_M_GEN,
-} from "../constants.js";
+import { Fr } from "@aztec/aztec.js/fields";
+import { DOM_SEP__CLAIM_B } from "../constants.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { NoteDao } from "@aztec/stdlib/note";
 import { poseidon2Hash } from "@aztec/foundation/crypto/poseidon";

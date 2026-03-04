@@ -10,15 +10,15 @@ use aztec::protocol::{
 /// A nullifier non-inclusion proof data.
 #[derive(Serialize, Packable)]
 pub struct NonNullificationProofData {
-    pub low_nullifier_value: Field,
-    pub low_nullifier_next_value: Field,
-    pub low_nullifier_next_index: Field,
-    pub low_nullifier_leaf_index: Field,
-    pub low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
+    low_nullifier_value: Field,
+    low_nullifier_next_value: Field,
+    low_nullifier_next_index: Field,
+    low_nullifier_leaf_index: Field,
+    low_nullifier_sibling_path: [Field; NULLIFIER_TREE_HEIGHT],
 }
 
 impl NonNullificationProofData {
-    pub fn verify_nullifier_non_inclusion(
+    pub(crate) fn verify_nullifier_non_inclusion(
         self,
         nhk_app: Field,
         old_app: AztecAddress,

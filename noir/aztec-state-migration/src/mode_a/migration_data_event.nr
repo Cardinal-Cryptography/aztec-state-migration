@@ -9,9 +9,9 @@ use aztec::protocol::traits::Serialize;
 /// does not support generic structs.
 /// See https://github.com/AztecProtocol/aztec-packages/blob/c6b2615d5119cf306e8b9c903fb00dad08560d32/noir-projects/aztec-nr/aztec/src/macros/utils.nr#L154
 #[derive(Serialize)]
-pub struct MigrationDataEvent<T> {
-    pub data_id: Field,
-    pub migration_data: T,
+pub(crate) struct MigrationDataEvent<T> {
+    pub(crate) data_id: Field,
+    pub(crate) migration_data: T,
 }
 
 impl<T> EventInterface for MigrationDataEvent<T> {

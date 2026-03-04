@@ -66,7 +66,6 @@ yarn clean            # Remove all compiled and built artifacts
 ```sh
 yarn fmt              # Format all code (Noir, Solidity, TypeScript)
 yarn fmt:check        # Check formatting without modifying files (CI use)
-yarn ts:build         # Compile TypeScript
 ```
 
 Per-language formatting commands: `yarn noir:fmt`, `yarn sol:fmt`, `yarn ts:fmt` (and their `:check` variants).

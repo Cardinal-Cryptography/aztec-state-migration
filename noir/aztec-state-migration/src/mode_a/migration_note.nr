@@ -25,10 +25,10 @@ use std::embedded_curve_ops::EmbeddedCurvePoint as Point;
 #[derive(Deserialize, Eq, Serialize, Packable)]
 #[custom_note]
 pub struct MigrationNote {
-    pub note_creator: AztecAddress,
-    pub mpk: Point,
-    pub destination_rollup: Field,
-    pub migration_data_hash: Field,
+    note_creator: AztecAddress,
+    mpk: Point,
+    destination_rollup: Field,
+    migration_data_hash: Field,
 }
 
 impl MigrationNote {

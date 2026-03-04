@@ -1,7 +1,7 @@
-mod migration_lock;
-pub use migration_lock::MigrationLock;
 mod builder;
 pub use builder::MigrationModeA;
+mod migration_lock;
+pub use migration_lock::MigrationLock;
 pub(crate) mod migration_note;
 pub(crate) mod migration_data_event;
 
