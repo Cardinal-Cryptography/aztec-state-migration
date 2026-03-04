@@ -70,7 +70,7 @@ note_hash = poseidon2_hash_with_separator(
 
 The `#[event]` macro does not support generic structs, so `MigrationDataEvent` implements `EventInterface` manually with `#[derive(Serialize)]`.
 
-Events do not include a note-identifying hash. Instead, wallet clients match events to notes by **emission order**: each `lock_state` call emits a `create_note` followed immediately by the corresponding `MigrationDataEvent`, so the i-th note and i-th event always correspond. *(Source: `migration_lock.nr:46–68`)*
+Each event carries a `data_id` field that identifies the kind of migration data it contains. Within a single `MigrationLock` chain, `data_id` auto-increments from 0. When a contract uses multiple `MigrationLock` instances (e.g. separate entrypoints for private and public state), use `MigrationLock::new_with_offset` to assign non-overlapping `data_id` ranges. Wallet clients match events to notes by **emission order** within a transaction: each `lock_state` call emits a `create_note` followed immediately by the corresponding `MigrationDataEvent`, so the i-th note and i-th event always correspond. *(Source: `migration_lock.nr`, `migration_data_event.nr`)*
 
 ## Claim Flow (Library Level)
 
