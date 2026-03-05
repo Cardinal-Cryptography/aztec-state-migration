@@ -143,7 +143,7 @@ Only the true owner of the nullifier hiding key can migrate their notes.
 Both private notes and owned public state use a single domain separator (`DOM_SEP__CLAIM_B`). The builder accumulates all data into a single running hash (note hashes and packed public state fields), then signs once:
 
 ```
-final_hash = poseidon2_hash([...note_hashes, ...packed_public_state_fields])
+final_hash = poseidon2_hash([...packed_public_state_hashes, ...note_hashes])
 msg = poseidon2_hash([DOM_SEP__CLAIM_B, old_rollup, current_rollup, final_hash, recipient, new_app])
 ```
 
