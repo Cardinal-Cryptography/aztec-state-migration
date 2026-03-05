@@ -223,9 +223,9 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    [balanceNote],
     newUserManager.address,
     newApp.address,
+    { notes: [balanceNote] },
   );
 
   console.log(`   Migration args prepared.\n`);
@@ -295,9 +295,9 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    [nullifiedNote],
     newUserManager.address,
     newApp.address,
+    { notes: [nullifiedNote] },
   );
 
   await expectRevert(

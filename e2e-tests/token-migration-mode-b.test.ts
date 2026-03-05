@@ -1,5 +1,5 @@
 import { Fr } from "@aztec/foundation/curves/bn254";
-import { signMigrationModeB } from "../ts/aztec-state-migration/index.js";
+import { signMigrationModeB } from "aztec-state-migration/mode-b";
 import { deploy } from "./deploy.js";
 import {
   deployTokenAppPair,
@@ -217,11 +217,11 @@ async function main() {
     `   Active notes: ${balanceNotesActive.length}, Nullified notes: ${balanceNotesNullified.length}`,
   );
 
-  const balanceNotes = balanceNotesActive.slice(0, 1);
+  const balanceNote = balanceNotesActive[0];
 
-  const fullProofs = await oldUserWallet.buildFullNoteProofs(
+  const fullProof = await oldUserWallet.buildFullNoteProof(
     provenBlockNumber,
-    balanceNotes,
+    balanceNote,
     (note) => UintNote.fromNote(note),
   );
 
@@ -238,9 +238,9 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    balanceNotes,
     newUserManager.address,
     newApp.address,
+    { notes: [balanceNote] },
   );
 
   console.log("   Migration args prepared.\n");
@@ -250,8 +250,7 @@ async function main() {
   // ============================================================
   console.log("Step 9. Calling migrate_mode_b on NEW rollup...");
 
-  const noteProof = fullProofs[0];
-  const migrateAmount = noteProof.note_proof_data.data.value;
+  const migrateAmount = fullProof.note_proof_data.data.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
   const newBalanceBefore = await newAppUser.methods
@@ -263,7 +262,7 @@ async function main() {
     .migrate_mode_b(
       migrateAmount,
       signature,
-      noteProof,
+      fullProof,
       blockHeader,
       oldUserManager.address,
       publicKeys,
@@ -297,7 +296,7 @@ async function main() {
       .migrate_mode_b(
         migrateAmount,
         signature,
-        noteProof,
+        fullProof,
         blockHeader,
         oldUserManager.address,
         publicKeys,
@@ -320,9 +319,9 @@ async function main() {
 
   const nullifiedNote = balanceNotesNullified[0];
 
-  const [nullifiedNoteProof] = await oldUserWallet.buildFullNoteProofs(
+  const nullifiedNoteProof = await oldUserWallet.buildFullNoteProof(
     provenBlockNumber,
-    [nullifiedNote],
+    nullifiedNote,
     (note) => UintNote.fromNote(note),
   );
 
@@ -330,9 +329,9 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    [nullifiedNote],
     newUserManager.address,
     newApp.address,
+    { notes: [nullifiedNote] },
   );
 
   const nullifiedAmount = nullifiedNoteProof.note_proof_data.data.value;

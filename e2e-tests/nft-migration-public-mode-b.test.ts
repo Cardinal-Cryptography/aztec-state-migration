@@ -190,14 +190,13 @@ async function main() {
     oldUserManager.address,
   );
   // For NFT, the signed data is the owner AztecAddress (not a balance amount)
-  const signature = await newUserWallet.signPublicStateMigrationModeB(
+  const signature = await newUserWallet.signMigrationModeB(
     oldMigrationSigner,
     newUserManager.address,
     new Fr(env.oldRollupVersion),
     new Fr(env.newRollupVersion),
     newApp.address,
-    oldUserManager.address,
-    ownerAbiType,
+    { publicData: [{ data: oldUserManager.address, abiType: ownerAbiType }] },
   );
 
   // ============================================================

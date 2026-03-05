@@ -11,7 +11,4 @@ export {
   buildPublicMapDataProof,
 } from "./proofs.js";
 
-export {
-  signMigrationModeB,
-  signPublicStateMigrationModeB,
-} from "./signature.js";
+export { signMigrationModeB } from "./signature.js";
