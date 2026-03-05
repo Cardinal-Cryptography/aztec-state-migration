@@ -2,8 +2,7 @@ use aztec::macros::aztec;
 
 /// Minimal benchmark contract for measuring the cost of aztec-state-migration library functions.
 ///
-/// Each function isolates a single migration path with zero business logic,
-/// so the delta vs `baseline_private` is purely the library's overhead.
+/// Each function isolates a single migration path with zero business logic.
 #[aztec]
 pub contract MinimalBenchmark {
     use aztec::{
