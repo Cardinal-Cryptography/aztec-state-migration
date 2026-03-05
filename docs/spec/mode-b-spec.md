@@ -230,7 +230,7 @@ The `MigrationArchiveRegistry` on the new rollup stores this address (set at dep
 A migration webapp will orchestrate the end-to-end Mode B flow. The wallet's role is to expose key management, signing, and key registration primitives. Mode B extends the Mode A wallet requirements (see [Mode A -- Wallet Integration](mode-a-spec.md#wallet-integration)) with the following additional responsibilities:
 
 - **Key registration.** Before the snapshot height H, the wallet must support calling `keyRegistry.register(mpk)` on the old rollup's `MigrationKeyRegistry`. This is a one-time, write-once operation. If a user misses this window, Mode B migration is permanently unavailable for that account. Wallets should prompt registration early and confirm inclusion in a block before H.
-- **Nullifier hiding key access.** Mode B requires the wallet to expose the nullifier hiding key (NHK) for address verification. The `MigrationAccount` interface provides `getMaskedNhk(mask)` and `getNhkApp(contractAddress)` for this purpose.
+- **Nullifier hiding key access.** Mode B requires the wallet to expose the nullifier hiding key (NHK) for address verification. The `MigrationAccount` interface provides `getNhk()` for this purpose. Note: the NHK currently leaves the wallet in raw form. A future improvement could mask the NHK (e.g. `nhk + mask`) so it never leaves the wallet unprotected.
 - **Public state signing.** In addition to `signMigrationModeB()` (private notes), the wallet must support `signPublicStateMigrationModeB()` for owned public state migration, which  produces a hash of encoded migration data.
 
 For key derivation, Browser vs Node environments, and key persistence, see [General Specification -- Wallet Integration](migration-spec.md#wallet-integration-shared).

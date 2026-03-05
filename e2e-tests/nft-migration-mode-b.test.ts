@@ -179,11 +179,7 @@ async function main() {
   const publicKeys = await oldUserWallet.getPublicKeys(oldUserManager.address)!;
   const completeAddress = await oldUserManager.getCompleteAddress();
   const partialAddress = completeAddress.partialAddress;
-  const nhk = await oldUserWallet.getMaskedNhk(
-    oldUserManager.address,
-    newUserManager.address,
-    newApp.address,
-  );
+  const nhk = await oldUserWallet.getNhk(oldUserManager.address);
   console.log(`   nhk derived, partial address: ${partialAddress}\n`);
 
   // ============================================================

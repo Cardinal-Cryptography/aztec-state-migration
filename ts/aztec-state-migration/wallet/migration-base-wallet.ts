@@ -159,16 +159,9 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     );
   }
 
-  async getMaskedNhk(
-    oldOwner: AztecAddress,
-    _newOwner: AztecAddress,
-    _newAppAddress: AztecAddress,
-  ): Promise<Fq> {
+  async getNhk(oldOwner: AztecAddress): Promise<Fq> {
     const oldAccount = await this.getAccountFromAddress(oldOwner);
-    // const newAccount = await this.getAccountFromAddress(newOwner);
-    // const mask = await newAccount.getNhkApp(newAppAddress);
-    const mask = Fq.ZERO; // for now just 0
-    return oldAccount.getMaskedNhk(mask);
+    return oldAccount.getNhk();
   }
 
   /**

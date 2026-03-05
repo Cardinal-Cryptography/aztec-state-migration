@@ -363,6 +363,10 @@ await keyRegistry.methods.register(mpk).send().wait();
 import { buildArchiveProof } from "aztec-state-migration";
 import { buildPublicDataProof, buildPublicMapDataProof } from "aztec-state-migration/mode-b";
 
+// Derive account keys
+const nhk = await wallet.getNhk(owner);
+const publicKeys = await wallet.getPublicKeys(owner);
+
 // Private notes: inclusion + non-nullification
 const fullProof = await wallet.buildFullNoteProof(blockNumber, noteDao, UintNote.fromNote);
 

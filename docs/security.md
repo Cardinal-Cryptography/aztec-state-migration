@@ -90,6 +90,8 @@ The current implementation is a proof-of-concept. The following limitations must
 
 - **In-memory key storage.** The TS client stores migration keys in memory. Production should use secure storage (hardware wallet, encrypted keystore).
 
+- **NHK exposed in raw form.** Mode B requires the nullifier hiding key (NHK) for the non-nullification check. Currently, `getNhk()` returns it unmasked. A future improvement could mask the NHK before it leaves the wallet (e.g. `masked_nhk = nhk + recipient_nhk_app`, where `recipient_nhk_app` is the recipient's NHK siloed to the new app address) so the raw master key is never exposed to the calling application.
+
 
 ## Audit Recommendations
 

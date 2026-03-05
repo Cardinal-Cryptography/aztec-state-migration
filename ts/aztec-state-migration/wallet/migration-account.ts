@@ -5,10 +5,7 @@ import { Fq, Fr, Point } from "@aztec/aztec.js/fields";
 import { deriveMasterMigrationSecretKey } from "../key.js";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationSignature } from "../types.js";
-import {
-  computeAppNullifierHidingKey,
-  derivePublicKeyFromSecretKey,
-} from "@aztec/stdlib/keys";
+import { derivePublicKeyFromSecretKey } from "@aztec/stdlib/keys";
 import { ChainInfo, EntrypointInterface } from "@aztec/entrypoints/interfaces";
 import { DefaultMultiCallEntrypoint } from "@aztec/entrypoints/multicall";
 import { ExecutionPayload, TxExecutionRequest } from "@aztec/stdlib/tx";
@@ -36,18 +33,10 @@ export interface MigrationAccount extends Account {
   migrationKeySigner: (msg: Uint8Array) => Promise<MigrationSignature>;
 
   /**
-   * Compute the masked nullifier hiding key for cross-rollup note ownership transfer.
-   * @param mask - The mask to apply to the nullifier hiding key.
-   * @returns The masked `Fq` key.
+   * Return the master nullifier hiding key for this account.
+   * @returns The raw `Fq` nullifier hiding key.
    */
-  getMaskedNhk: (mask: Fq) => Promise<Fq>;
-
-  /**
-   * Compute the app-siloed nullifier hiding key.
-   * @param contractAddress - The app contract address.
-   * @returns The app-siloed nullifier hiding key.
-   */
-  getNhkApp: (contractAddress: AztecAddress) => Promise<Fq>;
+  getNhk: () => Promise<Fq>;
 
   /** Return the full set of public keys derived from the account secret. */
   getPublicKeys: () => Promise<PublicKeys>;
@@ -100,25 +89,9 @@ export class MigrationAccountWithSecretKey
     );
   };
 
-  /**
-   * Compute a masked nullifier hiding key so the new-rollup account can
-   * nullify notes originally owned by this account.
-   *
-   * @param mask - The mask to apply to the nullifier hiding key.
-   * @returns The masked `Fq` value (`nhk.hi + mask`, `nhk.lo + mask`).
-   */
-  async getMaskedNhk(mask: Fq): Promise<Fq> {
+  async getNhk(): Promise<Fq> {
     const { masterNullifierHidingKey } = await deriveKeys(this.getSecretKey());
-    return masterNullifierHidingKey.add(mask);
-  }
-
-  async getNhkApp(contractAddress: AztecAddress): Promise<Fq> {
-    const { masterNullifierHidingKey } = await deriveKeys(this.getSecretKey());
-    let nhkApp = await computeAppNullifierHidingKey(
-      masterNullifierHidingKey,
-      contractAddress,
-    );
-    return new Fq(nhkApp.toBigInt());
+    return masterNullifierHidingKey;
   }
 }
 
@@ -183,15 +156,9 @@ export class SignerlessMigrationAccount implements MigrationAccount {
     );
   }
 
-  getMaskedNhk(_mask: Fq): Promise<Fq> {
+  getNhk(): Promise<Fq> {
     throw new Error(
-      "SignerlessMigrationAccount: Method getMaskedNhk not implemented.",
-    );
-  }
-
-  getNhkApp(_contractAddress: AztecAddress): Promise<Fq> {
-    throw new Error(
-      "SignerlessMigrationAccount: Method getNhkApp not implemented.",
+      "SignerlessMigrationAccount: Method getNhk not implemented.",
     );
   }
 
