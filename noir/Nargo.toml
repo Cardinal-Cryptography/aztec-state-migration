@@ -9,6 +9,7 @@ members = [
     "test-contracts/nft-migration-app/v2",
     "test-contracts/token-migration-app/v1",
     "test-contracts/token-migration-app/v2",
+    "test-contracts/minimal-benchmark",
     "tests",
 ]
 exclude = ["tests"]
