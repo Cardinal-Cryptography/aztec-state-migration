@@ -206,3 +206,8 @@ ts/aztec-state-migration/      TypeScript client SDK (proof building, key deriva
 e2e-tests/                     End-to-end migration tests
 docs/                          Project documentation (Jekyll / GitHub Pages)
 ```
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
+
