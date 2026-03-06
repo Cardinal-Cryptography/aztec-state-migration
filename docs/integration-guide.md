@@ -386,14 +386,22 @@ const archiveProof = await buildArchiveProof(node, blockHash);
 #### 2. Sign
 
 ```typescript
-// Private notes
+// Private notes only
 const sig = await wallet.signMigrationModeB(
-  signer, recipient, oldVersion, newVersion, newApp, [fullProof],
+  signer, recipient, oldVersion, newVersion, newApp,
+  { notes },
 );
 
-// Public state (owned)
-const sig = await wallet.signPublicStateMigrationModeB(
-  signer, recipient, oldVersion, newVersion, newApp, data, abiType,
+// Public state only (owned)
+const sig = await wallet.signMigrationModeB(
+  signer, recipient, oldVersion, newVersion, newApp,
+  { publicData: [{ data, abiType }] },
+);
+
+// Mixed (public state + private notes in one signature)
+const sig = await wallet.signMigrationModeB(
+  signer, recipient, oldVersion, newVersion, newApp,
+  { publicData: [{ data, abiType }], notes },
 );
 ```
 

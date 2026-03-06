@@ -297,16 +297,14 @@ async function main() {
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     OWNED_STRUCT_MAP_OWNER,
   );
-  const ownedStructMapSignature =
-    await newUserWallet.signPublicStateMigrationModeB(
-      oldMigrationSigner,
-      newUserManager.address,
-      new Fr(env.oldRollupVersion),
-      new Fr(env.newRollupVersion),
-      newApp,
-      OWNED_STRUCT_MAP,
-      someStructAbiType,
-    );
+  const ownedStructMapSignature = await newUserWallet.signMigrationModeB(
+    oldMigrationSigner,
+    newUserManager.address,
+    new Fr(env.oldRollupVersion),
+    new Fr(env.newRollupVersion),
+    newApp,
+    { publicData: [{ data: OWNED_STRUCT_MAP, abiType: someStructAbiType }] },
+  );
   await newAppUser.methods
     .migrate_to_public_owned_struct_map_mode_b(
       ownedStructMapProof,
@@ -332,16 +330,18 @@ async function main() {
   const oldMigrationSigner2 = await oldUserWallet.getMigrationSignerFromAddress(
     OWNED_STRUCT_NESTED_MAP_OWNER,
   );
-  const ownedStructNestedMapSignature =
-    await newUserWallet.signPublicStateMigrationModeB(
-      oldMigrationSigner2,
-      newUser2Manager.address,
-      new Fr(env.oldRollupVersion),
-      new Fr(env.newRollupVersion),
-      newApp,
-      OWNED_STRUCT_NESTED_MAP,
-      someStructAbiType,
-    );
+  const ownedStructNestedMapSignature = await newUserWallet.signMigrationModeB(
+    oldMigrationSigner2,
+    newUser2Manager.address,
+    new Fr(env.oldRollupVersion),
+    new Fr(env.newRollupVersion),
+    newApp,
+    {
+      publicData: [
+        { data: OWNED_STRUCT_NESTED_MAP, abiType: someStructAbiType },
+      ],
+    },
+  );
   await newAppUser.methods
     .migrate_to_public_owned_struct_nested_map_mode_b(
       ownedStructNestedMapProof,

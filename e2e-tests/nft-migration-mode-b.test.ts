@@ -243,9 +243,9 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    [activeNote],
     newUserManager.address,
     newApp.address,
+    { notes: [activeNote] },
   );
 
   console.log("   Migration args prepared.\n");
@@ -323,9 +323,9 @@ async function main() {
     oldMigrationSigner,
     blockHeader.global_variables.version,
     new Fr(env.newRollupVersion),
-    [nullifiedNote],
     newUserManager.address,
     newApp.address,
+    { notes: [nullifiedNote] },
   );
 
   const nullifiedTokenId = nullifiedNoteProof.note_proof_data.data.token_id;

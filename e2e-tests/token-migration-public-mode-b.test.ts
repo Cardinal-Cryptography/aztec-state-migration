@@ -184,14 +184,13 @@ async function main() {
   const oldMigrationSigner = await oldUserWallet.getMigrationSignerFromAddress(
     oldUserManager.address,
   );
-  const signature = await newUserWallet.signPublicStateMigrationModeB(
+  const signature = await newUserWallet.signMigrationModeB(
     oldMigrationSigner,
     newUserManager.address,
     new Fr(env.oldRollupVersion),
     new Fr(env.newRollupVersion),
     newApp.address,
-    MINT_AMOUNT,
-    balanceAbiType,
+    { publicData: [{ data: MINT_AMOUNT, abiType: balanceAbiType }] },
   );
 
   // ============================================================

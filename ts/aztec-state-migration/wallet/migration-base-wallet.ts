@@ -20,10 +20,7 @@ import { buildNullifierProof } from "../mode-b/proofs.js";
 import { Point } from "@aztec/foundation/schemas";
 import { AztecAddress } from "@aztec/stdlib/aztec-address";
 import { MigrationAccount } from "./migration-account.js";
-import {
-  signMigrationModeB as signModeB,
-  signPublicStateMigrationModeB as signPubStateModeB,
-} from "../mode-b/signature.js";
+import { signMigrationModeB as signModeB } from "../mode-b/signature.js";
 import { signMigrationModeA as signModeA } from "../mode-a/signature.js";
 import { PublicKeys } from "@aztec/stdlib/keys";
 import { AbiType, decodeFromAbi, EventSelector } from "@aztec/stdlib/abi";
@@ -113,13 +110,16 @@ export abstract class MigrationBaseWallet extends BaseWallet {
   /**
    * Produce a Mode B (emergency snapshot) claim signature via the wallet.
    *
+   * Supports private notes, public state data, or both in a single signature.
+   * Hash input order matches the Noir builder: packed public data fields first, then note hashes.
+   *
    * @param signer - The migration account that holds the signing key.
    * @param recipient - Address on the new rollup that will receive the balance.
    * @param oldRollupVersion - Version of the old rollup.
    * @param newRollupVersion - Version of the new rollup.
    * @param newAppAddress - App contract address on the new rollup.
-   * @param notes - The balance notes whose values are being claimed.
-   * @returns The raw Schnorr signature buffer.
+   * @param options - The data to sign: `notes` (private notes), `publicData` (public state entries), or both.
+   * @returns The Schnorr signature as a {@link MigrationSignature}.
    */
   async signMigrationModeB(
     signer: (msg: Uint8Array) => Promise<MigrationSignature>,
@@ -127,35 +127,18 @@ export abstract class MigrationBaseWallet extends BaseWallet {
     oldRollupVersion: Fr,
     newRollupVersion: Fr,
     newAppAddress: AztecAddress,
-    notes: NoteDao[],
+    options: {
+      publicData?: { data: any; abiType: AbiType }[];
+      notes?: NoteDao[];
+    },
   ): Promise<MigrationSignature> {
     return signModeB(
       signer,
       oldRollupVersion,
       newRollupVersion,
-      notes,
       recipient,
       newAppAddress,
-    );
-  }
-
-  async signPublicStateMigrationModeB(
-    signer: (msg: Uint8Array) => Promise<MigrationSignature>,
-    recipient: AztecAddress,
-    oldRollupVersion: Fr,
-    newRollupVersion: Fr,
-    newAppAddress: AztecAddress,
-    data: any,
-    dataAbiType: AbiType,
-  ): Promise<MigrationSignature> {
-    return signPubStateModeB(
-      signer,
-      oldRollupVersion,
-      newRollupVersion,
-      data,
-      dataAbiType,
-      recipient,
-      newAppAddress,
+      options,
     );
   }
 

@@ -11,71 +11,57 @@ import {
 } from "@aztec/stdlib/abi";
 
 /**
- * Produce a Schnorr signature over a Mode B (emergency snapshot) private note claim message.
+ * Produce a Schnorr signature over a Mode B (emergency snapshot) claim message.
  *
- * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, notesHash, recipient, newApp])`.
+ * Supports private notes, public state data, or both in a single signature --
+ * matching the Noir builder which feeds packed public data fields and note hashes
+ * into the same `Poseidon2Hasher`.
+ *
+ * Hash input order (matches the Noir builder): packed public data fields first, then note hashes.
+ *
+ * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, finalHash, recipient, newApp])`.
  *
  * @param signer - Signing callback (typically {@link MigrationAccount.migrationKeySigner}).
  * @param oldRollupVersion - Version field from the old rollup's block header.
  * @param newRollupVersion - Target rollup version the tokens are migrating to.
- * @param notes - The private notes on the old rollup whose existence is being proven.
  * @param recipient - Address that will call the migration tx on the new rollup (`msg_sender()`).
  * @param newAppAddress - Address of the app contract on the new rollup.
+ * @param options - The data to sign: `notes` (private notes), `publicData` (public state entries), or both.
  * @returns The Schnorr signature as a {@link MigrationSignature}.
  */
 export async function signMigrationModeB(
   signer: (msg: Buffer) => Promise<MigrationSignature>,
   oldRollupVersion: Fr,
   newRollupVersion: Fr,
-  notes: NoteDao[],
   recipient: AztecAddress,
   newAppAddress: AztecAddress,
+  options: {
+    publicData?: { data: any; abiType: AbiType }[];
+    notes?: NoteDao[];
+  },
 ): Promise<MigrationSignature> {
-  const notesHash = await poseidon2Hash(notes.map((n) => n.noteHash));
-  const msg = await poseidon2Hash([
-    DOM_SEP__CLAIM_B,
-    oldRollupVersion,
-    newRollupVersion,
-    notesHash,
-    recipient,
-    newAppAddress,
-  ]);
-  return signer(msg.toBuffer());
-}
+  const hashInputs: Fr[] = [];
 
-/**
- * Produce a Schnorr signature over a Mode B (public state) claim message.
- *
- * The data is packed to `Fr[]` via {@link encodeValue} (matching Noir's `Packable::pack()` field ordering),
- * then hashed with `poseidon2_hash` to produce `dataHash`.
- *
- * The signed payload is `poseidon2_hash([DOM_SEP__CLAIM_B, oldVersion, newVersion, dataHash, recipient, newApp])`.
- *
- * @param signer - Signing callback (typically {@link MigrationAccount.migrationKeySigner}).
- * @param oldRollupVersion - Version field from the old rollup's block header.
- * @param newRollupVersion - Target rollup version the tokens are migrating to.
- * @param data - The public state data to sign. Must match the struct shape defined by `abiType`.
- * @param abiType - ABI type describing `data`'s structure, extracted from the contract artifact.
- * @param recipient - Address that will call the migration tx on the new rollup (`msg_sender()`).
- * @param newAppAddress - Address of the app contract on the new rollup.
- * @returns The Schnorr signature as a {@link MigrationSignature}.
- */
-export async function signPublicStateMigrationModeB(
-  signer: (msg: Buffer) => Promise<MigrationSignature>,
-  oldRollupVersion: Fr,
-  newRollupVersion: Fr,
-  data: any,
-  abiType: AbiType,
-  recipient: AztecAddress,
-  newAppAddress: AztecAddress,
-): Promise<MigrationSignature> {
-  const packedData = encodeValue(data, abiType);
-  const dataHash = await poseidon2Hash(packedData);
+  // Public data fields first (matches Noir builder order)
+  if (options.publicData) {
+    for (const { data, abiType } of options.publicData) {
+      hashInputs.push(...encodeValue(data, abiType));
+    }
+  }
+
+  // Then note hashes
+  if (options.notes) {
+    for (const note of options.notes) {
+      hashInputs.push(note.noteHash);
+    }
+  }
+
+  const finalHash = await poseidon2Hash(hashInputs);
   const msg = await poseidon2Hash([
     DOM_SEP__CLAIM_B,
     oldRollupVersion,
     newRollupVersion,
-    dataHash,
+    finalHash,
     recipient,
     newAppAddress,
   ]);
