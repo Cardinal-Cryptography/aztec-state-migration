@@ -271,13 +271,15 @@ fn migrate_mode_b(
     )
         .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
         .with_note(full_proof_data, balances_slot)
-        .finish(recipient, signature);
+        .finish_at_snapshot(recipient, signature);
 
     // App-specific: mint tokens
     self.storage.private_balances.at(recipient).add(amount)
         .deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
 }
 ```
+
+**Alternative: `.finish_at_block(block_number)`** -- If you need to pin the migration to a specific block rather than the snapshot height, use `.finish_at_block(block_number, recipient, signature)` (or `.finish_at_block(block_number)` for unowned state). This verifies the archive proof against the given block number instead of the snapshot height registered in the `MigrationArchiveRegistry`.
 
 **Custom notes** must use the canonical nullifier formula. Use `assert_note_has_canonical_nullifier` in tests to verify:
 
@@ -314,7 +316,7 @@ fn migrate_public_balance_mode_b(
     )
         .with_owner(old_owner, key_note)
         .with_public_map_state(proof_data, base_slot, [old_owner])
-        .finish(recipient, signature);
+        .finish_at_snapshot(recipient, signature);
 
     // App-specific: mint to public balance
     Self::at(self.context.this_address())
@@ -333,7 +335,7 @@ For global state with no ownership (e.g. total supply):
 MigrationModeB::new(context, old_app, archive_registry, block_header)
     .without_owner()
     .with_public_state(proof, slot)
-    .finish();  // no signature needed
+    .finish_at_snapshot();  // no signature needed
 ```
 
 #### Mixed (Public + Private)
@@ -346,7 +348,7 @@ MigrationModeB::new(context, old_app, archive_registry, block_header)
     .with_public_state(public_proof, public_slot)
     .with_notes_owner(public_keys, partial_address, nhk)
     .with_note(note_proof, note_slot)
-    .finish(recipient, signature);
+    .finish_at_snapshot(recipient, signature);
 ```
 
 ### Client Side (TypeScript SDK)

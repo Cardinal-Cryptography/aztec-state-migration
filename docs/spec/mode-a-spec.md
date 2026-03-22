@@ -89,7 +89,7 @@ MigrationModeA::new(context, old_app, archive_registry, block_header, mpk)
 2. **Nullifier emission (per `.with_note()`):** Emit a nullifier via `MigrationNote::compute_nullifier` keyed to the note's randomness (see [Nullifier Derivation](#nullifier-derivation)).
 3. **Hash accumulation (per `.with_note()`):** Each verified note hash is fed into a running `Poseidon2Hasher`.
 4. **Signature verification (`finish`):** Finalize the accumulated `notes_hash`, then call `signature.verify_migration_signature::<DOM_SEP__CLAIM_A>(...)`.
-5. **Block hash verification (`finish`):** Compute `block_hash = block_header.hash()`, then call `MigrationArchiveRegistry.verify_migration_mode_a(block_number, block_hash)` via a private cross-contract call. See [General Specification -- Block Hash Verification](migration-spec.md#block-hash-verification) for the two-step registration process.
+5. **Block hash verification (`finish`):** Compute `block_hash = block_header.hash()`, then call `MigrationArchiveRegistry.verify_migration_at_block(block_number, block_hash)` via a private cross-contract call. See [General Specification -- Block Hash Verification](migration-spec.md#block-hash-verification) for the two-step registration process.
 
 ## Public State Migration (App-Level)
 

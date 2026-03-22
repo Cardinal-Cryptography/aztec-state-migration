@@ -90,7 +90,7 @@ A convenience function `consume_l1_to_l2_message_and_register_block` combines bo
 
 **Inbox message consumption** requires a `secret` because L1 messages commit to a `secretHash`, and L2 consumption reveals the preimage. For permissionless root syncing, the portal uses a public/deterministic secret (just `0`). Reusing the same secret across many messages is safe because the message leaf index is part of consumption.
 
-**Storage:** MigrationArchiveRegistry stores `block_number → block_hash` for all registered blocks, and for Mode B, a write-once `snapshot_block_hash`. Any migrating app can call `verify_migration_mode_a(block_number, block_hash)` or `verify_migration_mode_b(block_hash)` to check a block hash against the stored value.
+**Storage:** MigrationArchiveRegistry stores `block_number → block_hash` for all registered blocks, and for Mode B, a write-once `snapshot_block_hash`. Any migrating app can call `verify_migration_at_block(block_number, block_hash)` or `verify_migration_at_snapshot(block_hash)` to check a block hash against the stored value.
 
 **Snapshot Block in Mode B** In Mode B the app is migrated based on a particular finalized block height from the old rollup. In the PoC implementation this block_height is selected globally for all the apps by a distinguished account on the new rollup. This is completely flexible and can be easily changed to a version where:
 - Each app chooses its own snapshot block.
@@ -227,7 +227,7 @@ The migration public key (MPK) is the corresponding Grumpkin curve point. No ran
 Block hash trust is established in two steps, both on the `MigrationArchiveRegistry`:
 
 1. **`register_block`:** Verifies a block header against a consumed L1-bridged archive root via Merkle proof. Stores the mapping `block_number -> block_hash`.
-2. **Mode-specific verification:** Mode A calls `verify_migration_mode_a(block_number, block_hash)` to check against any registered block hash. Mode B calls `verify_migration_mode_b(block_hash)` to check against the snapshot block hash.
+2. **Mode-specific verification:** Mode A calls `verify_migration_at_block(block_number, block_hash)` to check against any registered block hash. Mode B calls `verify_migration_at_snapshot(block_hash)` to check against the snapshot block hash.
 
 This separation allows block registration to happen once per block, with multiple migration claims referencing the same registered block.
 
@@ -273,10 +273,10 @@ MigrationModeB::new(context, old_app, archive_registry, block_header)
     .with_public_map_state(map_proof, map_slot, [key])
     .with_notes_owner(public_keys, partial_address, nhk)
     .with_note(note_proof, note_slot)
-    .finish(recipient, signature);
+    .finish_at_snapshot(recipient, signature);
 ```
 
-Each `.with_note(...)` or `.with_public_state(...)` call verifies one inclusion proof and emits a nullifier. The builder accumulates a running hash of all migrated data, which is checked against the migration signature in `finish()`.
+Each `.with_note(...)` or `.with_public_state(...)` call verifies one inclusion proof and emits a nullifier. The builder accumulates a running hash of all migrated data, which is checked against the migration signature in `.finish()` (Mode A) or `.finish_at_snapshot()` (Mode B).
 
 ## Data Structures & Hashing
 
@@ -423,7 +423,7 @@ All claims provide:
 1. Each `MigrationNote.leaf_hash` exists in the note tree (inclusion proof against `header.state.partial.note_hash_tree.root`).
 2. `destination_rollup` in the note preimage matches the current rollup version.
 3. Schnorr signature verifies for `mpk` embedded in the MigrationNote.
-4. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_mode_a(block_number, block_hash)`).
+4. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_at_block(block_number, block_hash)`).
 
 **Mode B `migrate_notes_mode_b` proves (private notes):**
 
@@ -432,7 +432,7 @@ All claims provide:
 3. Each note is not nullified at H (non-membership against `header_H.state.partial.nullifier_tree.root`) using constrained nullifier derivation from `nhk_app`.
 4. `MigrationKeyNote` for the owner exists in the note hash tree at H.
 5. Schnorr signature verifies for `mpk` from the key note.
-6. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_mode_b(block_hash)`).
+6. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_at_snapshot(block_hash)`).
 
 **Mode B public state migration proves:**
 
@@ -480,8 +480,8 @@ The tables below list library functions first, then app-level interfaces.
 | `register_block` | `proven_block_number, block_header, archive_sibling_path` | Verify block header against stored archive root, store block hash |
 | `consume_l1_to_l2_message_and_register_block` | `archive_root, proven_block_number, secret, leaf_index, block_header, archive_sibling_path` | Convenience: consume message and register block in a single call |
 | `set_snapshot_height` | `height, snapshot_block_header, proven_block_number, archive_sibling_path` | Set Mode B snapshot height (write-once) |
-| `verify_migration_mode_a` | `block_number, block_hash` | Assert block hash matches stored value |
-| `verify_migration_mode_b` | `block_hash` | Assert block hash matches snapshot block hash |
+| `verify_migration_at_block` | `block_number, block_hash` | Assert block hash matches stored value |
+| `verify_migration_at_snapshot` | `block_hash` | Assert block hash matches snapshot block hash |
 | `get_block_hash` | `block_number` | View: return stored block hash for a given block number |
 | `get_snapshot_height` | -- | View: return the Mode B snapshot height |
 | `get_snapshot_block_hash` | -- | View: return the Mode B snapshot block hash |

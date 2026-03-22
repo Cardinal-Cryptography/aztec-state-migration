@@ -117,7 +117,7 @@ The third priority is **signature and authentication**:
 
 Finally, **block hash verification** on the registry:
 
-- `verify_migration_mode_a` and `verify_migration_mode_b` (`migration-archive-registry/src/main.nr`) -- confirm that block hashes are checked against stored values and that `set_snapshot_height` enforces write-once semantics.
+- `verify_migration_at_block` and `verify_migration_at_snapshot` (`migration-archive-registry/src/main.nr`) -- confirm that block hashes are checked against stored values and that `set_snapshot_height` enforces write-once semantics.
 - `register_block` and `set_snapshot_height` -- verify archive Merkle proof validation and that the stored roots originate from the L1 bridge (`consume_l1_to_l2_message`).
 
 ## See Also

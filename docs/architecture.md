@@ -16,8 +16,8 @@ Old Rollup L2                  L1                         New Rollup L2
 +-----------------------+   +------------------+   +------------------------------+
 | AppV1 (old rollup)    |   | Migrator.sol     |   | MigrationArchiveRegistry     |
 |   lock_migration_*()  |   |   reads old      |   |   stores block hashes        |
-+-----------------------+   |   archive root,  |   |   verify_migration_mode_a()  |
-| MigrationKeyRegistry  |   |   sends L1->L2   |   |   verify_migration_mode_b()  |
++-----------------------+   |   archive root,  |   |   verify_migration_at_block()    |
+| MigrationKeyRegistry  |   |   sends L1->L2   |   |   verify_migration_at_snapshot() |
 |   register(mpk)       |   |   message via    |   +-------------+----------------+
 |   (Mode B only)       |   |   Inbox          |                 | reads
 +-----------------------+   +------------------+   +-------------v----------------+
@@ -56,7 +56,7 @@ Module structure (`noir/aztec-state-migration/src/`):
 Singleton contract on the new rollup, shared by all migrating apps. Stores verified block hashes bridged from the old rollup via L1.
 
 - **Constructor params:** `l1_migrator: EthAddress`, `old_rollup_version: Field`, `old_key_registry: AztecAddress`
-- **Key functions:** `consume_l1_to_l2_message`, `register_block`, `set_snapshot_height`, `verify_migration_mode_a`, `verify_migration_mode_b`
+- **Key functions:** `consume_l1_to_l2_message`, `register_block`, `set_snapshot_height`, `verify_migration_at_block` (used by Mode A; also available to Mode B), `verify_migration_at_snapshot` (Mode B only)
 - **Storage:** `archive_roots` (by proven block number), `block_hashes` (by block number), `snapshot_block_hash` (write-once for Mode B)
 
 ### `MigrationKeyRegistry` (Noir contract, old rollup)

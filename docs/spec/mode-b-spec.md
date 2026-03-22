@@ -76,9 +76,11 @@ The app developer can specify which parts of the public state belongs to which `
 
 ### Block Header Binding
 
-The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a public function (`verify_migration_mode_b`) that checks it against the stored `snapshot_block_hash`.
+The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a public function (`verify_migration_at_snapshot`) that checks it against the stored `snapshot_block_hash`.
 
 This private->public split is necessary because the block hashes are stored in public state. The private function computes the block hash and the public function checks it, connected via the enqueue mechanism.
+
+> **Note:** The `MigrationArchiveRegistry` exposes two verification entry points: `finish_at_snapshot()` (used by Mode B, checks against the fixed snapshot block hash) and `finish_at_block()` (checks against any registered archive root, useful for app-specific block migration outside the snapshot model).
 
 For the shared two-step block registration process, see [General Specification -- Block Hash Verification](migration-spec.md#block-hash-verification).
 
