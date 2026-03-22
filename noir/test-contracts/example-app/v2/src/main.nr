@@ -53,6 +53,7 @@ pub contract ExampleMigrationAppV2 {
         // --- V2-only fields (not present in V1) ---
         archive_registry_address: PublicImmutable<AztecAddress, Context>,
         old_rollup_app_address: PublicImmutable<AztecAddress, Context>,
+        migration_block_number: PublicImmutable<u32, Context>,
     }
 
     #[external("public")]
@@ -189,7 +190,7 @@ pub contract ExampleMigrationAppV2 {
     /// Verifies note inclusion and non-nullification at the snapshot height via
     /// `migrate_notes_mode_b` and mints the equivalent tokens to the caller.
     #[external("private")]
-    fn migrate_mode_b(
+    fn migrate_mode_b_at_snapshot(
         signature: MigrationSignature,
         full_proof_data: FullNoteProofData<UintNote>,
         block_header: BlockHeader,
@@ -216,7 +217,49 @@ pub contract ExampleMigrationAppV2 {
         )
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
             .with_note(full_proof_data, balances_expected_storage_slot)
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
+
+        // 3. Mint the migrated tokens to the user on the new rollup
+        self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
+    }
+
+    // ============================================================
+    // Mode B: App specific block number Migration
+    // ============================================================
+
+    /// Claim a Mode B (app specific block number) migration on the new rollup.
+    ///
+    /// Verifies note inclusion and non-nullification at the specified block number via
+    /// `migrate_notes_mode_b` and mints the equivalent tokens to the caller.
+    #[external("private")]
+    fn migrate_mode_b_at_block(
+        signature: MigrationSignature,
+        full_proof_data: FullNoteProofData<UintNote>,
+        block_header: BlockHeader,
+        notes_owner: AztecAddress,
+        public_keys: PublicKeys,
+        partial_address: Field,
+        key_note: KeyNoteProofData,
+        nhk: Scalar,
+    ) {
+        let recipient = self.msg_sender();
+        let old_app = self.storage.old_rollup_app_address.read();
+        // The `expected_storage_slot` must reflect the `balances` field in the storage layout
+        // of the V1 contract on the old rollup. We import V1's storage layout to get the correct slot.
+        let balances_expected_storage_slot =
+            STORAGE_LAYOUT_ExampleMigrationAppV1.fields.balances.slot;
+        // 1. Extract the amount from the proof data
+        let amount = full_proof_data.note_proof_data.data.value;
+        // 2. Call MigrationModeB to verify all proofs
+        MigrationModeB::new(
+            self.context,
+            old_app,
+            self.storage.archive_registry_address.read(),
+            block_header,
+        )
+            .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
+            .with_note(full_proof_data, balances_expected_storage_slot)
+            .finish_at_block(recipient, signature, self.storage.migration_block_number.read());
 
         // 3. Mint the migrated tokens to the user on the new rollup
         self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
@@ -237,7 +280,7 @@ pub contract ExampleMigrationAppV2 {
         )
             .without_owner()
             .with_public_state(struct_single_proof_data, struct_single_slot)
-            .finish();
+            .finish_at_snapshot();
 
         ExampleMigrationAppV2::at(self.context.this_address())
             .init_struct_single(struct_single)
@@ -260,7 +303,7 @@ pub contract ExampleMigrationAppV2 {
         )
             .without_owner()
             .with_public_map_state(struct_in_map_proof_data, struct_in_map_slot, [map_key])
-            .finish();
+            .finish_at_snapshot();
         ExampleMigrationAppV2::at(self.context.this_address())
             .init_struct_map(map_key, struct_in_map)
             .enqueue(self.context);
@@ -286,7 +329,7 @@ pub contract ExampleMigrationAppV2 {
         )
             .with_owner(old_owner, key_note)
             .with_public_map_state(owned_struct_map_proof_data, owner_struct_map_slot, [old_owner])
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_map(recipient, owned_struct)
             .enqueue(self.context);
@@ -317,7 +360,7 @@ pub contract ExampleMigrationAppV2 {
                 owned_struct_nested_map_slot,
                 [map_key, old_owner.to_field()],
             )
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
         ExampleMigrationAppV2::at(self.context.this_address())
             ._set_owned_struct_nested_map(recipient, map_key, owned_struct)
             .enqueue(self.context);
@@ -338,6 +381,11 @@ pub contract ExampleMigrationAppV2 {
     // ============================================================
     // Test helpers
     // ============================================================
+
+    #[external("public")]
+    fn set_migration_block_number(migration_block_number: u32) {
+        self.storage.migration_block_number.initialize(migration_block_number);
+    }
 
     #[external("public")]
     fn init_struct_single(some_struct: SomeStruct) {

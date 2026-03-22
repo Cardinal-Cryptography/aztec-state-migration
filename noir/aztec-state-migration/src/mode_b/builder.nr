@@ -34,7 +34,7 @@ use std::{
 ///       .without_owner()
 ///       .with_public_state(proof, slot)                       // repeat for each unowned public state
 ///       .with_public_map_state(map_proof, map_slot, [key])    // keys for a single entry; use [k1, k2] for nested maps
-///       .finish();
+///       .finish_at_snapshot();                                // or .finish_at_block(block_number);
 ///```
 ///
 /// ### Owned public state:
@@ -43,15 +43,15 @@ use std::{
 ///       .with_owner(owner, key_note)
 ///       .with_public_state(proof, slot)                       // repeat for each owned public state
 ///       .with_public_map_state(map_proof, map_slot, [key])    // keys for a single entry; use [k1, k2] for nested maps
-///       .finish(recipient, signature);
+///       .finish_at_snapshot(recipient, signature);            // or .finish_at_block(recipient, signature, block_number);
 ///```
 ///
 /// ### Private notes:
 ///```
 ///   MigrationModeB::new(...)
 ///       .with_notes_owner(owner, key_note, public_keys, partial_address, nhk)
-///       .with_note(proof, slot)           // repeat for each note
-///       .finish(recipient, signature);
+///       .with_note(proof, slot)                               // repeat for each note
+///       .finish_at_snapshot(recipient, signature);            // or .finish_at_block(recipient, signature, block_number);
 ///```
 ///
 /// ### Or mix and match as needed (e.g. owned public state and private notes).
@@ -61,13 +61,19 @@ use std::{
 ///       .with_public_state(public_state_proof, public_state_slot)
 ///       .with_notes_owner(public_keys, partial_address, nhk)
 ///       .with_note(note_proof, note_slot)
-///       .finish(recipient, signature);
+///       .finish_at_snapshot(recipient, signature);
 ///```
 ///
 /// # Important:
 ///
-/// Ensure that at the end of the builder chain, you call **`finish(...)`**
-/// to trigger block hash verification and signature verification (if applicable).
+/// Ensure that at the end of the builder chain, you call **`finish_at_snapshot(...)`**
+/// or **`finish_at_block(...)`** to trigger block hash verification and signature verification (if applicable).
+///
+/// ## **`finish_at_snapshot(...)`** vs **`finish_at_block(...)`**:
+/// - `finish_at_snapshot(...)`: verifies that the migration is happening at a fixed snapshot set in
+///   the migration archive registry (the same for all applications on the new rollup).
+/// - `finish_at_block(...)`: verifies that the migration is happening at a specific block number.
+///   Use it if you want to coordinate the migration of your application at a specific block.
 ///
 /// ## Custom Notes:
 /// For custom notes, the **`compute_nullifier`** method **must** follow the canonical formula:
@@ -172,10 +178,17 @@ impl MigrationModeB {
         self
     }
 
-    fn _finish(self) {
+    fn _finish_at_snapshot(self) {
         let block_hash = self.block_header.hash();
         MigrationArchiveRegistry::at(self.migration_archive_registry)
-            .verify_migration_mode_b(block_hash)
+            .verify_migration_at_snapshot(block_hash)
+            .call(self.context);
+    }
+
+    fn _finish_at_block(self, block_number: u32) {
+        let block_hash = self.block_header.hash();
+        MigrationArchiveRegistry::at(self.migration_archive_registry)
+            .verify_migration_at_block(block_number, block_hash)
             .call(self.context);
     }
 
@@ -234,8 +247,12 @@ impl MigrationWithoutOwnerModeB {
         self
     }
 
-    pub fn finish(self) {
-        self.inner._finish()
+    pub fn finish_at_snapshot(self) {
+        self.inner._finish_at_snapshot()
+    }
+
+    pub fn finish_at_block(self, block_number: u32) {
+        self.inner._finish_at_block(block_number)
     }
 
     pub fn with_owner(
@@ -284,7 +301,24 @@ impl MigrationWithOwnedStateModeB {
         self
     }
 
-    pub fn finish(self, recipient: AztecAddress, signature: MigrationSignature) {
+    pub fn finish_at_snapshot(self, recipient: AztecAddress, signature: MigrationSignature) {
+        self._verify_signature(recipient, signature);
+
+        self.inner._finish_at_snapshot()
+    }
+
+    pub fn finish_at_block(
+        self,
+        recipient: AztecAddress,
+        signature: MigrationSignature,
+        block_number: u32,
+    ) {
+        self._verify_signature(recipient, signature);
+
+        self.inner._finish_at_block(block_number)
+    }
+
+    fn _verify_signature(self, recipient: AztecAddress, signature: MigrationSignature) {
         let old_rollup = self.inner.block_header.global_variables.version;
         let new_app = self.inner.context.this_address();
 
@@ -298,8 +332,6 @@ impl MigrationWithOwnedStateModeB {
             new_app,
             self.mpk,
         );
-
-        self.inner._finish()
     }
 
     pub fn with_notes_owner(
@@ -346,8 +378,17 @@ impl MigrationWithOwnedNotesModeB {
         self
     }
 
-    pub fn finish(self, recipient: AztecAddress, signature: MigrationSignature) {
-        self.inner.finish(recipient, signature)
+    pub fn finish_at_snapshot(self, recipient: AztecAddress, signature: MigrationSignature) {
+        self.inner.finish_at_snapshot(recipient, signature)
+    }
+
+    pub fn finish_at_block(
+        self,
+        recipient: AztecAddress,
+        signature: MigrationSignature,
+        block_number: u32,
+    ) {
+        self.inner.finish_at_block(recipient, signature, block_number)
     }
 
     /// Verify a single note's inclusion in the note hash tree and non-nullification

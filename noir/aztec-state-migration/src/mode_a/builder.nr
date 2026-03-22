@@ -76,7 +76,7 @@ impl MigrationModeA {
 
         let block_hash = self.block_header.hash();
         MigrationArchiveRegistry::at(self.migration_archive_registry)
-            .verify_migration_mode_a(self.block_header.global_variables.block_number, block_hash)
+            .verify_migration_at_block(self.block_header.global_variables.block_number, block_hash)
             .call(self.context);
     }
 

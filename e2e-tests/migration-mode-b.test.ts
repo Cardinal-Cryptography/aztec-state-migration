@@ -231,9 +231,9 @@ async function main() {
   console.log(`   Migration args prepared.\n`);
 
   // ============================================================
-  // Step 10: Call migrate_mode_b on NEW rollup
+  // Step 10: Call migrate_mode_b_at_snapshot on NEW rollup
   // ============================================================
-  console.log("Step 10. Calling migrate_mode_b on NEW rollup...");
+  console.log("Step 10. Calling migrate_mode_b_at_snapshot on NEW rollup...");
 
   // The ExampleMigrationApp currently only supports migrating one note at a time.
   const migrateAmount = fullProof.note_proof_data.data.value;
@@ -245,7 +245,7 @@ async function main() {
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
 
   await newAppUser.methods
-    .migrate_mode_b(
+    .migrate_mode_b_at_snapshot(
       signature,
       fullProof,
       blockHeader,
@@ -272,10 +272,73 @@ async function main() {
   );
 
   // ============================================================
-  // Step 11: Call migrate_mode_b on NEW rollup with nullified note (should fail)
+  // Step 10.1: Call migrate_mode_b_at_block on NEW rollup
+  // ============================================================
+  console.log("Step 10.1. Calling migrate_mode_b_at_block on NEW rollup...");
+
+  await newApp.methods
+    .set_migration_block_number(provenBlockNumber)
+    .send({ from: newDeployerManager.address });
+
+  const balanceNote2 = balanceNotesActive[1];
+
+  // Build proofs via wallet
+  const fullProof2 = await oldUserWallet.buildFullNoteProof(
+    provenBlockNumber,
+    balanceNote2,
+    (note) => UintNote.fromNote(note),
+  );
+
+  const signature2 = await signMigrationModeB(
+    oldMigrationSigner,
+    blockHeader.global_variables.version,
+    new Fr(env.newRollupVersion),
+    newUserManager.address,
+    newApp.address,
+    { notes: [balanceNote2] },
+  );
+
+  // The ExampleMigrationApp currently only supports migrating one note at a time.
+  const migrateAmount2 = fullProof2.note_proof_data.data.value;
+  console.log(`   Migrating amount: ${migrateAmount2}`);
+
+  const { result: newBalanceBefore2 } = await newAppUser.methods
+    .get_balance(newUserManager.address)
+    .simulate({ from: newUserManager.address });
+  console.log(`   Balance on NEW rollup before : ${newBalanceBefore2}`);
+
+  await newAppUser.methods
+    .migrate_mode_b_at_block(
+      signature2,
+      fullProof2,
+      blockHeader,
+      oldUserManager.address,
+      publicKeys,
+      partialAddress,
+      keyNoteProof,
+      { hi: nhk.hi, lo: nhk.lo },
+    )
+    .send({ from: newUserManager.address });
+
+  const { result: newBalanceAfter2 } = await newAppUser.methods
+    .get_balance(newUserManager.address)
+    .simulate({ from: newUserManager.address });
+  console.log(`   Balance on NEW rollup after : ${newBalanceAfter2}`);
+  assertEq(
+    newBalanceAfter2 - newBalanceAfter,
+    migrateAmount2,
+    "Migrated balance on NEW rollup does not match expected amount",
+  );
+
+  console.log(
+    "\n   Mode B migration successful! Balance matches migrated amount.",
+  );
+
+  // ============================================================
+  // Step 11: Call migrate_mode_b_at_snapshot on NEW rollup with nullified note (should fail)
   // ============================================================
   console.log(
-    "Step 11. Calling migrate_mode_b on NEW rollup with nullified note (should fail)...",
+    "Step 11. Calling migrate_mode_b_at_snapshot on NEW rollup with nullified note (should fail)...",
   );
 
   if (balanceNotesNullified.length === 0) {
@@ -302,7 +365,7 @@ async function main() {
 
   await expectRevert(
     newAppUser.methods
-      .migrate_mode_b(
+      .migrate_mode_b_at_snapshot(
         nullifiedNoteSig,
         nullifiedNoteProof,
         blockHeader,
@@ -331,10 +394,12 @@ async function main() {
   console.log(`    - MigrationArchiveRegistry: ${newArchiveRegistry.address}`);
   console.log(`    - ExampleMigrationApp: ${newApp.address}`);
   console.log(`\nSnapshot height: ${provenBlockNumber}`);
-  console.log(`Migrated amount: ${migrateAmount}`);
+  console.log(`Migrated amount (first migration): ${migrateAmount}`);
+  console.log(`Migrated amount (second migration): ${migrateAmount2}`);
   console.log("\nBalances:");
   console.log(`  OLD rollup: ${oldBalance}`);
-  console.log(`  NEW rollup: ${newBalanceAfter}`);
+  console.log(`  NEW rollup (after first migration): ${newBalanceAfter}`);
+  console.log(`  NEW rollup (after second migration): ${newBalanceAfter2}`);
 }
 
 main().catch((e) => {
