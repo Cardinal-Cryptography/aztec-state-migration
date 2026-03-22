@@ -80,6 +80,20 @@ Each domain produces a different message hash, so a signature valid under one do
 
 **Critical PoC gap:** There is no access control on who can call `set_snapshot_height` first. An attacker who calls it before governance can permanently brick Mode B for users whose key registrations haven't been committed yet. Production deployments must restrict this to governance or a trusted admin role.
 
+### Multi-version migration (state duplication)
+
+**Threat:** When migrating from multiple prior rollup versions (e.g. v1→v3 and v2→v3), the same underlying state could be claimed more than once. A user who migrated tokens from v1→v2 could also migrate the original v1 state directly to v3, effectively doubling their holdings.
+
+**Mode A is safe.** The lock note on v1 was consumed (nullified) during the v1→v2 migration. It cannot be re-proven as un-nullified on v3 because the nullifier exists in v1's nullifier tree.
+
+**Mode B is at risk.** The original note still exists (un-nullified) in v1's state tree at the v1 snapshot height. The inclusion and non-nullification proofs would succeed against v1, even though the value was already migrated to v2 and onward to v3. Each prior rollup version requires its own `MigrationArchiveRegistry` on the new rollup, so there is no shared nullifier space to catch the duplicate.
+
+**Mitigations:**
+
+- **Simplest:** Only allow migration from the immediately prior rollup version. Users who skipped a version must migrate through each intermediate version in sequence.
+- **State lineage tracking:** In theory, a shared nullifier could prevent duplicate claims. In practice, this is difficult because each migration creates a *new* note on the target rollup with fresh randomness, nonce, and hash. The v2 note that originated from v1 is indistinguishable from a native v2 note from v3's perspective. Making this work would require carrying an origin identifier (e.g. the original v1 note hash) through each migration hop, which would need protocol-level changes to migration note construction.
+- **Operational:** If multiple prior versions are supported, document the risk clearly and rely on app-level supply caps to bound the damage.
+
 ## PoC Limitations (NOT FOR PRODUCTION)
 
 The current implementation is a proof-of-concept. The following limitations must be addressed before production use:

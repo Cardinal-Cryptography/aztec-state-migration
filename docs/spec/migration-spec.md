@@ -456,7 +456,7 @@ The tables below list library functions first, then app-level interfaces.
 |---------|--------|------------|-------------|
 | `MigrationLock` | `mode_a/builder` | `.lock_state(data)`, `.finish()` | Create MigrationNotes and emit encrypted MigrationDataEvents |
 | `MigrationModeA` | `mode_a/builder` | `.with_note(proof)`, `.finish(recipient, signature)` | Verify Mode A inclusion proofs, check Schnorr signature, emit nullifiers, enqueue block verification |
-| `MigrationModeB` | `mode_b/builder` | `.with_note(proof, slot)`, `.with_public_state(proof, slot)`, `.with_public_map_state(proof, slot, keys)`, `.with_l1_to_l2_message(proof, secret)`, `.finish_at_snapshot(...)`, `.finish_at_block(...)` | Verify Mode B inclusion + non-nullification proofs, check Schnorr signature, verify key note. `finish_at_snapshot` checks against the fixed snapshot block hash; `finish_at_block` checks against any registered block hash |
+| `MigrationModeB` | `mode_b/builder` | `.with_note(proof, slot)`, `.with_public_state(proof, slot)`, `.with_public_map_state(proof, slot, keys)`, `.with_l1_to_l2_message(proof)`, `.finish_at_snapshot(...)`, `.finish_at_block(...)` | Verify Mode B inclusion + non-nullification proofs, check Schnorr signature, verify key note. `finish_at_snapshot` checks against the fixed snapshot block hash; `finish_at_block` checks against any registered block hash |
 
 > **Note:** Mode B library functions accept an `expected_storage_slot` parameter to bind the proof to a specific storage location, preventing slot substitution attacks.
 

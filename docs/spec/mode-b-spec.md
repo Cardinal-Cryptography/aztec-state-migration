@@ -25,7 +25,7 @@ Migration logic is implemented as a **library** (`aztec_state_migration`) rather
 - `.with_note(proof, slot)` -- for private note migration
 - `.with_public_state(proof, slot)` -- for standalone public state
 - `.with_public_map_state(proof, slot, keys)` -- for map-based public state
-- `.with_l1_to_l2_message(proof, secret)` -- for unconsumed L1-to-L2 messages
+- `.with_l1_to_l2_message(proof)` -- for unconsumed L1-to-L2 messages (secret is inside the proof)
 - `.finish_at_snapshot(...)` -- verify against the fixed snapshot block hash
 - `.finish_at_block(...)` -- verify against any registered block hash (app-specific block)
 
