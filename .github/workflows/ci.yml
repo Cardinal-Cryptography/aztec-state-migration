@@ -72,6 +72,8 @@ jobs:
         run: yarn test:mode-b
       - name: Test - Migration Mode B (Public)
         run: yarn test:mode-b:public
+      - name: Test - Migration Mode B (L1-to-L2 message)
+        run: yarn test:mode-b:l1msg
       - name: Tear down infrastructure
         if: always()
         run: yarn test:stop
