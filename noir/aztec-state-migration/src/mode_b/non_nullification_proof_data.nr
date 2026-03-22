@@ -22,7 +22,7 @@ pub struct NonNullificationProofData {
 
 impl NonNullificationProofData {
     /// Verify that a note's nullifier does NOT exist in the nullifier tree.
-    pub(crate) fn verify_nullifier_non_inclusion(
+    pub fn verify_nullifier_non_inclusion(
         self,
         nhk_app: Field,
         old_app: AztecAddress,
@@ -40,7 +40,7 @@ impl NonNullificationProofData {
     }
 
     /// Verify that an L1-to-L2 message's consumption nullifier does NOT exist in the nullifier tree.
-    pub(crate) fn verify_message_nullifier_non_inclusion(
+    pub fn verify_message_nullifier_non_inclusion(
         self,
         message_hash: Field,
         secret: Field,

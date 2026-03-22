@@ -95,7 +95,7 @@ consumption nullifier ──low-leaf non-inclusion──> nullifier_tree_root   
 2. The message was not consumed -- its consumption nullifier is absent from the nullifier tree (non-inclusion via low-leaf sandwich check against `block_header.state.partial.nullifier_tree.root`).
 3. The message's recipient matches the old app address, ensuring only the intended contract's messages are migrated.
 
-**Migration nullifier:** On the new rollup, a nullifier is emitted using `poseidon2([message_hash, old_app], DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER)` to prevent double-migration. The `message_hash` is the protocol-defined leaf hash (SHA-256 over all message fields), which uniquely identifies the message. Because this nullifier is deterministic, the new rollup's kernel enforces that each L1-to-L2 message can only be migrated once.
+**Migration nullifier:** On the new rollup, a nullifier is emitted using `poseidon2_hash_with_separator([message_hash, secret, old_app], DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER)` to prevent double-migration. The `message_hash` is the protocol-defined leaf hash (SHA-256 over all message fields), which uniquely identifies the message. Because this nullifier is deterministic, the new rollup's kernel enforces that each L1-to-L2 message can only be migrated once.
 
 ### Block Header Binding
 
