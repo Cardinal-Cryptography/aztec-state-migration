@@ -237,9 +237,6 @@ export async function buildL1ToL2MessageProof(
 
   return {
     sender: message.sender.sender,
-    chain_id: new Fr(message.sender.chainId),
-    recipient: message.recipient.recipient,
-    version: new Fr(message.recipient.version),
     content: message.content,
     secret_hash: message.secretHash,
     leaf_index: message.index,

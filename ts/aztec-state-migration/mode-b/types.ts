@@ -59,12 +59,6 @@ export const KeyNote = {
 export interface L1ToL2MessageProofData {
   /** L1 sender (portal contract address) */
   sender: EthAddress;
-  /** L1 chain ID */
-  chain_id: Fr;
-  /** L2 recipient contract on the old rollup */
-  recipient: AztecAddress;
-  /** Old rollup version */
-  version: Fr;
   /** Message content (application-specific payload) */
   content: Fr;
   /** Hash of the spending secret */

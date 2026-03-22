@@ -211,18 +211,15 @@ impl MigrationModeB {
         let message_proof = full_proof.message_proof_data;
         let non_null_proof = full_proof.non_nullification_proof_data;
 
-        // 1. Verify recipient matches old_app
-        assert(
-            message_proof.recipient == self.old_app,
-            "L1-to-L2 message recipient must match old_app",
-        );
-
-        // 2. Verify message inclusion in L1-to-L2 message tree
+        // 1. Verify message inclusion in L1-to-L2 message tree
         let message_hash = message_proof.verify_message_inclusion(
             self.block_header.state.l1_to_l2_message_tree.root,
+            self.block_header.global_variables.chain_id,
+            self.old_app,
+            self.block_header.global_variables.version,
         );
 
-        // 3. Verify message was not consumed (nullifier non-inclusion)
+        // 2. Verify message was not consumed (nullifier non-inclusion)
         let _ = non_null_proof.verify_message_nullifier_non_inclusion(
             message_hash,
             secret,
@@ -230,7 +227,7 @@ impl MigrationModeB {
             self.block_header.state.partial.nullifier_tree.root,
         );
 
-        // 4. Push migration nullifier to prevent double-migration
+        // 3. Push migration nullifier to prevent double-migration
         let migration_nullifier = poseidon2_hash_with_separator(
             [message_hash, self.old_app.to_field()],
             DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER,

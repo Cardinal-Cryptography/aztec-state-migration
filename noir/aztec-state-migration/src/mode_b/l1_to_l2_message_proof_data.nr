@@ -16,12 +16,6 @@ use aztec::{
 pub struct L1ToL2MessageProofData {
     /// L1 sender (portal contract address)
     pub sender: EthAddress,
-    /// L1 chain ID
-    pub chain_id: Field,
-    /// L2 recipient contract on the old rollup
-    pub recipient: AztecAddress,
-    /// Old rollup version
-    pub version: Field,
     /// Message content (application-specific payload)
     pub content: Field,
     /// Hash of the spending secret
@@ -34,12 +28,17 @@ pub struct L1ToL2MessageProofData {
 
 impl L1ToL2MessageProofData {
     /// Compute the message hash (leaf value) using the protocol's formula.
-    pub fn compute_message_hash(self) -> Field {
+    pub fn compute_message_hash(
+        self,
+        chain_id: Field,
+        recipient: AztecAddress,
+        version: Field,
+    ) -> Field {
         compute_l1_to_l2_message_hash(
             self.sender,
-            self.chain_id,
-            self.recipient,
-            self.version,
+            chain_id,
+            recipient,
+            version,
             self.content,
             self.secret_hash,
             self.leaf_index,
@@ -49,8 +48,14 @@ impl L1ToL2MessageProofData {
     /// Verify that this message is included in the L1-to-L2 message tree.
     ///
     /// Returns the message hash on success.
-    pub(crate) fn verify_message_inclusion(self, l1_to_l2_message_tree_root: Field) -> Field {
-        let message_hash = self.compute_message_hash();
+    pub(crate) fn verify_message_inclusion(
+        self,
+        l1_to_l2_message_tree_root: Field,
+        chain_id: Field,
+        recipient: AztecAddress,
+        version: Field,
+    ) -> Field {
+        let message_hash = self.compute_message_hash(chain_id, recipient, version);
 
         let computed_root =
             root_from_sibling_path(message_hash, self.leaf_index, self.sibling_path);
