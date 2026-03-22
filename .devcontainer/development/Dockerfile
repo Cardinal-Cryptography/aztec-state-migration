@@ -3,7 +3,7 @@ SHELL ["/bin/bash", "-c"]
 
 ENV NVM_DIR=/root/.nvm
 ENV NODE_VERSION=24.12.0
-ENV AZTEC_VERSION=4.0.0-devnet.2-patch.0
+ENV AZTEC_VERSION=4.1.0-rc.4
 
 # Install dependencies including newer libstdc++
 RUN apt update && apt install -y \

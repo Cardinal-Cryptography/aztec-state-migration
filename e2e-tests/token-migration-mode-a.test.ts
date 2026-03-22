@@ -77,12 +77,12 @@ async function main() {
     .mint_to_private(oldUserManager.address, MINT_AMOUNT)
     .send({ from: oldDeployerManager.address });
 
-  const oldBalanceAfterMint = await oldAppUser.methods
+  const { result: oldBalanceAfterMint } = await oldAppUser.methods
     .balance_of_private(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   assertEq(oldBalanceAfterMint, MINT_AMOUNT, "Old private balance after mint");
 
-  const oldTotalSupplyAfterMint = await oldApp.methods
+  const { result: oldTotalSupplyAfterMint } = await oldApp.methods
     .total_supply()
     .simulate({ from: oldDeployerManager.address });
   assertEq(oldTotalSupplyAfterMint, MINT_AMOUNT, "Old total supply after mint");
@@ -107,7 +107,7 @@ async function main() {
     )
     .send({ from: oldUserManager.address });
 
-  const oldBalanceAfterLock = await oldAppUser.methods
+  const { result: oldBalanceAfterLock } = await oldAppUser.methods
     .balance_of_private(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   assertEq(
@@ -116,7 +116,7 @@ async function main() {
     "Old private balance after lock",
   );
 
-  const oldTotalSupplyAfterLock = await oldApp.methods
+  const { result: oldTotalSupplyAfterLock } = await oldApp.methods
     .total_supply()
     .simulate({ from: oldDeployerManager.address });
   assertEq(
@@ -177,7 +177,7 @@ async function main() {
   // ============================================================
   console.log("Step 7. Calling migrate_mode_a on NEW rollup...");
 
-  const newBalanceBefore = await newAppUser.methods
+  const { result: newBalanceBefore } = await newAppUser.methods
     .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
   assertEq(newBalanceBefore, 0n, "New private balance before migrate");
@@ -192,12 +192,12 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newBalanceAfter = await newAppUser.methods
+  const { result: newBalanceAfter } = await newAppUser.methods
     .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
   assertEq(newBalanceAfter, LOCK_AMOUNT, "New private balance after migrate");
 
-  const newTotalSupplyAfterPrivate = await newApp.methods
+  const { result: newTotalSupplyAfterPrivate } = await newApp.methods
     .total_supply()
     .simulate({ from: newDeployerManager.address });
   assertEq(
@@ -238,7 +238,7 @@ async function main() {
     .mint_to_public(oldUserManager.address, PUBLIC_MINT_AMOUNT)
     .send({ from: oldDeployerManager.address });
 
-  const oldPublicBalanceAfterMint = await oldApp.methods
+  const { result: oldPublicBalanceAfterMint } = await oldApp.methods
     .balance_of_public(oldUserManager.address)
     .simulate({ from: oldDeployerManager.address });
   assertEq(
@@ -247,7 +247,7 @@ async function main() {
     "Old public balance after mint",
   );
 
-  const oldTotalSupplyAfterBothMints = await oldApp.methods
+  const { result: oldTotalSupplyAfterBothMints } = await oldApp.methods
     .total_supply()
     .simulate({ from: oldDeployerManager.address });
   assertEq(
@@ -273,7 +273,7 @@ async function main() {
     )
     .send({ from: oldUserManager.address });
 
-  const oldPublicBalanceAfterLock = await oldApp.methods
+  const { result: oldPublicBalanceAfterLock } = await oldApp.methods
     .balance_of_public(oldUserManager.address)
     .simulate({ from: oldDeployerManager.address });
   assertEq(
@@ -342,7 +342,7 @@ async function main() {
   // ============================================================
   console.log("Step 13. Calling migrate_to_public_mode_a on NEW rollup...");
 
-  const newPublicBalanceBefore = await newApp.methods
+  const { result: newPublicBalanceBefore } = await newApp.methods
     .balance_of_public(newUserManager.address)
     .simulate({ from: newDeployerManager.address });
   assertEq(newPublicBalanceBefore, 0n, "New public balance before migrate");
@@ -357,7 +357,7 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newPublicBalanceAfter = await newApp.methods
+  const { result: newPublicBalanceAfter } = await newApp.methods
     .balance_of_public(newUserManager.address)
     .simulate({ from: newDeployerManager.address });
   assertEq(
@@ -366,7 +366,7 @@ async function main() {
     "New public balance after migrate",
   );
 
-  const newTotalSupplyFinal = await newApp.methods
+  const { result: newTotalSupplyFinal } = await newApp.methods
     .total_supply()
     .simulate({ from: newDeployerManager.address });
   assertEq(

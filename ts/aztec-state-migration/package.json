@@ -66,14 +66,14 @@
     "dist/"
   ],
   "dependencies": {
-    "@aztec/accounts": "v4.0.0-devnet.2-patch.0",
-    "@aztec/wallets": "v4.0.0-devnet.2-patch.0",
-    "@aztec/aztec.js": "v4.0.0-devnet.2-patch.0",
-    "@aztec/constants": "v4.0.0-devnet.2-patch.0",
-    "@aztec/entrypoints": "v4.0.0-devnet.2-patch.0",
-    "@aztec/foundation": "v4.0.0-devnet.2-patch.0",
-    "@aztec/noir-contracts.js": "v4.0.0-devnet.2-patch.0",
-    "@aztec/pxe": "v4.0.0-devnet.2-patch.0",
-    "@aztec/stdlib": "v4.0.0-devnet.2-patch.0"
+    "@aztec/accounts": "v4.1.0-rc.4",
+    "@aztec/wallets": "v4.1.0-rc.4",
+    "@aztec/aztec.js": "v4.1.0-rc.4",
+    "@aztec/constants": "v4.1.0-rc.4",
+    "@aztec/entrypoints": "v4.1.0-rc.4",
+    "@aztec/foundation": "v4.1.0-rc.4",
+    "@aztec/noir-contracts.js": "v4.1.0-rc.4",
+    "@aztec/pxe": "v4.1.0-rc.4",
+    "@aztec/stdlib": "v4.1.0-rc.4"
   }
 }

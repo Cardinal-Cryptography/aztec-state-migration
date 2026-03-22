@@ -52,7 +52,9 @@ async function main() {
   // Step 2: Deploy MigrationKeyRegistry
   // ============================================================
   console.log("2. Deploying MigrationKeyRegistry...");
-  const registry = await MigrationKeyRegistryContract.deploy(wallet).send({
+  const { contract: registry } = await MigrationKeyRegistryContract.deploy(
+    wallet,
+  ).send({
     from: alice,
   });
   console.log(`   Deployed at: ${registry.address}\n`);
@@ -62,7 +64,7 @@ async function main() {
   // ============================================================
   console.log("3. Verifying initial state...");
   const initialKey = toPoint(
-    await registry.methods.get(alice).simulate({ from: alice }),
+    (await registry.methods.get(alice).simulate({ from: alice })).result,
   );
   console.log(`   Alice's initial mpk: ${pointStr(initialKey)}`);
   if (!initialKey.isZero()) {
@@ -79,17 +81,17 @@ async function main() {
   console.log(`   msk: ${msk}`);
   console.log(`   mpk (computed in TS): ${mpk}`);
 
-  const registerTx = await registry.methods
+  const { receipt: registerReceipt } = await registry.methods
     .register(mpk.toNoirStruct())
     .send({ from: alice });
-  console.log(`   Register tx: ${registerTx.txHash}\n`);
+  console.log(`   Register tx: ${registerReceipt.txHash}\n`);
 
   // ============================================================
   // Step 5: Query and verify the registered key
   // ============================================================
   console.log("5. Querying registered key...");
   const registeredKey = toPoint(
-    await registry.methods.get(alice).simulate({ from: alice }),
+    (await registry.methods.get(alice).simulate({ from: alice })).result,
   );
   console.log(`   Alice's mpk: ${pointStr(registeredKey)}`);
 
@@ -108,7 +110,7 @@ async function main() {
   // ============================================================
   console.log("6. Verifying Bob has no key...");
   const bobKey = toPoint(
-    await registry.methods.get(bob).simulate({ from: bob }),
+    (await registry.methods.get(bob).simulate({ from: bob })).result,
   );
   console.log(`   Bob's mpk: ${pointStr(bobKey)}`);
   if (!bobKey.isZero()) {
@@ -146,7 +148,7 @@ async function main() {
   // ============================================================
   console.log("8. Verifying key unchanged after failed registration...");
   const keyAfterFailedRegister = toPoint(
-    await registry.methods.get(alice).simulate({ from: alice }),
+    (await registry.methods.get(alice).simulate({ from: alice })).result,
   );
   if (!keyAfterFailedRegister.equals(mpk)) {
     throw new Error("Key changed after failed second registration");

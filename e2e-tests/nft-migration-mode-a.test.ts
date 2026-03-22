@@ -217,7 +217,7 @@ async function main() {
     .mint_to_public(oldUserManager.address, PUBLIC_TOKEN_ID)
     .send({ from: oldDeployerManager.address });
 
-  const oldPublicOwner = await oldAppUser.methods
+  const { result: oldPublicOwner } = await oldAppUser.methods
     .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: oldUserManager.address });
   assertEq(
@@ -242,7 +242,7 @@ async function main() {
     )
     .send({ from: oldUserManager.address });
 
-  const oldPublicOwnerAfterLock = await oldAppUser.methods
+  const { result: oldPublicOwnerAfterLock } = await oldAppUser.methods
     .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: oldUserManager.address });
   assertEq(
@@ -314,7 +314,7 @@ async function main() {
   // ============================================================
   console.log("Step 13. Calling migrate_nft_to_public_mode_a on NEW rollup...");
 
-  const newPublicOwnerBefore = await newAppUser.methods
+  const { result: newPublicOwnerBefore } = await newAppUser.methods
     .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: newUserManager.address });
   assertEq(
@@ -333,7 +333,7 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newPublicOwnerAfter = await newAppUser.methods
+  const { result: newPublicOwnerAfter } = await newAppUser.methods
     .public_owner_of(PUBLIC_TOKEN_ID)
     .simulate({ from: newUserManager.address });
   assertEq(

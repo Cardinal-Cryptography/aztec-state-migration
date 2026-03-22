@@ -13,9 +13,9 @@ The full project documentation is the main entrypoint for understanding the syst
 
 | Component | Version | Source |
 |-----------|---------|--------|
-| Noir / Aztec.nr | `v4.0.0-devnet.2-patch.0` | `noir/aztec-state-migration/Nargo.toml` |
-| Aztec JS packages | `v4.0.0-devnet.2-patch.0` | `package.json` dependencies |
-| Solidity / Aztec L1 contracts | `v4.0.0-devnet.2-patch.0` | `solidity/foundry.toml` |
+| Noir / Aztec.nr | `v4.1.0-rc.4` | `noir/aztec-state-migration/Nargo.toml` |
+| Aztec JS packages | `v4.1.0-rc.4` | `package.json` dependencies |
+| Solidity / Aztec L1 contracts | `v4.1.0-rc.4` | `solidity/foundry.toml` |
 | Poseidon2 EVM | `a3b4205` (git rev) | `solidity/foundry.toml` |
 | OpenZeppelin | `5.6.0-rc.1` | `solidity/foundry.toml` |
 
@@ -42,7 +42,7 @@ If not using dev containers, install the following:
 - **Node.js** >= 24.12.0
 - **Yarn** 1.22.22 (classic)
 - **Foundry** (`forge`, `cast`, `anvil`)
-- **Aztec CLI** v4.0.0-devnet.2-patch.0 -- install via `curl -sL https://install.aztec.network/v4.0.0-devnet.2-patch.0/ | bash`
+- **Aztec CLI** v4.1.0-rc.4 -- install via `curl -sL https://install.aztec.network/v4.1.0-rc.4/ | bash`
 
 Then install project dependencies:
 
@@ -192,7 +192,7 @@ Open `http://localhost:4000` in your browser. Changes to `.md` files are live-re
 
 **Process cleanup.** Run `yarn test:stop` (which runs `e2e-tests/utils/dual-rollup-stop.sh`) to kill Anvil and node processes.
 
-**Nargo compilation errors.** Noir is version-sensitive. Ensure the Aztec CLI version matches `v4.0.0-devnet.2-patch.0`. Run `aztec --version` to verify.
+**Nargo compilation errors.** Noir is version-sensitive. Ensure the Aztec CLI version matches `v4.1.0-rc.4`. Run `aztec --version` to verify.
 
 ## Project Structure
 

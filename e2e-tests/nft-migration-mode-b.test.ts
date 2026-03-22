@@ -99,7 +99,9 @@ async function main() {
     .send({ from: oldDeployerManager.address });
   console.log(`   Minted NFT #${TOKEN_ID_3}`);
 
-  const [ownedNfts] = await oldAppUser.methods
+  const {
+    result: [ownedNfts],
+  } = await oldAppUser.methods
     .get_private_nfts(oldUserManager.address, 0)
     .simulate({ from: oldUserManager.address });
   const activeNfts = (ownedNfts as bigint[]).filter((id) => id !== 0n);
@@ -119,7 +121,9 @@ async function main() {
     .send({ from: oldUserManager.address });
   console.log(`   NFT #${TOKEN_ID_3} nullified (locked for migration)`);
 
-  const [ownedNftsAfterLock] = await oldAppUser.methods
+  const {
+    result: [ownedNftsAfterLock],
+  } = await oldAppUser.methods
     .get_private_nfts(oldUserManager.address, 0)
     .simulate({ from: oldUserManager.address });
   const activeNftsAfterLock = (ownedNftsAfterLock as bigint[]).filter(
