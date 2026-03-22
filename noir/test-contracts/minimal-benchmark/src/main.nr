@@ -178,7 +178,7 @@ pub contract MinimalBenchmark {
         )
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
             .with_note(full_proof_data, storage_slot)
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
     }
 
     /// Mode B - migrate 2 private notes (UintNote)
@@ -206,7 +206,7 @@ pub contract MinimalBenchmark {
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
             .with_note(full_proof_data_0, storage_slot)
             .with_note(full_proof_data_1, storage_slot)
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
     }
 
     // ============================================================
@@ -229,7 +229,7 @@ pub contract MinimalBenchmark {
         )
             .without_owner()
             .with_public_state(proof_data, storage_slot)
-            .finish();
+            .finish_at_snapshot();
     }
 
     /// Mode B - migrate 1 owned public state slot (u128, with key note + signature)
@@ -252,6 +252,6 @@ pub contract MinimalBenchmark {
         )
             .with_owner(old_owner, key_note)
             .with_public_map_state(proof_data, storage_slot, [old_owner])
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
     }
 }

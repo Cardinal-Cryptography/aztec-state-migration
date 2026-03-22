@@ -353,7 +353,7 @@ pub contract TokenMigrationAppV2 {
         )
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
             .with_note(full_proof_data, balances_expected_storage_slot)
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
 
         // Mint the migrated tokens to the user's private balance
         self.storage.private_balances.at(recipient).add(amount).deliver(
@@ -397,7 +397,7 @@ pub contract TokenMigrationAppV2 {
         )
             .with_owner(old_owner, key_note)
             .with_public_map_state(proof_data, base_storage_slot, [old_owner])
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
 
         // Mint to PUBLIC balance via enqueued call
         TokenMigrationAppV2::at(self.context.this_address())

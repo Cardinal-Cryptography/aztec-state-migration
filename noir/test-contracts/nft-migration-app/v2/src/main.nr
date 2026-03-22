@@ -190,7 +190,7 @@ pub contract NftMigrationAppV2 {
         )
             .with_notes_owner(notes_owner, key_note, public_keys, partial_address, nhk)
             .with_note(full_proof_data, expected_storage_slot)
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
 
         let new_note = NFTNote { token_id };
         self.storage.private_nfts.at(recipient).insert(new_note).deliver(
@@ -225,7 +225,7 @@ pub contract NftMigrationAppV2 {
         MigrationModeB::new(self.context, old_app, archive_registry, block_header)
             .with_owner(old_owner, key_note)
             .with_public_map_state(proof_data, base_storage_slot, [token_id])
-            .finish(recipient, signature);
+            .finish_at_snapshot(recipient, signature);
 
         // 2. Mint to authenticated recipient
         NftMigrationAppV2::at(self.context.this_address())

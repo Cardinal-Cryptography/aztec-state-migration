@@ -5,8 +5,10 @@ pub use aztec::protocol::constants::{ARCHIVE_HEIGHT, NOTE_HASH_TREE_HEIGHT, NULL
 /// On-chain registry that stores block hashes bridged from the old rollup via L1.
 ///
 /// Provides two verification modes used during migration:
-/// - **Mode A** (`verify_migration_mode_a`): checks a block hash against any registered block.
-/// - **Mode B** (`verify_migration_mode_b`): checks a block hash against a fixed snapshot.
+/// - **Mode A** (`verify_migration_at_block`): checks a block hash against any registered block.
+/// - **Mode B**
+///   - (`verify_migration_at_block`): checks a block hash against any registered block.
+///   - (`verify_migration_at_snapshot`): checks a block hash against a fixed snapshot.
 #[aztec_contract]
 pub contract MigrationArchiveRegistry {
     use aztec::{
@@ -204,26 +206,26 @@ pub contract MigrationArchiveRegistry {
     }
 
     // ============================================================
-    // MODE A: Migration verification
+    // Block number based verification
     // ============================================================
 
-    /// Verify a Mode A migration by checking that the block hash matches
+    /// Verify a Mode A or Mode B migration by checking that the block hash matches
     /// the registered hash for the given block number.
     #[external("private")]
-    fn verify_migration_mode_a(block_number: u32, block_hash: Field) {
+    fn verify_migration_at_block(block_number: u32, block_hash: Field) {
         let stored_hash = self.storage.block_hashes.at(block_number).read();
         assert(stored_hash != 0, "Block hash not registered for this block");
         assert(block_hash == stored_hash, "Block hash mismatch - block header not from old rollup");
     }
 
     // ============================================================
-    // MODE B: Snapshot-based verification
+    // Snapshot-based verification
     // ============================================================
 
     /// Verify a Mode B migration by checking that the block hash matches
     /// the stored snapshot block hash.
     #[external("private")]
-    fn verify_migration_mode_b(block_hash: Field) {
+    fn verify_migration_at_snapshot(block_hash: Field) {
         let stored_hash = self.storage.snapshot_block_hash.read();
         assert(stored_hash != 0, "Snapshot not set");
         assert(

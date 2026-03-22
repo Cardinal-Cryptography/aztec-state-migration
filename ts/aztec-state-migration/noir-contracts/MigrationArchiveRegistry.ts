@@ -384,15 +384,15 @@ export class MigrationArchiveRegistryContract extends ContractBase {
     sync_state: (() => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
-    /** verify_migration_mode_a(block_number: integer, block_hash: field) */
-    verify_migration_mode_a: ((
+    /** verify_migration_at_block(block_number: integer, block_hash: field) */
+    verify_migration_at_block: ((
       block_number: bigint | number,
       block_hash: FieldLike,
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
 
-    /** verify_migration_mode_b(block_hash: field) */
-    verify_migration_mode_b: ((
+    /** verify_migration_at_snapshot(block_hash: field) */
+    verify_migration_at_snapshot: ((
       block_hash: FieldLike,
     ) => ContractFunctionInteraction) &
       Pick<ContractMethod, "selector">;
