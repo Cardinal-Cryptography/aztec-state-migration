@@ -20,22 +20,25 @@ Mode B also supports **public state migration** -- proving that specific public 
 
 ## Library Architecture
 
-Migration logic is implemented as a **library** (`aztec_state_migration`) rather than separate contracts. App contracts call library functions directly:
+Migration logic is implemented as a **library** (`aztec_state_migration`) rather than separate contracts. App contracts use the `MigrationModeB` builder to chain verification steps:
 
-- `migrate_notes_mode_b` -- for private note migration
-- `migrate_public_state_mode_b` -- for standalone public state
-- `migrate_public_map_state_mode_b` -- for map-based public state
-- `migrate_public_map_owned_state_mode_b` -- for owned map-based public state (requires signature)
+- `.with_note(proof, slot)` -- for private note migration
+- `.with_public_state(proof, slot)` -- for standalone public state
+- `.with_public_map_state(proof, slot, keys)` -- for map-based public state
+- `.with_l1_to_l2_message(proof, secret)` -- for unconsumed L1-to-L2 messages
+- `.finish_at_snapshot(...)` -- verify against the fixed snapshot block hash
+- `.finish_at_block(...)` -- verify against any registered block hash (app-specific block)
 
 App state stays in one place regardless of which migration path was used. The library handles proof verification, signature checking, and nullifier emission, while the app contract handles its own state updates.
 
 Mode B library decomposition:
 
-- **Private note migration** (`migrate_notes_mode_b`) delegates per-note work to `migrate_note()` which handles inclusion proof, non-nullification proof, and nullifier emission independently.
-- **Public state migration** is composed of `migrate_public_state_mode_b` -> `migrate_public_map_state_mode_b` -> `migrate_public_map_owned_state_mode_b`, each adding one concern (slot derivation, ownership authentication).
-- **Proof data types** are separate modules: `KeyNoteProofData`, `NonNullificationProofData`, `PublicStateProofData`, `NoteProofData`.
+- **Private note migration** uses `.with_note()` which handles inclusion proof, non-nullification proof, and nullifier emission per note.
+- **Public state migration** uses `.with_public_state()` or `.with_public_map_state()`, each adding one concern (slot derivation, ownership authentication).
+- **L1-to-L2 message migration** uses `.with_l1_to_l2_message()` which verifies message inclusion, non-consumption, and emits a migration nullifier.
+- **Proof data types** are separate modules: `KeyNoteProofData`, `NonNullificationProofData`, `PublicStateProofData`, `NoteProofData`, `L1ToL2MessageProofData`.
 
-`migrate_notes_mode_b` accepts `[FullNoteProofData<Note>; N]` and loops over all N notes in a single proof. Apps choose N based on their needs; the library circuit supports arbitrary batch sizes.
+Multiple `.with_note()` calls can be chained in a single builder to migrate multiple notes in one proof. Apps choose the number of notes based on their needs; the library supports arbitrary batch sizes.
 
 ## Proof Chain
 
@@ -214,13 +217,13 @@ The caller cannot set an arbitrary height -- it must correspond to a real block 
 
 ## Public State Migration
 
-Mode B supports migrating public storage values via Merkle proofs against the public data tree. The implementation provides composable functions at different levels of abstraction:
+Mode B supports migrating public storage values via Merkle proofs against the public data tree. The `MigrationModeB` builder provides composable methods at different levels of abstraction:
 
-1. **`migrate_public_state_mode_b`** -- Base function for standalone public storage values. Verifies each packed field exists in the public data tree at the correct storage slot, emits a migration nullifier per struct, and enqueues block hash verification.
+1. **`.with_public_state(proof, slot)`** -- For standalone public storage values. Verifies each packed field exists in the public data tree at the correct storage slot and emits a migration nullifier per struct.
 
-2. **`migrate_public_map_state_mode_b`** -- For map-based public storage. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, then delegates to `migrate_public_state_mode_b`.
+2. **`.with_public_map_state(proof, slot, keys)`** -- For map-based public storage. Derives the storage slot from `base_storage_slot` and `map_keys` via iterated `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, then performs the same verification as `.with_public_state()`.
 
-3. **`migrate_public_map_owned_state_mode_b`** -- For owned map entries. Adds Schnorr signature verification (domain `DOM_SEP__CLAIM_B`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
+3. **Owned state** -- For owned map entries, use `.with_owner(owner, key_note)` before `.with_public_map_state()`. This adds Schnorr signature verification (domain `DOM_SEP__CLAIM_B`) and `MigrationKeyNote` inclusion proof to authenticate the old owner.
 
 A shared helper `derive_map_storage_slot` derives nested map slots by iterating `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)` for each key.
 
