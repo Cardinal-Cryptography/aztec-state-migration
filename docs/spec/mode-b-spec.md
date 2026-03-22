@@ -74,6 +74,26 @@ At the code level, `PublicStateProofData.migrate_public_state()` performs the fu
 
 The app developer can specify which parts of the public state belongs to which `AztecAddress` -- and thus who has the rights to migrate it. For instance, for storage maps representing balance, of the type `AztecAdress -> u128`, the owner of a particular entry corresponds to the entry key (the `AztecAddress`).
 
+### L1-to-L2 Message Migration
+
+For L1-to-L2 messages (e.g., portal-initiated deposits), the proof chain shows that a message exists in the old rollup's L1-to-L2 message tree and was never consumed:
+
+```
+L1-to-L2 message ──Merkle proof──> l1_to_l2_message_tree_root ──(embedded in)──> BlockHeader
+                                                                                      │
+consumption nullifier ──low-leaf non-inclusion──> nullifier_tree_root                 │
+                                                                                      │
+                                                  BlockHeader.hash() ──(== block_hash)──> snapshot_block_hash
+```
+
+**What it proves:**
+
+1. The L1-to-L2 message exists in the old rollup's L1-to-L2 message tree (inclusion via Merkle proof against `block_header.state.l1_to_l2_message_tree.root`).
+2. The message was not consumed -- its consumption nullifier is absent from the nullifier tree (non-inclusion via low-leaf sandwich check against `block_header.state.partial.nullifier_tree.root`).
+3. The message's recipient matches the old app address, ensuring only the intended contract's messages are migrated.
+
+**Migration nullifier:** On the new rollup, a nullifier is emitted using `poseidon2([message_hash, old_app], DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER)` to prevent double-migration. The `message_hash` is the protocol-defined leaf hash (SHA-256 over all message fields), which uniquely identifies the message. Because this nullifier is deterministic, the new rollup's kernel enforces that each L1-to-L2 message can only be migrated once.
+
 ### Block Header Binding
 
 The private migration function receives a `BlockHeader` and computes `block_header.hash()`. This hash is then passed to a public function (`verify_migration_at_snapshot`) that checks it against the stored `snapshot_block_hash`.

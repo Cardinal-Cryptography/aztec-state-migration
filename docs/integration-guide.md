@@ -338,6 +338,29 @@ MigrationModeB::new(context, old_app, archive_registry, block_header)
     .finish_at_snapshot();  // no signature needed
 ```
 
+#### L1-to-L2 Messages
+
+For migrating pending L1-to-L2 messages that were never consumed on the old rollup:
+
+```rust
+MigrationModeB::new(context, old_app, archive_registry, block_header)
+    .without_owner()
+    .with_l1_to_l2_message(full_message_proof, secret)
+    .finish_at_snapshot();
+```
+
+The `secret` is the spending secret -- the preimage of the message's `secretHash`. The `message.recipient` must match the `old_app` address passed to the builder.
+
+On the client side, build the message proof with:
+
+```typescript
+import { buildFullL1ToL2MessageProof } from "aztec-state-migration/mode-b";
+
+const messageProof = await buildFullL1ToL2MessageProof(
+  node, blockReference, oldAppAddress, message, secret
+);
+```
+
 #### Mixed (Public + Private)
 
 The builder supports chaining owned public state with private notes:

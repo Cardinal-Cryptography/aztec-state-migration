@@ -1,10 +1,13 @@
-use aztec::protocol::{
-    address::AztecAddress,
-    constants::{DOM_SEP__NOTE_NULLIFIER, NULLIFIER_TREE_HEIGHT},
-    hash::{compute_siloed_nullifier, poseidon2_hash, poseidon2_hash_with_separator},
-    merkle_tree::root::root_from_sibling_path,
-    traits::{Packable, Serialize},
-    utils::field::{full_field_greater_than, full_field_less_than},
+use aztec::{
+    hash::compute_l1_to_l2_message_nullifier,
+    protocol::{
+        address::AztecAddress,
+        constants::{DOM_SEP__NOTE_NULLIFIER, NULLIFIER_TREE_HEIGHT},
+        hash::{compute_siloed_nullifier, poseidon2_hash, poseidon2_hash_with_separator},
+        merkle_tree::root::root_from_sibling_path,
+        traits::{Packable, Serialize},
+        utils::field::{full_field_greater_than, full_field_less_than},
+    },
 };
 
 /// A nullifier non-inclusion proof data.
@@ -18,6 +21,7 @@ pub struct NonNullificationProofData {
 }
 
 impl NonNullificationProofData {
+    /// Verify that a note's nullifier does NOT exist in the nullifier tree.
     pub(crate) fn verify_nullifier_non_inclusion(
         self,
         nhk_app: Field,
@@ -31,6 +35,27 @@ impl NonNullificationProofData {
             poseidon2_hash_with_separator([note_hash_unique, nhk_app], DOM_SEP__NOTE_NULLIFIER);
         let siloed_nullifier = compute_siloed_nullifier(old_app, inner_nullifier);
 
+        self._verify_non_inclusion(siloed_nullifier, nullifier_tree_root);
+        siloed_nullifier
+    }
+
+    /// Verify that an L1-to-L2 message's consumption nullifier does NOT exist in the nullifier tree.
+    pub(crate) fn verify_message_nullifier_non_inclusion(
+        self,
+        message_hash: Field,
+        secret: Field,
+        recipient_contract: AztecAddress,
+        nullifier_tree_root: Field,
+    ) -> Field {
+        let inner_nullifier = compute_l1_to_l2_message_nullifier(message_hash, secret);
+        let siloed_nullifier = compute_siloed_nullifier(recipient_contract, inner_nullifier);
+
+        self._verify_non_inclusion(siloed_nullifier, nullifier_tree_root);
+        siloed_nullifier
+    }
+
+    /// Low-leaf sandwich check: proves a siloed nullifier is NOT in the nullifier tree.
+    fn _verify_non_inclusion(self, siloed_nullifier: Field, nullifier_tree_root: Field) {
         // Compute low leaf hash: poseidon2_hash([nullifier, next_nullifier, next_index])
         let low_leaf_hash = poseidon2_hash([
             self.low_nullifier_value,
@@ -45,18 +70,17 @@ impl NonNullificationProofData {
         );
         assert(
             computed_nullifier_root == nullifier_tree_root,
-            "Note low nullifier leaf not in nullifier tree",
+            "Low nullifier leaf not in nullifier tree",
         );
         // Sandwich check: low_value < target < next_value (or next is max)
         assert(
             full_field_less_than(self.low_nullifier_value, siloed_nullifier),
-            "Note nullifier non-inclusion: low leaf not less than target",
+            "Nullifier non-inclusion: low leaf not less than target",
         );
         assert(
             full_field_greater_than(self.low_nullifier_next_value, siloed_nullifier)
                 | (self.low_nullifier_next_index == 0),
-            "Note nullifier non-inclusion: next leaf not greater than target",
+            "Nullifier non-inclusion: next leaf not greater than target",
         );
-        siloed_nullifier
     }
 }

@@ -16,6 +16,10 @@ pub global DOM_SEP__CLAIM_B: Field =
 pub global DOM_SEP__PUBLIC_MIGRATION_NULLIFIER: Field =
     0x2c8f77defafd390c3bca3a011ea9631b85664689f69554383079978aa2fdfb40;
 
+// poseidon2_hash of "l1-to-l2-migration-nullifier" as ASCII
+pub global DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER: Field =
+    0x25c3702ceaafe0c1ecabd0ea0994fe8fe9724859f3047d3762a272c993ddf82b;
+
 fn str_to_fields<let N: u32>(s: str<N>) -> [Field; N] {
     let bytes = s.as_bytes();
     bytes.map(|b: u8| b as Field)
@@ -40,5 +44,10 @@ fn test_constants() {
         DOM_SEP__PUBLIC_MIGRATION_NULLIFIER
             == poseidon2_hash(str_to_fields("public-migration-nullifier")),
         "DOM_SEP__PUBLIC_MIGRATION_NULLIFIER does not match the expected value",
+    );
+    assert(
+        DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER
+            == poseidon2_hash(str_to_fields("l1-to-l2-migration-nullifier")),
+        "DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER does not match the expected value",
     );
 }
