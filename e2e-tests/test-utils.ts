@@ -556,7 +556,10 @@ async function fundAccount(
   return await portal.bridgeTokensPublic(to, mintAmount, false);
 }
 
-async function produceBlock(env: DeploymentResult, aztecNode: AztecNode) {
+export async function produceBlock(
+  env: DeploymentResult,
+  aztecNode: AztecNode,
+) {
   const rollup = env[await aztecNode.getVersion()];
 
   const wallet = await EmbeddedWallet.create(aztecNode, { ephemeral: true });
@@ -576,7 +579,7 @@ async function produceBlock(env: DeploymentResult, aztecNode: AztecNode) {
   await deployMethod.send({ from: rollup.deployerManager.address });
 }
 
-async function waitForL1ToL2Message(
+export async function waitForL1ToL2Message(
   aztecNode: AztecNode,
   messageHash: Fr,
   opts?: {

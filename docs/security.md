@@ -68,7 +68,7 @@ Each domain produces a different message hash, so a signature valid under one do
 
 - **Mode A:** Fund loss scoped to the migration. The attacker with `msk` (and knowledge of note preimages) can claim all tokens associated with that key. The `msk` alone is sufficient to sign Mode A claims because the `MigrationNote` is keyed solely by `mpk`. This does not compromise the user's account keys or any non-migration state.
 - **Mode B (private notes):** Compromising `msk` alone is **not sufficient**. The Mode B circuit additionally requires the victim's `nhk` (nullifier hiding key) to prove address ownership and compute nullifiers for the non-nullification proof. An attacker who holds only `msk` cannot migrate Mode B private notes.
-- **Mode B (public state):** For unowned public state, no signature is required. For owned public state (`migrate_public_map_owned_state_mode_b`), the attacker needs `msk` to sign, plus the `MigrationKeyNote` preimage for the inclusion proof, but does not need `nhk`.
+- **Mode B (public state):** For unowned public state, no signature is required. For owned public state (`.with_owner()` + `.with_public_map_state()`), the attacker needs `msk` to sign, plus the `MigrationKeyNote` preimage for the inclusion proof, but does not need `nhk`.
 
 **Mitigation:** The `msk` is derived deterministically from the account's secret key via `sha512ToGrumpkinScalar`. It is never transmitted on-chain -- only the public key `mpk` is stored. Key compromise requires access to the account secret key itself.
 
@@ -79,6 +79,20 @@ Each domain produces a different message hash, so a signature valid under one do
 **Mitigation:** `set_snapshot_height` uses `PublicImmutable` with `initialize()`, enforcing write-once semantics -- once set, it cannot be changed. The function also verifies the snapshot block header against a stored archive root via Merkle proof, so the caller cannot set an arbitrary height.
 
 **Critical PoC gap:** There is no access control on who can call `set_snapshot_height` first. An attacker who calls it before governance can permanently brick Mode B for users whose key registrations haven't been committed yet. Production deployments must restrict this to governance or a trusted admin role.
+
+### Multi-version migration (state duplication)
+
+**Threat:** When migrating from multiple prior rollup versions (e.g. v1→v3 and v2→v3), the same underlying state could be claimed more than once. A user who migrated tokens from v1→v2 could also migrate the original v1 state directly to v3, effectively doubling their holdings.
+
+**Mode A is safe.** The lock note on v1 was consumed (nullified) during the v1→v2 migration. It cannot be re-proven as un-nullified on v3 because the nullifier exists in v1's nullifier tree.
+
+**Mode B is at risk.** The original note still exists (un-nullified) in v1's state tree at the v1 snapshot height. The inclusion and non-nullification proofs would succeed against v1, even though the value was already migrated to v2 and onward to v3. Each prior rollup version requires its own `MigrationArchiveRegistry` on the new rollup, so there is no shared nullifier space to catch the duplicate.
+
+**Mitigations:**
+
+- **Simplest:** Only allow migration from the immediately prior rollup version. Users who skipped a version must migrate through each intermediate version in sequence.
+- **Cross-version migration nullifier check:** When migrating a v1 note to v3, require a non-inclusion proof showing the note's migration nullifier (`poseidon2([note_unique, randomness], DOM_SEP__NOTE_NULLIFIER)`) does NOT exist in v2's nullifier tree. If it does exist, the note was already migrated to v2, so the v1→v3 claim must be rejected. This reuses the same low-leaf non-inclusion pattern already used for note non-nullification (`NonNullificationProofData::verify_nullifier_non_inclusion`), just applied against an intermediate rollup version's nullifier tree. Since each prior rollup has its own separate `MigrationArchiveRegistry` on the new rollup, the app contract would verify the v2 block hash against v2's `MigrationArchiveRegistry` and then check migration nullifier non-inclusion against v2's nullifier tree root from that block header. This adds one extra Merkle proof per intermediate version but needs no protocol-level changes — it can be implemented entirely at the app level.
+- **Operational:** If multiple prior versions are supported, document the risk clearly and rely on app-level supply caps to bound the damage.
 
 ## PoC Limitations (NOT FOR PRODUCTION)
 

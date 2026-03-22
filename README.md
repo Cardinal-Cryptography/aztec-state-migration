@@ -1,5 +1,7 @@
 # Aztec State Migration
 
+> **Disclaimer:** This code has not been audited and is provided as-is. It is intended as a proof of concept and reference implementation. Use in production at your own risk.
+
 A dual-rollup migration framework for Aztec Network upgrades, using cryptographic proofs anchored by L1. Implements cooperative (Mode A) and emergency snapshot (Mode B) migration paths for private and public state.
 
 ## Documentation

@@ -20,7 +20,10 @@ pub contract ExampleMigrationAppV2 {
     use aztec_state_migration::{
         MigrationSignature,
         mode_a::{MigrationModeA, MigrationNoteProofData},
-        mode_b::{FullNoteProofData, KeyNoteProofData, MigrationModeB, PublicStateProofData},
+        mode_b::{
+            FullL1ToL2MessageProofData, FullNoteProofData, KeyNoteProofData, MigrationModeB,
+            PublicStateProofData,
+        },
         Point,
         Scalar,
     };
@@ -187,8 +190,8 @@ pub contract ExampleMigrationAppV2 {
 
     /// Claim a Mode B (emergency snapshot) migration on the new rollup.
     ///
-    /// Verifies note inclusion and non-nullification at the snapshot height via
-    /// `migrate_notes_mode_b` and creates a new note.
+    /// Verifies note inclusion and non-nullification at the snapshot height
+    /// and creates a new note.
     #[external("private")]
     fn migrate_mode_b_at_snapshot(
         signature: MigrationSignature,
@@ -229,8 +232,8 @@ pub contract ExampleMigrationAppV2 {
 
     /// Claim a Mode B (app specific block number) migration on the new rollup.
     ///
-    /// Verifies note inclusion and non-nullification at the specified block number via
-    /// `migrate_notes_mode_b` and creates a new note.
+    /// Verifies note inclusion and non-nullification at the specified block number
+    /// and creates a new note.
     #[external("private")]
     fn migrate_mode_b_at_block(
         signature: MigrationSignature,
@@ -262,6 +265,37 @@ pub contract ExampleMigrationAppV2 {
             .finish_at_block(recipient, signature, self.storage.migration_block_number.read());
 
         // 3. Mint the migrated tokens to the user on the new rollup
+        self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
+    }
+
+    // ============================================================
+    // Mode B: Unconsumed L1-to-L2 message migration
+    // ============================================================
+
+    /// Migrate an unconsumed L1-to-L2 message from the old rollup.
+    ///
+    /// Verifies the message existed in the old rollup's L1-to-L2 message tree
+    /// and was not consumed, then credits the message content as balance.
+    #[external("private")]
+    fn migrate_l1_to_l2_message_mode_b(
+        message_proof: FullL1ToL2MessageProofData,
+        block_header: BlockHeader,
+    ) {
+        let recipient = self.msg_sender();
+        let old_app = self.storage.old_rollup_app_address.read();
+
+        MigrationModeB::new(
+            self.context,
+            old_app,
+            self.storage.archive_registry_address.read(),
+            block_header,
+        )
+            .without_owner()
+            .with_l1_to_l2_message(message_proof)
+            .finish_at_snapshot();
+
+        // Credit the message content as balance
+        let amount = message_proof.message_proof_data.content as u128;
         self.storage.balances.at(recipient).add(amount).deliver(MessageDelivery.ONCHAIN_CONSTRAINED);
     }
 

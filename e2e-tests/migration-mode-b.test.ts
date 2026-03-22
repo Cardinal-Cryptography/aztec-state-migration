@@ -376,7 +376,7 @@ async function main() {
         { hi: nhk.hi, lo: nhk.lo },
       )
       .send({ from: newUserManager.address }),
-    "Note nullifier non-inclusion",
+    "Nullifier non-inclusion",
   );
   console.log("   Expected failure: Note is not active");
   // ============================================================

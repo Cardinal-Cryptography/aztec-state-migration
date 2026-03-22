@@ -34,6 +34,7 @@
     "check:full": "./e2e-tests/check-full.sh",
     "test:mode-a": "npx tsx e2e-tests/migration-mode-a.test.ts",
     "test:mode-b": "npx tsx e2e-tests/migration-mode-b.test.ts",
+    "test:mode-b:l1msg": "npx tsx e2e-tests/migration-mode-b-l1-to-l2-message.test.ts",
     "test:mode-b:public": "npx tsx e2e-tests/migration-public-mode-b.test.ts",
     "test:registry": "npx tsx e2e-tests/migration-key-registry.test.ts",
     "test:token:mode-a": "npx tsx e2e-tests/token-migration-mode-a.test.ts",

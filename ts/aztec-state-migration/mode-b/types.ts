@@ -1,4 +1,5 @@
 import { type Fr } from "@aztec/foundation/curves/bn254";
+import { type EthAddress } from "@aztec/foundation/eth-address";
 import { NoteProofData } from "../types.js";
 import { Note } from "@aztec/stdlib/note";
 
@@ -48,6 +49,30 @@ export const KeyNote = {
     };
   },
 };
+
+// ============================================================
+// L1-to-L2 message migration
+// ============================================================
+
+/** Proof that an L1-to-L2 message exists in the message tree. */
+export interface L1ToL2MessageProofData {
+  /** L1 sender (portal contract address) */
+  sender: EthAddress;
+  /** Message content (application-specific payload) */
+  content: Fr;
+  /** The spending secret (preimage of secret_hash committed in the message) */
+  secret: Fr;
+  /** Index of the message leaf in the L1-to-L2 message tree */
+  leaf_index: Fr;
+  /** Merkle sibling path from the leaf to the root */
+  sibling_path: Fr[];
+}
+
+/** L1-to-L2 message inclusion and consumption nullifier non-inclusion proof data. */
+export interface FullL1ToL2MessageProofData {
+  message_proof_data: L1ToL2MessageProofData;
+  non_nullification_proof_data: NonNullificationProofData;
+}
 
 // ============================================================
 // Public data migration

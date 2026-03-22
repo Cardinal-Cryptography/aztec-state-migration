@@ -41,6 +41,8 @@ This guide assumes that the L1 `Migrator` contract and the `MigrationArchiveRegi
 - **`old_rollup_app_address`** -- The V1 contract address on the old rollup (set in the V2 constructor).
 - **`archive_registry_address`** -- The `MigrationArchiveRegistry` address on the new rollup (set in the V2 constructor).
 
+Each prior rollup version requires its own `MigrationArchiveRegistry` instance on the new rollup. If migrating from multiple prior versions, see [Security -- Multi-version migration](security.md#multi-version-migration-state-duplication) for state duplication risks.
+
 ---
 
 ## Mode A -- Cooperative Lock-and-Claim
@@ -336,6 +338,29 @@ MigrationModeB::new(context, old_app, archive_registry, block_header)
     .without_owner()
     .with_public_state(proof, slot)
     .finish_at_snapshot();  // no signature needed
+```
+
+#### L1-to-L2 Messages
+
+For migrating pending L1-to-L2 messages that were never consumed on the old rollup:
+
+```rust
+MigrationModeB::new(context, old_app, archive_registry, block_header)
+    .without_owner()
+    .with_l1_to_l2_message(full_message_proof)
+    .finish_at_snapshot();
+```
+
+The `secret` (spending secret -- preimage of the message's `secretHash`) is included in the `FullL1ToL2MessageProofData` struct. The circuit derives `secret_hash` from it in-circuit and verifies it matches the committed value in the message leaf, binding the secret to the proven message. The `message.recipient` must match the `old_app` address passed to the builder.
+
+On the client side, build the message proof with:
+
+```typescript
+import { buildFullL1ToL2MessageProof } from "aztec-state-migration/mode-b";
+
+const messageProof = await buildFullL1ToL2MessageProof(
+  node, blockReference, oldAppAddress, message, secret
+);
 ```
 
 #### Mixed (Public + Private)

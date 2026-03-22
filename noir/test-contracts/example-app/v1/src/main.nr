@@ -10,7 +10,7 @@ pub contract ExampleMigrationAppV1 {
     use aztec::{
         macros::{functions::{external, initializer}, storage::storage},
         messages::message_delivery::MessageDelivery,
-        protocol::{address::AztecAddress, traits::{Deserialize, Packable, Serialize}},
+        protocol::{address::{AztecAddress, EthAddress}, traits::{Deserialize, Packable, Serialize}},
         state_vars::{Map, Owned, PublicMutable},
     };
     use aztec_state_migration::{mode_a::MigrationLock, Point};
@@ -144,6 +144,16 @@ pub contract ExampleMigrationAppV1 {
     // ============================================================
     // Test helpers
     // ============================================================
+
+    #[external("public")]
+    fn consume_l1_to_l2_message(
+        content: Field,
+        secret: Field,
+        sender: EthAddress,
+        leaf_index: Field,
+    ) {
+        self.context.consume_l1_to_l2_message(content, secret, sender, leaf_index);
+    }
 
     #[external("public")]
     fn init_struct_single(some_struct: SomeStruct) {

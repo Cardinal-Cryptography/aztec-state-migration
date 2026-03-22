@@ -276,7 +276,7 @@ MigrationModeB::new(context, old_app, archive_registry, block_header)
     .finish_at_snapshot(recipient, signature);
 ```
 
-Each `.with_note(...)` or `.with_public_state(...)` call verifies one inclusion proof and emits a nullifier. The builder accumulates a running hash of all migrated data, which is checked against the migration signature in `.finish()` (Mode A) or `.finish_at_snapshot()` (Mode B).
+Each `.with_note(...)` or `.with_public_state(...)` call verifies one inclusion proof and emits a nullifier. The builder accumulates a running hash of all migrated data, which is checked against the migration signature in `.finish()` (Mode A), `.finish_at_snapshot()` (Mode B snapshot), or `.finish_at_block(block_number)` (Mode B app-specific block).
 
 ## Data Structures & Hashing
 
@@ -367,7 +367,7 @@ Type alias for `NoteProofData<MigrationKeyNote>`. Inclusion proof for a `Migrati
 
 ### `MigrationNote`
 
-Defined in `mode_a/migration_note.nr`. Created by `lock_migration_notes`, consumed by `migrate_notes_mode_a`.
+Defined in `mode_a/migration_note.nr`. Created by `MigrationLock` builder, verified by `MigrationModeA` builder.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -418,21 +418,21 @@ All claims provide:
 - the circuit computes `header.hash()` and enqueues a public call to MigrationArchiveRegistry to verify it matches a stored block hash (Mode A checks `block_hashes[block_number]`, Mode B checks `snapshot_block_hash`), and
 - membership / non-membership proofs against roots inside `header`.
 
-**Mode A `migrate_notes_mode_a` proves:**
+**Mode A `MigrationModeA` builder proves:**
 
 1. Each `MigrationNote.leaf_hash` exists in the note tree (inclusion proof against `header.state.partial.note_hash_tree.root`).
 2. `destination_rollup` in the note preimage matches the current rollup version.
 3. Schnorr signature verifies for `mpk` embedded in the MigrationNote.
 4. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_at_block(block_number, block_hash)`).
 
-**Mode B `migrate_notes_mode_b` proves (private notes):**
+**Mode B `MigrationModeB` builder proves (private notes):**
 
 1. Address verification: `nhk` -> `npk_m` via EC scalar mul, verify `AztecAddress::compute(public_keys, partial_address) == notes_owner`.
 2. Each note's `leaf_hash` exists under `header_H.state.partial.note_hash_tree.root`.
 3. Each note is not nullified at H (non-membership against `header_H.state.partial.nullifier_tree.root`) using constrained nullifier derivation from `nhk_app`.
 4. `MigrationKeyNote` for the owner exists in the note hash tree at H.
 5. Schnorr signature verifies for `mpk` from the key note.
-6. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_at_snapshot(block_hash)`).
+6. Block hash verification is enqueued to MigrationArchiveRegistry (`verify_migration_at_snapshot(block_hash)` or `verify_migration_at_block(block_number, block_hash)`).
 
 **Mode B public state migration proves:**
 
@@ -450,16 +450,13 @@ The migration API is organized in three layers:
 
 The tables below list library functions first, then app-level interfaces.
 
-### Migration Library Functions
+### Migration Library Builders
 
-| Function | Module | Key Params | Description |
-|----------|--------|-----------|-------------|
-| `lock_migration_notes` | `mode_a/ops` | `migration_data: [T; N], ...` | Create MigrationNotes and emit encrypted MigrationDataEvents |
-| `migrate_notes_mode_a` | `mode_a/ops` | `note_proof_data: [MigrationNoteProofData; N], block_header, signature, mpk, migration_archive_registry, recipient, old_app` | Verify Mode A inclusion proofs, check Schnorr signature, emit nullifiers, enqueue block verification |
-| `migrate_notes_mode_b` | `mode_b/ops` | `full_proof_data: [FullNoteProofData; N], block_header, signature, key_note, nhk, migration_archive_registry, old_app, ...` | Verify Mode B inclusion + non-nullification proofs, check Schnorr signature, verify key note |
-| `migrate_public_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, migration_archive_registry, old_app` | Verify public data tree inclusion at snapshot height, emit nullifiers |
-| `migrate_public_map_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys, migration_archive_registry, old_app` | Derive map storage slot via `poseidon2_hash_with_separator([slot, key], DOM_SEP__PUBLIC_STORAGE_MAP_SLOT)`, delegate to `migrate_public_state_mode_b` |
-| `migrate_public_map_owned_state_mode_b` | `mode_b/ops` | `proof: PublicStateProofData, block_header, base_storage_slot, map_keys, signature, key_note, old_owner, recipient, migration_archive_registry, old_app` | Owned map migration with Schnorr auth |
+| Builder | Module | Key Methods | Description |
+|---------|--------|------------|-------------|
+| `MigrationLock` | `mode_a/builder` | `.lock_state(data)`, `.finish()` | Create MigrationNotes and emit encrypted MigrationDataEvents |
+| `MigrationModeA` | `mode_a/builder` | `.with_note(proof)`, `.finish(recipient, signature)` | Verify Mode A inclusion proofs, check Schnorr signature, emit nullifiers, enqueue block verification |
+| `MigrationModeB` | `mode_b/builder` | `.with_note(proof, slot)`, `.with_public_state(proof, slot)`, `.with_public_map_state(proof, slot, keys)`, `.with_l1_to_l2_message(proof)`, `.finish_at_snapshot(...)`, `.finish_at_block(...)` | Verify Mode B inclusion + non-nullification proofs, check Schnorr signature, verify key note. `finish_at_snapshot` checks against the fixed snapshot block hash; `finish_at_block` checks against any registered block hash |
 
 > **Note:** Mode B library functions accept an `expected_storage_slot` parameter to bind the proof to a specific storage location, preventing slot substitution attacks.
 

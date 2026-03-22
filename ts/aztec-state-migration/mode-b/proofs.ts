@@ -7,6 +7,8 @@ import {
   deriveStorageSlotInMap,
 } from "@aztec/stdlib/hash";
 import {
+  FullL1ToL2MessageProofData,
+  L1ToL2MessageProofData,
   NonNullificationProofData,
   PublicDataProof,
   PublicDataSlotProof,
@@ -14,6 +16,8 @@ import {
 import type { NoteDao } from "@aztec/stdlib/note";
 import type { AbiType } from "@aztec/stdlib/abi";
 import { BlockHash } from "@aztec/stdlib/block";
+import { L1ToL2Message } from "@aztec/stdlib/messaging";
+import { computeL1ToL2MessageNullifier } from "@aztec/stdlib/hash";
 
 /**
  * Build a {@link NonNullificationProofData} proving that a note has **not** been nullified.
@@ -199,6 +203,124 @@ function countPackedSlots(abiType: AbiType): number {
       // field, integer, boolean → 1 slot each
       return 1;
   }
+}
+
+// ============================================================
+// L1-to-L2 message proofs
+// ============================================================
+
+/**
+ * Build a {@link L1ToL2MessageProofData} proving that an L1-to-L2 message
+ * exists in the message tree at the given block.
+ *
+ * @param node - Aztec node client to query the message tree.
+ * @param blockReference - Block number or hash at which to prove inclusion.
+ * @param message - The L1-to-L2 message to prove.
+ * @param secret - The spending secret (preimage of the message's secretHash).
+ * @returns Message inclusion proof data for the Noir circuit.
+ */
+export async function buildL1ToL2MessageProof(
+  node: AztecNode,
+  blockReference: BlockNumber | BlockHash,
+  message: L1ToL2Message,
+  secret: Fr,
+): Promise<L1ToL2MessageProofData> {
+  const messageHash = message.hash();
+  const witness = await node.getL1ToL2MessageMembershipWitness(
+    blockReference,
+    messageHash,
+  );
+  if (!witness) {
+    throw new Error(
+      `Could not get L1-to-L2 message membership witness for ${messageHash}`,
+    );
+  }
+  const [_leafIndex, siblingPath] = witness;
+
+  return {
+    sender: message.sender.sender,
+    content: message.content,
+    secret: secret,
+    leaf_index: message.index,
+    sibling_path: siblingPath.toFields(),
+  };
+}
+
+/**
+ * Build a {@link NonNullificationProofData} proving that an L1-to-L2 message
+ * has **not** been consumed (its consumption nullifier is absent from the nullifier tree).
+ *
+ * @param node - Aztec node client to query the nullifier tree.
+ * @param blockReference - Block number or hash at which to prove non-inclusion.
+ * @param recipientContract - The contract that would consume the message (old app address).
+ * @param message - The L1-to-L2 message to check.
+ * @param secret - The spending secret (preimage of secretHash).
+ * @returns Low-nullifier witness data for the Noir non-inclusion check.
+ */
+export async function buildL1ToL2MessageNullifierProof(
+  node: AztecNode,
+  blockReference: BlockNumber | BlockHash,
+  recipientContract: AztecAddress,
+  message: L1ToL2Message,
+  secret: Fr,
+): Promise<NonNullificationProofData> {
+  const messageHash = message.hash();
+  const siloedNullifier = await computeL1ToL2MessageNullifier(
+    recipientContract,
+    messageHash,
+    secret,
+  );
+  const lowNullifierWitness = await node.getLowNullifierMembershipWitness(
+    blockReference,
+    siloedNullifier,
+  );
+  if (!lowNullifierWitness) {
+    throw new Error(
+      "Could not get low nullifier witness for L1-to-L2 message consumption nullifier",
+    );
+  }
+  return {
+    low_nullifier_value: new Fr(lowNullifierWitness.leafPreimage.getKey()),
+    low_nullifier_next_value: new Fr(
+      lowNullifierWitness.leafPreimage.getNextKey(),
+    ),
+    low_nullifier_next_index: new Fr(
+      lowNullifierWitness.leafPreimage.getNextIndex(),
+    ),
+    low_nullifier_leaf_index: new Fr(lowNullifierWitness.index),
+    low_nullifier_sibling_path: lowNullifierWitness.siblingPath.toFields(),
+  };
+}
+
+/**
+ * Build a {@link FullL1ToL2MessageProofData} — message inclusion proof
+ * combined with consumption nullifier non-inclusion proof.
+ *
+ * @param node - Aztec node client.
+ * @param blockReference - Block number or hash at which to prove.
+ * @param recipientContract - The contract that would consume the message (old app address).
+ * @param message - The L1-to-L2 message.
+ * @param secret - The spending secret.
+ * @returns Combined proof data for the Noir circuit.
+ */
+export async function buildFullL1ToL2MessageProof(
+  node: AztecNode,
+  blockReference: BlockNumber | BlockHash,
+  recipientContract: AztecAddress,
+  message: L1ToL2Message,
+  secret: Fr,
+): Promise<FullL1ToL2MessageProofData> {
+  const [message_proof_data, non_nullification_proof_data] = await Promise.all([
+    buildL1ToL2MessageProof(node, blockReference, message, secret),
+    buildL1ToL2MessageNullifierProof(
+      node,
+      blockReference,
+      recipientContract,
+      message,
+      secret,
+    ),
+  ]);
+  return { message_proof_data, non_nullification_proof_data };
 }
 
 async function deriveNestedMapStorageSlot(

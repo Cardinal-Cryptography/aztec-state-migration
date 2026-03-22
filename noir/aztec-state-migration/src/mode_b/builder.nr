@@ -1,6 +1,9 @@
-use crate::{constants::DOM_SEP__CLAIM_B, signature::MigrationSignature};
+use crate::{
+    constants::{DOM_SEP__CLAIM_B, DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER},
+    signature::MigrationSignature,
+};
 use super::{
-    FullNoteProofData, key_note_proof_data::KeyNoteProofData,
+    FullL1ToL2MessageProofData, FullNoteProofData, key_note_proof_data::KeyNoteProofData,
     public_state_proof_data::PublicStateProofData,
 };
 use aztec::{
@@ -52,6 +55,14 @@ use std::{
 ///       .with_notes_owner(owner, key_note, public_keys, partial_address, nhk)
 ///       .with_note(proof, slot)                               // repeat for each note
 ///       .finish_at_snapshot(recipient, signature);            // or .finish_at_block(recipient, signature, block_number);
+///```
+///
+/// ### Unconsumed L1-to-L2 messages:
+///```
+///   MigrationModeB::new(context, old_app, archive_registry, block_header)
+///       .without_owner()
+///       .with_l1_to_l2_message(full_message_proof)
+///       .finish_at_snapshot();
 ///```
 ///
 /// ### Or mix and match as needed (e.g. owned public state and private notes).
@@ -192,6 +203,37 @@ impl MigrationModeB {
             .call(self.context);
     }
 
+    fn _migrate_l1_to_l2_message(self, full_proof: FullL1ToL2MessageProofData) -> Field {
+        let message_proof = full_proof.message_proof_data;
+        let non_null_proof = full_proof.non_nullification_proof_data;
+        let secret = message_proof.secret;
+
+        // 1. Verify message inclusion in L1-to-L2 message tree
+        let message_hash = message_proof.verify_message_inclusion(
+            self.block_header.state.l1_to_l2_message_tree.root,
+            self.block_header.global_variables.chain_id,
+            self.old_app,
+            self.block_header.global_variables.version,
+        );
+
+        // 2. Verify message was not consumed (nullifier non-inclusion)
+        let _ = non_null_proof.verify_message_nullifier_non_inclusion(
+            message_hash,
+            secret,
+            self.old_app,
+            self.block_header.state.partial.nullifier_tree.root,
+        );
+
+        // 3. Push migration nullifier to prevent double-migration
+        let migration_nullifier = poseidon2_hash_with_separator(
+            [message_hash, secret, self.old_app.to_field()],
+            DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER,
+        );
+        self.context.push_nullifier(migration_nullifier);
+
+        message_hash
+    }
+
     pub fn without_owner(self) -> MigrationWithoutOwnerModeB {
         MigrationWithoutOwnerModeB { inner: self }
     }
@@ -247,6 +289,11 @@ impl MigrationWithoutOwnerModeB {
         self
     }
 
+    pub fn with_l1_to_l2_message(mut self, proof_data: FullL1ToL2MessageProofData) -> Self {
+        let _ = self.inner._migrate_l1_to_l2_message(proof_data);
+        self
+    }
+
     pub fn finish_at_snapshot(self) {
         self.inner._finish_at_snapshot()
     }
@@ -298,6 +345,12 @@ impl MigrationWithOwnedStateModeB {
         for d in proof_data.data.pack() {
             self.hasher.write(d);
         }
+        self
+    }
+
+    pub fn with_l1_to_l2_message(mut self, proof_data: FullL1ToL2MessageProofData) -> Self {
+        let message_hash = self.inner._migrate_l1_to_l2_message(proof_data);
+        self.hasher.write(message_hash);
         self
     }
 
@@ -375,6 +428,12 @@ impl MigrationWithOwnedNotesModeB {
     ) -> Self {
         let note_hash = self.migrate_note(proof_data, expected_storage_slot);
         self.inner.hasher.write(note_hash);
+        self
+    }
+
+    pub fn with_l1_to_l2_message(mut self, proof_data: FullL1ToL2MessageProofData) -> Self {
+        let message_hash = self.inner.inner._migrate_l1_to_l2_message(proof_data);
+        self.inner.hasher.write(message_hash);
         self
     }
 

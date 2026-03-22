@@ -20,8 +20,8 @@ Old Rollup L2                  L1                         New Rollup L2
 | MigrationKeyRegistry  |   |   sends L1->L2   |   |   verify_migration_at_snapshot() |
 |   register(mpk)       |   |   message via    |   +-------------+----------------+
 |   (Mode B only)       |   |   Inbox          |                 | reads
-+-----------------------+   +------------------+   +-------------v----------------+
-                                                    | App Contract (new rollup)    |
++-----------------------+   +------------------+    +------------v-----------------+
+                                                    |  App Contract (new rollup)   |
                                                     |   migrate_mode_a()           |
                                                     |   migrate_mode_b()           |
                                                     |   migrate_to_public_*()      |
@@ -45,8 +45,14 @@ Module structure (`noir/aztec-state-migration/src/`):
 
 | Module | Contents |
 |--------|----------|
-| `mode_a/ops` | `lock_migration_notes`, `migrate_notes_mode_a` |
-| `mode_b/ops` | `migrate_notes_mode_b`, `migrate_public_state_mode_b`, `migrate_public_map_state_mode_b`, `migrate_public_map_owned_state_mode_b` |
+| `mode_a/builder` | `MigrationModeA` builder (claim), `MigrationLock` builder (lock) |
+| `mode_a/migration_note` | `MigrationNote` (lock note committed on old rollup) |
+| `mode_a/migration_data_event` | `MigrationDataEvent<T>` (encrypted event delivering original data to claimer) |
+| `mode_b/builder` | `MigrationModeB` builder with `finish_at_snapshot()` / `finish_at_block()` variants |
+| `mode_b/key_note_proof_data` | `KeyNoteProofData` (inclusion proof for `MigrationKeyNote`) |
+| `mode_b/non_nullification_proof_data` | `NonNullificationProofData` (nullifier non-membership proof) |
+| `mode_b/public_state_proof_data` | `PublicStateProofData<T, N>`, `PublicStateSlotProofData` |
+| `mode_b/l1_to_l2_message_proof_data` | `L1ToL2MessageProofData`, `FullL1ToL2MessageProofData` |
 | `note_proof_data` | `NoteProofData<T>` (shared by both modes) |
 | `signature` | `MigrationSignature` (Schnorr signature wrapper) |
 | `constants` | Domain separators (`DOM_SEP__*`). See [Constants Reference](constants.md) for the full list and production requirements. |
