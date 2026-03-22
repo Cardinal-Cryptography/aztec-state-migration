@@ -1,5 +1,5 @@
 use aztec::{
-    hash::compute_l1_to_l2_message_hash,
+    hash::{compute_l1_to_l2_message_hash, compute_secret_hash},
     protocol::{
         address::{AztecAddress, EthAddress},
         constants::L1_TO_L2_MSG_TREE_HEIGHT,
@@ -18,8 +18,8 @@ pub struct L1ToL2MessageProofData {
     pub sender: EthAddress,
     /// Message content (application-specific payload)
     pub content: Field,
-    /// Hash of the spending secret
-    pub secret_hash: Field,
+    /// The spending secret
+    pub secret: Field,
     /// Index of the message leaf in the L1-to-L2 message tree
     pub leaf_index: Field,
     /// Merkle sibling path from the leaf to the root
@@ -34,13 +34,14 @@ impl L1ToL2MessageProofData {
         recipient: AztecAddress,
         version: Field,
     ) -> Field {
+        let secret_hash = compute_secret_hash(self.secret);
         compute_l1_to_l2_message_hash(
             self.sender,
             chain_id,
             recipient,
             version,
             self.content,
-            self.secret_hash,
+            secret_hash,
             self.leaf_index,
         )
     }

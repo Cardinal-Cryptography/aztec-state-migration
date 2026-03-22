@@ -61,7 +61,7 @@ use std::{
 ///```
 ///   MigrationModeB::new(context, old_app, archive_registry, block_header)
 ///       .without_owner()
-///       .with_l1_to_l2_message(full_message_proof, secret)
+///       .with_l1_to_l2_message(full_message_proof)
 ///       .finish_at_snapshot();
 ///```
 ///
@@ -203,13 +203,10 @@ impl MigrationModeB {
             .call(self.context);
     }
 
-    fn _migrate_l1_to_l2_message(
-        self,
-        full_proof: FullL1ToL2MessageProofData,
-        secret: Field,
-    ) -> Field {
+    fn _migrate_l1_to_l2_message(self, full_proof: FullL1ToL2MessageProofData) -> Field {
         let message_proof = full_proof.message_proof_data;
         let non_null_proof = full_proof.non_nullification_proof_data;
+        let secret = message_proof.secret;
 
         // 1. Verify message inclusion in L1-to-L2 message tree
         let message_hash = message_proof.verify_message_inclusion(
@@ -229,7 +226,7 @@ impl MigrationModeB {
 
         // 3. Push migration nullifier to prevent double-migration
         let migration_nullifier = poseidon2_hash_with_separator(
-            [message_hash, self.old_app.to_field()],
+            [message_hash, secret, self.old_app.to_field()],
             DOM_SEP__L1_TO_L2_MIGRATION_NULLIFIER,
         );
         self.context.push_nullifier(migration_nullifier);
@@ -292,12 +289,8 @@ impl MigrationWithoutOwnerModeB {
         self
     }
 
-    pub fn with_l1_to_l2_message(
-        mut self,
-        proof_data: FullL1ToL2MessageProofData,
-        secret: Field,
-    ) -> Self {
-        let _ = self.inner._migrate_l1_to_l2_message(proof_data, secret);
+    pub fn with_l1_to_l2_message(mut self, proof_data: FullL1ToL2MessageProofData) -> Self {
+        let _ = self.inner._migrate_l1_to_l2_message(proof_data);
         self
     }
 
@@ -355,12 +348,8 @@ impl MigrationWithOwnedStateModeB {
         self
     }
 
-    pub fn with_l1_to_l2_message(
-        mut self,
-        proof_data: FullL1ToL2MessageProofData,
-        secret: Field,
-    ) -> Self {
-        let message_hash = self.inner._migrate_l1_to_l2_message(proof_data, secret);
+    pub fn with_l1_to_l2_message(mut self, proof_data: FullL1ToL2MessageProofData) -> Self {
+        let message_hash = self.inner._migrate_l1_to_l2_message(proof_data);
         self.hasher.write(message_hash);
         self
     }
@@ -442,12 +431,8 @@ impl MigrationWithOwnedNotesModeB {
         self
     }
 
-    pub fn with_l1_to_l2_message(
-        mut self,
-        proof_data: FullL1ToL2MessageProofData,
-        secret: Field,
-    ) -> Self {
-        let message_hash = self.inner.inner._migrate_l1_to_l2_message(proof_data, secret);
+    pub fn with_l1_to_l2_message(mut self, proof_data: FullL1ToL2MessageProofData) -> Self {
+        let message_hash = self.inner.inner._migrate_l1_to_l2_message(proof_data);
         self.inner.hasher.write(message_hash);
         self
     }

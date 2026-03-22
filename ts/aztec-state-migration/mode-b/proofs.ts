@@ -216,12 +216,14 @@ function countPackedSlots(abiType: AbiType): number {
  * @param node - Aztec node client to query the message tree.
  * @param blockReference - Block number or hash at which to prove inclusion.
  * @param message - The L1-to-L2 message to prove.
+ * @param secret - The spending secret (preimage of the message's secretHash).
  * @returns Message inclusion proof data for the Noir circuit.
  */
 export async function buildL1ToL2MessageProof(
   node: AztecNode,
   blockReference: BlockNumber | BlockHash,
   message: L1ToL2Message,
+  secret: Fr,
 ): Promise<L1ToL2MessageProofData> {
   const messageHash = message.hash();
   const witness = await node.getL1ToL2MessageMembershipWitness(
@@ -238,7 +240,7 @@ export async function buildL1ToL2MessageProof(
   return {
     sender: message.sender.sender,
     content: message.content,
-    secret_hash: message.secretHash,
+    secret: secret,
     leaf_index: message.index,
     sibling_path: siblingPath.toFields(),
   };
@@ -309,7 +311,7 @@ export async function buildFullL1ToL2MessageProof(
   secret: Fr,
 ): Promise<FullL1ToL2MessageProofData> {
   const [message_proof_data, non_nullification_proof_data] = await Promise.all([
-    buildL1ToL2MessageProof(node, blockReference, message),
+    buildL1ToL2MessageProof(node, blockReference, message, secret),
     buildL1ToL2MessageNullifierProof(
       node,
       blockReference,

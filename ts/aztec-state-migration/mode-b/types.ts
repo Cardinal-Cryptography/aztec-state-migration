@@ -1,6 +1,5 @@
 import { type Fr } from "@aztec/foundation/curves/bn254";
 import { type EthAddress } from "@aztec/foundation/eth-address";
-import { type AztecAddress } from "@aztec/stdlib/aztec-address";
 import { NoteProofData } from "../types.js";
 import { Note } from "@aztec/stdlib/note";
 
@@ -61,8 +60,8 @@ export interface L1ToL2MessageProofData {
   sender: EthAddress;
   /** Message content (application-specific payload) */
   content: Fr;
-  /** Hash of the spending secret */
-  secret_hash: Fr;
+  /** The spending secret (preimage of secret_hash committed in the message) */
+  secret: Fr;
   /** Index of the message leaf in the L1-to-L2 message tree */
   leaf_index: Fr;
   /** Merkle sibling path from the leaf to the root */

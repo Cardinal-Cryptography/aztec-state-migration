@@ -279,7 +279,6 @@ pub contract ExampleMigrationAppV2 {
     #[external("private")]
     fn migrate_l1_to_l2_message_mode_b(
         message_proof: FullL1ToL2MessageProofData,
-        secret: Field,
         block_header: BlockHeader,
     ) {
         let recipient = self.msg_sender();
@@ -292,7 +291,7 @@ pub contract ExampleMigrationAppV2 {
             block_header,
         )
             .without_owner()
-            .with_l1_to_l2_message(message_proof, secret)
+            .with_l1_to_l2_message(message_proof)
             .finish_at_snapshot();
 
         // Credit the message content as balance

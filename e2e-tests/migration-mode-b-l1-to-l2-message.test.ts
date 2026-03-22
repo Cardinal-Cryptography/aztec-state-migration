@@ -236,7 +236,7 @@ async function main() {
   console.log(`   Balance on NEW rollup before: ${balanceBefore}`);
 
   await newAppUser.methods
-    .migrate_l1_to_l2_message_mode_b(messageProof, msgSecret, blockHeader)
+    .migrate_l1_to_l2_message_mode_b(messageProof, blockHeader)
     .send({ from: newUserManager.address });
 
   const { result: balanceAfter } = await newAppUser.methods
@@ -260,7 +260,7 @@ async function main() {
 
   await expectRevert(
     newAppUser.methods
-      .migrate_l1_to_l2_message_mode_b(messageProof, msgSecret, blockHeader)
+      .migrate_l1_to_l2_message_mode_b(messageProof, blockHeader)
       .send({ from: newUserManager.address }),
     "Existing nullifier",
   );
@@ -283,11 +283,7 @@ async function main() {
 
   await expectRevert(
     newAppUser.methods
-      .migrate_l1_to_l2_message_mode_b(
-        consumedMessageProof,
-        consumedSecret,
-        blockHeader,
-      )
+      .migrate_l1_to_l2_message_mode_b(consumedMessageProof, blockHeader)
       .send({ from: newUserManager.address }),
     "Nullifier non-inclusion",
   );
