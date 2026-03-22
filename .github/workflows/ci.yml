@@ -13,7 +13,7 @@ concurrency:
 
 env:
   NODE_VERSION: '24.12.0'
-  AZTEC_VERSION: 4.0.0-devnet.2-patch.0
+  AZTEC_VERSION: 4.1.0-rc.4
   NARGO_VERSION: 1.0.0-beta.18
 
 jobs:

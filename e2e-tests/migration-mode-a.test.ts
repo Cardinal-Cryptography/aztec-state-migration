@@ -74,7 +74,7 @@ async function main() {
   await oldAppUser.methods
     .mint(oldUserManager.address, MINT_AMOUNT)
     .send({ from: oldUserManager.address });
-  const oldBalanceAfterMint = await oldAppUser.methods
+  const { result: oldBalanceAfterMint } = await oldAppUser.methods
     .get_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Minted ${MINT_AMOUNT}, balance: ${oldBalanceAfterMint}\n`);
@@ -97,7 +97,7 @@ async function main() {
     )
     .send({ from: oldUserManager.address });
 
-  const oldBalanceAfterLock = await oldAppUser.methods
+  const { result: oldBalanceAfterLock } = await oldAppUser.methods
     .get_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Balance after lock: ${oldBalanceAfterLock}\n`);
@@ -152,7 +152,7 @@ async function main() {
 
   console.log("Step 7. Calling migrate on NEW rollup...");
 
-  const newBalanceBefore = await newAppUser.methods
+  const { result: newBalanceBefore } = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before migrate: ${newBalanceBefore}`);
@@ -166,7 +166,7 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newBalanceAfter = await newAppUser.methods
+  const { result: newBalanceAfter } = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup after: ${newBalanceAfter}`);
@@ -205,7 +205,7 @@ async function main() {
     .mint_public(oldUserManager.address, PUBLIC_MINT_AMOUNT)
     .send({ from: oldUserManager.address });
 
-  const oldPublicBalanceAfterMint = await oldAppUser.methods
+  const { result: oldPublicBalanceAfterMint } = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(
@@ -232,7 +232,7 @@ async function main() {
     )
     .send({ from: oldUserManager.address });
 
-  const oldPublicBalanceAfterLock = await oldAppUser.methods
+  const { result: oldPublicBalanceAfterLock } = await oldAppUser.methods
     .get_public_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(
@@ -307,7 +307,7 @@ async function main() {
   // ============================================================
   console.log("Step 12. Calling migrate_to_public_mode_a on NEW rollup...");
 
-  const newPublicBalanceBefore = await newAppUser.methods
+  const { result: newPublicBalanceBefore } = await newAppUser.methods
     .get_public_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(
@@ -323,7 +323,7 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newPublicBalanceAfter = await newAppUser.methods
+  const { result: newPublicBalanceAfter } = await newAppUser.methods
     .get_public_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(

@@ -101,7 +101,7 @@ async function main() {
     .send({ from: oldUserManager.address });
   console.log(`   Burned ${BURN_AMOUNT_1} tokens (burn 1)`);
 
-  const oldBalance = await oldAppUser.methods
+  const { result: oldBalance } = await oldAppUser.methods
     .get_balance(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Total balance on OLD rollup: ${oldBalance}\n`);
@@ -124,7 +124,7 @@ async function main() {
     .register(mpk.toNoirStruct())
     .send({ from: oldUserManager.address });
 
-  const registeredKey = await oldUserKeyRegistry.methods
+  const { result: registeredKey } = await oldUserKeyRegistry.methods
     .get(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Verified registered mpk: ${registeredKey}\n`);
@@ -150,7 +150,7 @@ async function main() {
     )
     .send({ from: newDeployerManager.address });
 
-  const storedSnapshot = await newArchiveRegistry.methods
+  const { result: storedSnapshot } = await newArchiveRegistry.methods
     .get_snapshot_height()
     .simulate({ from: newDeployerManager.address });
   console.log(`   Stored snapshot height: ${storedSnapshot}\n`);
@@ -239,7 +239,7 @@ async function main() {
   const migrateAmount = fullProof.note_proof_data.data.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
-  const newBalanceBefore = await newAppUser.methods
+  const { result: newBalanceBefore } = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup before : ${newBalanceBefore}`);
@@ -257,7 +257,7 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newBalanceAfter = await newAppUser.methods
+  const { result: newBalanceAfter } = await newAppUser.methods
     .get_balance(newUserManager.address)
     .simulate({ from: newUserManager.address });
   console.log(`   Balance on NEW rollup after : ${newBalanceAfter}`);

@@ -104,7 +104,7 @@ async function main() {
     .send({ from: oldUserManager.address });
   console.log(`   Burned ${BURN_AMOUNT} tokens`);
 
-  const oldBalance = await oldAppUser.methods
+  const { result: oldBalance } = await oldAppUser.methods
     .balance_of_private(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   assertEq(
@@ -113,7 +113,7 @@ async function main() {
     "Old balance after burn",
   );
 
-  const oldTotalSupply = await oldApp.methods
+  const { result: oldTotalSupply } = await oldApp.methods
     .total_supply()
     .simulate({ from: oldDeployerManager.address });
   assertEq(
@@ -141,7 +141,7 @@ async function main() {
     .register(mpk.toNoirStruct())
     .send({ from: oldUserManager.address });
 
-  const registeredKey = await oldUserKeyRegistry.methods
+  const { result: registeredKey } = await oldUserKeyRegistry.methods
     .get(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Verified registered mpk: ${registeredKey}\n`);
@@ -166,7 +166,7 @@ async function main() {
     )
     .send({ from: newDeployerManager.address });
 
-  const storedSnapshot = await newArchiveRegistry.methods
+  const { result: storedSnapshot } = await newArchiveRegistry.methods
     .get_snapshot_height()
     .simulate({ from: newDeployerManager.address });
   console.log(`   Stored snapshot height: ${storedSnapshot}\n`);
@@ -253,7 +253,7 @@ async function main() {
   const migrateAmount = fullProof.note_proof_data.data.value;
   console.log(`   Migrating amount: ${migrateAmount}`);
 
-  const newBalanceBefore = await newAppUser.methods
+  const { result: newBalanceBefore } = await newAppUser.methods
     .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
   assertEq(newBalanceBefore, 0n, "New balance before migrate");
@@ -272,12 +272,12 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newBalanceAfter = await newAppUser.methods
+  const { result: newBalanceAfter } = await newAppUser.methods
     .balance_of_private(newUserManager.address)
     .simulate({ from: newUserManager.address });
   assertEq(newBalanceAfter, migrateAmount, "New balance after migrate");
 
-  const newTotalSupply = await newApp.methods
+  const { result: newTotalSupply } = await newApp.methods
     .total_supply()
     .simulate({ from: newDeployerManager.address });
   assertEq(newTotalSupply, migrateAmount, "New total supply after migrate");

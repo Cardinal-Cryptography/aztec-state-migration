@@ -131,9 +131,10 @@ async function main() {
   await oldAppUser.methods
     .init_struct_single(STRUCT_SINGLE)
     .send({ from: oldUserManager.address });
-  let structResult: SomeStruct = await oldAppUser.methods
-    .get_struct_single()
-    .simulate({ from: oldUserManager.address });
+  let { result: structResult }: { result: SomeStruct } =
+    await oldAppUser.methods
+      .get_struct_single()
+      .simulate({ from: oldUserManager.address });
   assertEq(structResult, STRUCT_SINGLE, "Struct single");
 
   // Set struct in map
@@ -142,9 +143,11 @@ async function main() {
   await oldAppUser.methods
     .init_struct_map(STRUCT_MAP_KEY, STRUCT_MAP)
     .send({ from: oldUserManager.address });
-  structResult = await oldAppUser.methods
-    .get_struct_map(STRUCT_MAP_KEY)
-    .simulate({ from: oldUserManager.address });
+  structResult = (
+    await oldAppUser.methods
+      .get_struct_map(STRUCT_MAP_KEY)
+      .simulate({ from: oldUserManager.address })
+  ).result;
   assertEq(structResult, STRUCT_MAP, "Struct map");
 
   // Set owned struct in map
@@ -153,9 +156,11 @@ async function main() {
   await oldAppUser.methods
     .init_owned_struct_map(OWNED_STRUCT_MAP)
     .send({ from: OWNED_STRUCT_MAP_OWNER });
-  structResult = await oldAppUser.methods
-    .get_owned_struct_map(OWNED_STRUCT_MAP_OWNER)
-    .simulate({ from: oldUserManager.address });
+  structResult = (
+    await oldAppUser.methods
+      .get_owned_struct_map(OWNED_STRUCT_MAP_OWNER)
+      .simulate({ from: oldUserManager.address })
+  ).result;
   assertEq(structResult, OWNED_STRUCT_MAP, "Owned struct map");
 
   // Set owned struct in nested map
@@ -168,12 +173,14 @@ async function main() {
       OWNED_STRUCT_NESTED_MAP,
     )
     .send({ from: OWNED_STRUCT_NESTED_MAP_OWNER });
-  structResult = await oldAppUser.methods
-    .get_owned_struct_nested_map(
-      OWNED_STRUCT_NESTED_MAP_KEY,
-      OWNED_STRUCT_NESTED_MAP_OWNER,
-    )
-    .simulate({ from: OWNED_STRUCT_NESTED_MAP_OWNER });
+  structResult = (
+    await oldAppUser.methods
+      .get_owned_struct_nested_map(
+        OWNED_STRUCT_NESTED_MAP_KEY,
+        OWNED_STRUCT_NESTED_MAP_OWNER,
+      )
+      .simulate({ from: OWNED_STRUCT_NESTED_MAP_OWNER })
+  ).result;
   assertEq(structResult, OWNED_STRUCT_NESTED_MAP, "Owned struct nested map");
 
   // ============================================================
@@ -267,9 +274,11 @@ async function main() {
     .migrate_to_public_struct_mode_b(structSingleProof, blockHeader)
     .send({ from: newUserManager.address });
   // Verify struct was set on new rollup
-  structResult = await newAppUser.methods
-    .get_struct_single()
-    .simulate({ from: newUserManager.address });
+  structResult = (
+    await newAppUser.methods
+      .get_struct_single()
+      .simulate({ from: newUserManager.address })
+  ).result;
   assertEq(structResult, STRUCT_SINGLE, "Migrated struct single");
   console.log("Single struct migration successful!");
 
@@ -282,9 +291,11 @@ async function main() {
     )
     .send({ from: newUserManager.address });
   // Verify struct was set on new rollup
-  structResult = await newAppUser.methods
-    .get_struct_map(STRUCT_MAP_KEY)
-    .simulate({ from: newUserManager.address });
+  structResult = (
+    await newAppUser.methods
+      .get_struct_map(STRUCT_MAP_KEY)
+      .simulate({ from: newUserManager.address })
+  ).result;
   assertEq(structResult, STRUCT_MAP, "Migrated struct map");
   console.log("Struct map migration successful!");
 
@@ -315,9 +326,11 @@ async function main() {
     )
     .send({ from: newUserManager.address });
   // Verify struct was set on new rollup
-  structResult = await newAppUser.methods
-    .get_owned_struct_map(newUserManager.address)
-    .simulate({ from: newUserManager.address });
+  structResult = (
+    await newAppUser.methods
+      .get_owned_struct_map(newUserManager.address)
+      .simulate({ from: newUserManager.address })
+  ).result;
   assertEq(structResult, OWNED_STRUCT_MAP, "Migrated owned struct map");
   console.log("Owned struct map migration successful!");
 
@@ -353,12 +366,14 @@ async function main() {
     )
     .send({ from: newUser2Manager.address });
   // Verify struct was set on new rollup
-  structResult = await newAppUser.methods
-    .get_owned_struct_nested_map(
-      OWNED_STRUCT_NESTED_MAP_KEY,
-      newUser2Manager.address,
-    )
-    .simulate({ from: newUser2Manager.address });
+  structResult = (
+    await newAppUser.methods
+      .get_owned_struct_nested_map(
+        OWNED_STRUCT_NESTED_MAP_KEY,
+        newUser2Manager.address,
+      )
+      .simulate({ from: newUser2Manager.address })
+  ).result;
   assertEq(
     structResult,
     OWNED_STRUCT_NESTED_MAP,

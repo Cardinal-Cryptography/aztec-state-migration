@@ -1,6 +1,6 @@
 [[dependencies]]
 name = "@aztec"
-version = "v4.0.0-devnet.2-patch.0"
+version = "v4.1.0-rc.4"
 git = "https://github.com/AztecProtocol/l1-contracts.git"
 rev = "0888c28df47b37c5f017caa6101edd9c68199586"
 

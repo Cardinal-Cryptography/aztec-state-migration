@@ -46,9 +46,9 @@ export async function assertPrivateNftOwnership(
   shouldOwn: boolean,
   from: AztecAddress,
 ) {
-  const [nftIds, _hasMore] = await contract.methods
-    .get_private_nfts(owner, 0)
-    .simulate({ from });
+  const {
+    result: [nftIds, _hasMore],
+  } = await contract.methods.get_private_nfts(owner, 0).simulate({ from });
   const owns = nftIds.some((id: bigint) => id === tokenId);
   if (shouldOwn && !owns) {
     throw new Error(`Expected ${owner} to privately own NFT ${tokenId}`);
@@ -118,7 +118,7 @@ export async function deployAppPair(
 ) {
   const old_r = env[env.oldRollupVersion];
   const new_r = env[env.newRollupVersion];
-  const oldApp = await ExampleMigrationAppV1Contract.deploy(
+  const { contract: oldApp } = await ExampleMigrationAppV1Contract.deploy(
     old_r.deployerWallet,
   ).send({ from: old_r.deployerManager.address });
   const oldAppInstance = (
@@ -132,7 +132,7 @@ export async function deployAppPair(
 
   const effectiveOldAppAddress = oldAppAddress ?? oldApp.address;
 
-  const newApp = await ExampleMigrationAppV2Contract.deploy(
+  const { contract: newApp } = await ExampleMigrationAppV2Contract.deploy(
     new_r.deployerWallet,
     newArchiveRegistryAddress,
     effectiveOldAppAddress,
@@ -171,7 +171,7 @@ export async function deployTokenAppPair(
   const symbol = tokenConfig?.symbol ?? "TST";
   const decimals = tokenConfig?.decimals ?? 18;
 
-  const oldApp = await TokenMigrationAppV1Contract.deploy(
+  const { contract: oldApp } = await TokenMigrationAppV1Contract.deploy(
     old_r.deployerWallet,
     name,
     symbol,
@@ -190,7 +190,7 @@ export async function deployTokenAppPair(
 
   const effectiveOldAppAddress = tokenConfig?.oldAppAddress ?? oldApp.address;
 
-  const newApp = await TokenMigrationAppV2Contract.deploy(
+  const { contract: newApp } = await TokenMigrationAppV2Contract.deploy(
     new_r.deployerWallet,
     name,
     symbol,
@@ -224,7 +224,7 @@ export async function deployNftAppPair(
   const old_r = env[env.oldRollupVersion];
   const new_r = env[env.newRollupVersion];
 
-  const oldApp = await NftMigrationAppV1Contract.deploy(
+  const { contract: oldApp } = await NftMigrationAppV1Contract.deploy(
     old_r.deployerWallet,
     old_r.deployerManager.address,
   ).send({ from: old_r.deployerManager.address });
@@ -240,7 +240,7 @@ export async function deployNftAppPair(
 
   const effectiveOldAppAddress = oldAppAddress ?? oldApp.address;
 
-  const newApp = await NftMigrationAppV2Contract.deploy(
+  const { contract: newApp } = await NftMigrationAppV2Contract.deploy(
     new_r.deployerWallet,
     new_r.deployerManager.address,
     newArchiveRegistryAddress,
@@ -269,7 +269,7 @@ export async function deployArchiveRegistry(
 ) {
   const old_r = env[env.oldRollupVersion];
   const new_r = env[env.newRollupVersion];
-  const registry = await MigrationArchiveRegistryContract.deploy(
+  const { contract: registry } = await MigrationArchiveRegistryContract.deploy(
     new_r.deployerWallet,
     EthAddress.fromString(env.l1MigratorAddress),
     env.oldRollupVersion,
@@ -288,7 +288,7 @@ export async function deployArchiveRegistry(
  */
 export async function deployKeyRegistry(env: DeploymentResult) {
   const old_r = env[env.oldRollupVersion];
-  const registry = await MigrationKeyRegistryContract.deploy(
+  const { contract: registry } = await MigrationKeyRegistryContract.deploy(
     old_r.deployerWallet,
   ).send({ from: old_r.deployerManager.address });
 
@@ -425,6 +425,14 @@ export async function bridgeBlock(
     );
   }
   const blockHash = await blockHeader.hash();
+
+  // Ensure the old rollup has at least one block beyond the proven block,
+  // so the archive tree at 'latest' contains the proven block's hash.
+  const latestOld = await old_r.aztecNode.getBlockNumber();
+  if (latestOld <= provenBlockNumber) {
+    await produceBlock(env, old_r.aztecNode);
+  }
+
   const archiveProof = await buildArchiveProof(old_r.aztecNode, blockHash);
 
   // Step 4a: Consume L1-to-L2 message (stores trusted archive root)
@@ -579,10 +587,14 @@ async function waitForL1ToL2Message(
 ): Promise<void> {
   await waitUntil(
     async () => {
-      const messageBlock = await aztecNode.getL1ToL2MessageBlock(messageHash);
-      if (!messageBlock) return undefined;
-      const proven = await aztecNode.getProvenBlockNumber();
-      return proven >= messageBlock ? messageBlock : undefined;
+      const checkpoint =
+        await aztecNode.getL1ToL2MessageCheckpoint(messageHash);
+      if (checkpoint === undefined) return undefined;
+      const latestBlock = await aztecNode.getBlock("latest");
+      return latestBlock !== undefined &&
+        latestBlock.checkpointNumber >= checkpoint
+        ? checkpoint
+        : undefined;
     },
     {
       maxAttempts: opts?.maxAttempts ?? 30,

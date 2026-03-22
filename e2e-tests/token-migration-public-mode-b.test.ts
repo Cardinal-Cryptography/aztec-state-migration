@@ -89,12 +89,12 @@ async function main() {
     .mint_to_public(oldUserManager.address, MINT_AMOUNT)
     .send({ from: oldDeployerManager.address });
 
-  const oldPublicBalance = await oldApp.methods
+  const { result: oldPublicBalance } = await oldApp.methods
     .balance_of_public(oldUserManager.address)
     .simulate({ from: oldDeployerManager.address });
   assertEq(oldPublicBalance, MINT_AMOUNT, "Old public balance after mint");
 
-  const oldTotalSupply = await oldApp.methods
+  const { result: oldTotalSupply } = await oldApp.methods
     .total_supply()
     .simulate({ from: oldDeployerManager.address });
   assertEq(oldTotalSupply, MINT_AMOUNT, "Old total supply after mint");
@@ -119,7 +119,7 @@ async function main() {
     .register(mpk.toNoirStruct())
     .send({ from: oldUserManager.address });
 
-  const registeredKey = await oldUserKeyRegistry.methods
+  const { result: registeredKey } = await oldUserKeyRegistry.methods
     .get(oldUserManager.address)
     .simulate({ from: oldUserManager.address });
   console.log(`   Verified registered mpk: ${registeredKey}\n`);
@@ -144,7 +144,7 @@ async function main() {
     )
     .send({ from: newDeployerManager.address });
 
-  const storedSnapshot = await newArchiveRegistry.methods
+  const { result: storedSnapshot } = await newArchiveRegistry.methods
     .get_snapshot_height()
     .simulate({ from: newDeployerManager.address });
   console.log(`   Stored snapshot height: ${storedSnapshot}\n`);
@@ -208,12 +208,12 @@ async function main() {
     )
     .send({ from: newUserManager.address });
 
-  const newPublicBalance = await newApp.methods
+  const { result: newPublicBalance } = await newApp.methods
     .balance_of_public(newUserManager.address)
     .simulate({ from: newDeployerManager.address });
   assertEq(newPublicBalance, MINT_AMOUNT, "New public balance after migrate");
 
-  const newTotalSupply = await newApp.methods
+  const { result: newTotalSupply } = await newApp.methods
     .total_supply()
     .simulate({ from: newDeployerManager.address });
   assertEq(newTotalSupply, MINT_AMOUNT, "New total supply after migrate");

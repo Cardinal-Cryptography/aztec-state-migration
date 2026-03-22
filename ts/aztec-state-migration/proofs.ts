@@ -58,7 +58,7 @@ export async function buildArchiveProof(
   blockHash: BlockHash,
 ): Promise<ArchiveProofData> {
   const [witness, blockHeader] = await Promise.all([
-    node.getBlockHashMembershipWitness(blockHash, blockHash),
+    node.getBlockHashMembershipWitness("latest", blockHash),
     node.getBlockHeader(blockHash),
   ]);
 
