@@ -190,8 +190,8 @@ pub contract ExampleMigrationAppV2 {
 
     /// Claim a Mode B (emergency snapshot) migration on the new rollup.
     ///
-    /// Verifies note inclusion and non-nullification at the snapshot height via
-    /// `migrate_notes_mode_b` and creates a new note.
+    /// Verifies note inclusion and non-nullification at the snapshot height
+    /// and creates a new note.
     #[external("private")]
     fn migrate_mode_b_at_snapshot(
         signature: MigrationSignature,
@@ -232,8 +232,8 @@ pub contract ExampleMigrationAppV2 {
 
     /// Claim a Mode B (app specific block number) migration on the new rollup.
     ///
-    /// Verifies note inclusion and non-nullification at the specified block number via
-    /// `migrate_notes_mode_b` and creates a new note.
+    /// Verifies note inclusion and non-nullification at the specified block number
+    /// and creates a new note.
     #[external("private")]
     fn migrate_mode_b_at_block(
         signature: MigrationSignature,

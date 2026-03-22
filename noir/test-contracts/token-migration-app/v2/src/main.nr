@@ -320,8 +320,8 @@ pub contract TokenMigrationAppV2 {
 
     /// Claim a Mode B migration for private notes on the new rollup.
     ///
-    /// Verifies note inclusion and non-nullification at the snapshot height via
-    /// `migrate_notes_mode_b`, checks the sum of note values matches `amount`,
+    /// Verifies note inclusion and non-nullification at the snapshot height,
+    /// checks the sum of note values matches `amount`,
     /// and mints the equivalent tokens to the caller's private balance.
     #[external("private")]
     fn migrate_mode_b(
